@@ -1,0 +1,9 @@
+appsettings.json
+appsettings.Development.json
+appsettings.*.json
+!appsettings.example.json
+*.user
+*.suo
+bin/
+obj/
+.agents/
