@@ -1,0 +1,88 @@
+@model IReadOnlyList<HomeHeroSlideViewModel>
+
+<div class="hero-slider"
+     aria-label="Banner quảng cáo nổi bật"
+     aria-live="off"
+     aria-roledescription="carousel"
+     role="region"
+     tabindex="0">
+    <div class="hero-slides-track" id="hero-slides-track">
+        @for (var index = 0; index < Model.Count; index++)
+        {
+            var slide = Model[index];
+
+            <article class="hero-slide hero-slide--@slide.Theme"
+                     aria-label="@(index + 1) trong @Model.Count">
+                @if (!string.IsNullOrWhiteSpace(slide.ImageUrl))
+                {
+                    <img class="hero-slide-art"
+                         src="@slide.ImageUrl"
+                         alt="@slide.ImageAlt"
+                         width="1846"
+                         height="852"
+                         loading="@(slide.IsPriority ? "eager" : "lazy")"
+                         fetchpriority="@(slide.IsPriority ? "high" : null)" />
+                }
+
+                <div class="hero-slide-content">
+                    <span class="hero-brand-chip">@slide.BrandLabel</span>
+                    <p class="hero-slide-kicker">@slide.Kicker</p>
+                    <h2 class="hero-slide-title">@slide.Title</h2>
+                    <p class="hero-slide-sub">@slide.Subtitle</p>
+                    <div class="hero-price-callout">
+                        <span>@slide.PriceLabel</span>
+                        <strong>@slide.Price</strong>
+                    </div>
+
+                    @if (slide.Services.Count > 0)
+                    {
+                        <ul class="hero-service-list" aria-label="Quyền lợi khi mua hàng">
+                            @foreach (var service in slide.Services)
+                            {
+                                <li>
+                                    <svg class="hero-ui-icon" aria-hidden="true">
+                                        <use href="@($"#hero-icon-{service.Icon}")"></use>
+                                    </svg>
+                                    <span>@service.Label <strong>@service.StrongText</strong></span>
+                                </li>
+                            }
+                        </ul>
+                    }
+
+                    <a class="hero-primary-action"
+                       href="@slide.ActionUrl"
+                       id="hero-cta-@(index + 1)">
+                        @slide.ActionLabel
+                        <svg class="hero-ui-icon" aria-hidden="true">
+                            <use href="#hero-icon-chevron"></use>
+                        </svg>
+                    </a>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(slide.FeatureIcon))
+                {
+                    <svg class="hero-slide-feature-icon hero-ui-icon" aria-hidden="true">
+                        <use href="@($"#hero-icon-{slide.FeatureIcon}")"></use>
+                    </svg>
+                }
+            </article>
+        }
+    </div>
+
+    <button class="slider-arrow slider-arrow-prev" id="hero-prev" aria-label="Slide trước" type="button">
+        <svg class="hero-ui-icon" aria-hidden="true"><use href="#hero-icon-chevron-left"></use></svg>
+    </button>
+    <button class="slider-arrow slider-arrow-next" id="hero-next" aria-label="Slide tiếp theo" type="button">
+        <svg class="hero-ui-icon" aria-hidden="true"><use href="#hero-icon-chevron"></use></svg>
+    </button>
+    <div class="slider-dots" id="hero-dots" role="tablist" aria-label="Chọn slide">
+        @for (var index = 0; index < Model.Count; index++)
+        {
+            <button class="slider-dot @(index == 0 ? "active" : null)"
+                    data-slide="@index"
+                    role="tab"
+                    aria-selected="@(index == 0 ? "true" : "false")"
+                    aria-label="@Model[index].Title"></button>
+        }
+    </div>
+</div>

@@ -1,0 +1,27 @@
+@model IReadOnlyList<HomeHeroPromoTileViewModel>
+
+<div class="hero-promo-grid" aria-label="Ưu đãi nhanh">
+    @foreach (var promo in Model)
+    {
+        <a class="hero-promo-tile hero-promo-tile--@promo.Tone" href="@promo.Url">
+            <span class="hero-promo-copy">
+                <strong>@promo.Title</strong>
+                <span>@promo.Eyebrow</span>
+                <b>@promo.Price</b>
+            </span>
+            @if (!string.IsNullOrWhiteSpace(promo.ImageUrl))
+            {
+                <img src="@promo.ImageUrl" alt="@promo.ImageAlt" width="280" height="140" loading="lazy" />
+            }
+            else if (!string.IsNullOrWhiteSpace(promo.FallbackIcon))
+            {
+                <svg class="hero-promo-illustration hero-ui-icon" aria-hidden="true">
+                    <use href="@($"#hero-icon-{promo.FallbackIcon}")"></use>
+                </svg>
+            }
+            <span class="hero-promo-arrow" aria-hidden="true">
+                <svg class="hero-ui-icon"><use href="#hero-icon-chevron"></use></svg>
+            </span>
+        </a>
+    }
+</div>

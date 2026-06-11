@@ -1,14 +1,22 @@
 using System.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
+using e_commerce_web_customer.Application.Home;
 using e_commerce_web_customer.Models;
 
 namespace e_commerce_web_customer.Controllers;
 
 public class HomeController : Controller
 {
+    private readonly IHomePageViewModelFactory _homePageViewModelFactory;
+
+    public HomeController(IHomePageViewModelFactory homePageViewModelFactory)
+    {
+        _homePageViewModelFactory = homePageViewModelFactory;
+    }
+
     public IActionResult Index()
     {
-        return View();
+        return View(_homePageViewModelFactory.Create());
     }
 
     public IActionResult Privacy()

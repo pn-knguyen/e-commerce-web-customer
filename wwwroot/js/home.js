@@ -18,15 +18,38 @@
   let autoplayTimer = null;
   let touchStartX = 0;
 
+  if (!slides.length) {
+    return;
+  }
+
+  function updateSlideAccessibility() {
+    slides.forEach((slide, slideIndex) => {
+      const isActive = slideIndex === currentSlide;
+
+      slide.setAttribute('aria-hidden', String(!isActive));
+      slide.querySelectorAll('a, button, input, select, textarea, [tabindex]').forEach((element) => {
+        if (isActive) {
+          element.removeAttribute('tabindex');
+        } else {
+          element.setAttribute('tabindex', '-1');
+        }
+      });
+    });
+  }
+
   function showSlide(index) {
     currentSlide = (index + slides.length) % slides.length;
     slidesTrack.style.transform = `translateX(-${currentSlide * 100}%)`;
 
     dots.forEach((dot, dotIndex) => {
       const isActive = dotIndex === currentSlide;
+
       dot.classList.toggle('active', isActive);
       dot.setAttribute('aria-selected', String(isActive));
+      dot.tabIndex = isActive ? 0 : -1;
     });
+
+    updateSlideAccessibility();
   }
 
   function stopAutoplay() {
@@ -58,8 +81,34 @@
     });
   });
 
+  slider?.addEventListener('keydown', (event) => {
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      changeSlide(-1);
+    }
+
+    if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      changeSlide(1);
+    }
+
+    if (event.key === 'Home') {
+      event.preventDefault();
+      showSlide(0);
+      startAutoplay();
+    }
+
+    if (event.key === 'End') {
+      event.preventDefault();
+      showSlide(slides.length - 1);
+      startAutoplay();
+    }
+  });
+
   slider?.addEventListener('mouseenter', stopAutoplay);
   slider?.addEventListener('mouseleave', startAutoplay);
+  slider?.addEventListener('focusin', stopAutoplay);
+  slider?.addEventListener('focusout', startAutoplay);
 
   slidesTrack.addEventListener('touchstart', (event) => {
     touchStartX = event.touches[0].clientX;
@@ -73,5 +122,25 @@
     }
   }, { passive: true });
 
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      stopAutoplay();
+    } else {
+      startAutoplay();
+    }
+  });
+
+  const hasMultipleSlides = slides.length > 1;
+
+  if (previousButton) {
+    previousButton.hidden = !hasMultipleSlides;
+  }
+
+  if (nextButton) {
+    nextButton.hidden = !hasMultipleSlides;
+  }
+
+  document.getElementById('hero-dots')?.toggleAttribute('hidden', !hasMultipleSlides);
+  showSlide(0);
   startAutoplay();
 })();

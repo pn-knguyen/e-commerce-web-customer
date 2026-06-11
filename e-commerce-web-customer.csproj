@@ -10,24 +10,36 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.9">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.9" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Tools" Version="10.0.9">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
     <PackageReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Design" Version="10.0.2" />
-    <!-- Override vulnerable transitive dependencies to fix warnings (v6.13.1 fixes GHSA-g4vj-cjjj-v7hg) -->
     <PackageReference Include="NuGet.Packaging" Version="6.13.1" />
     <PackageReference Include="NuGet.Protocol" Version="6.13.1" />
   </ItemGroup>
 
-  <Target
-    Name="RestoreFrontendDependencies"
-    Inputs="package-lock.json"
-    Outputs="node_modules/.package-lock.json">
+  <Target Name="RestoreFrontendDependencies" Inputs="package-lock.json" Outputs="node_modules/.package-lock.json">
     <Message Importance="high" Text="Restoring frontend dependencies with npm ci..." />
     <Exec Command="$(NpmExecutable) ci" />
   </Target>
 
-  <Target
-    Name="BuildTailwindCss"
-    BeforeTargets="PrepareForBuild"
-    DependsOnTargets="RestoreFrontendDependencies">
+  <Target Name="CopyVendorAssets" BeforeTargets="BuildTailwindCss" DependsOnTargets="RestoreFrontendDependencies">
+    <ItemGroup>
+      <SwiperCss Include="node_modules/swiper/swiper-bundle.min.css" />
+      <SwiperJs Include="node_modules/swiper/swiper-bundle.min.js" />
+    </ItemGroup>
+    <Message Importance="high" Text="Copying Swiper assets from node_modules..." />
+    <Copy SourceFiles="@(SwiperCss)" DestinationFolder="wwwroot/lib/swiper" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(SwiperJs)" DestinationFolder="wwwroot/lib/swiper" SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="BuildTailwindCss" BeforeTargets="PrepareForBuild" DependsOnTargets="RestoreFrontendDependencies;CopyVendorAssets">
     <Exec Command="$(NpmExecutable) run css:build" />
   </Target>
 
