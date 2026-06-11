@@ -2,4 +2,7 @@
 @import 'foundation/variables.css';
 @import 'foundation/base.css';
 @import 'components/footer.css';
+@import 'components/product-card.css';
+@import 'components/category-directory.css';
+@import 'components/category-menu.css';
 @import 'components/site-shell.css';

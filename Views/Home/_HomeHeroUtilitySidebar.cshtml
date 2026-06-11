@@ -1,0 +1,50 @@
+@model IReadOnlyList<HomeHeroBenefitGroupViewModel>
+
+<aside class="hero-utility-sidebar" aria-label="Ưu đãi thành viên">
+    <section class="hero-member-card hero-surface">
+        <div class="hero-member-intro">
+            <span class="hero-member-avatar">
+                <img src="~/images/logo-techstore-icon.svg" alt="" width="42" height="45" />
+            </span>
+            <div>
+                <p>Chào mừng bạn đến với</p>
+                <h2>TechStore</h2>
+            </div>
+        </div>
+        <p class="hero-member-copy">Đăng nhập để trải nghiệm ưu đãi dành riêng cho bạn.</p>
+        <div class="hero-member-actions">
+            <a href="/account/login">Đăng nhập</a>
+            <span aria-hidden="true"></span>
+            <a href="/account/register">Đăng ký</a>
+        </div>
+        <a class="hero-member-rewards" href="/account/profile">
+            <svg class="hero-ui-icon" aria-hidden="true"><use href="#hero-icon-gift"></use></svg>
+            <span>Xem ưu đãi thành viên</span>
+            <svg class="hero-ui-icon" aria-hidden="true"><use href="#hero-icon-chevron"></use></svg>
+        </a>
+    </section>
+
+    <section class="hero-benefits-panel hero-surface">
+        <div class="hero-benefits-scroll">
+            @foreach (var group in Model)
+            {
+                <div class="hero-benefit-group">
+                    <h3>@group.Title</h3>
+                    @foreach (var item in group.Items)
+                    {
+                        <a href="@item.Url">
+                            <svg class="hero-ui-icon" aria-hidden="true">
+                                <use href="@($"#hero-icon-{item.Icon}")"></use>
+                            </svg>
+                            <span>@item.Label <strong>@item.StrongText</strong></span>
+                        </a>
+                    }
+                </div>
+            }
+        </div>
+        <a class="hero-benefits-banner" href="/deals">
+            <span>Hàng mới mở bán</span>
+            <strong>Giảm đến 50%</strong>
+        </a>
+    </section>
+</aside>

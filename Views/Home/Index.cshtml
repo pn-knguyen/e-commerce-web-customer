@@ -1,15 +1,35 @@
+@model HomeIndexViewModel
+
 @{
     ViewData["Title"] = "Trang chủ";
     ViewData["MetaDescription"] = "TechStore - Mua điện thoại, laptop, phụ kiện chính hãng. Giá tốt nhất, giao nhanh miễn phí, bảo hành 12 tháng.";
 }
 
-<partial name="_HomeHero" />
-<partial name="_PromotionBanners" />
+<partial name="_HomeHero" model="Model.Hero" />
+
+@foreach (var categorySection in Model.FeaturedCategorySections)
+{
+    <partial name="_CategoryProducts" model="categorySection" />
+}
+
+<partial name="~/Views/Shared/Sections/_CategoryDirectory.cshtml"
+         model="Model.AccessoryDirectory" />
+
+@foreach (var categorySection in Model.AdditionalCategorySections)
+{
+    <partial name="_CategoryProducts" model="categorySection" />
+}
+
+<partial name="_CategoryProductsIconSprite" />
 
 @section Styles {
-    <link rel="stylesheet" href="~/css/pages/home.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/lib/swiper/swiper-bundle.min.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/pages/home-hero.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/pages/home-category-products.css" asp-append-version="true" />
 }
 
 @section Scripts {
+    <script src="~/lib/swiper/swiper-bundle.min.js" asp-append-version="true"></script>
     <script src="~/js/home.js" asp-append-version="true"></script>
+    <script src="~/js/category-products.js" asp-append-version="true"></script>
 }

@@ -1,0 +1,20 @@
+@model IReadOnlyList<HomeHeroCampaignTabViewModel>
+
+<nav class="hero-campaign-tabs hero-surface" aria-label="Chương trình nổi bật">
+    @foreach (var tab in Model)
+    {
+        <a class="hero-campaign-tab @(tab.IsActive ? "is-active" : null)"
+           href="@tab.Url"
+           aria-current="@(tab.IsActive ? "page" : null)">
+            <span class="hero-campaign-icon" aria-hidden="true">
+                <svg class="hero-ui-icon">
+                    <use href="@($"#hero-icon-{tab.Icon}")"></use>
+                </svg>
+            </span>
+            <span class="hero-campaign-copy">
+                <strong>@tab.Title</strong>
+                <span>@tab.Subtitle</span>
+            </span>
+        </a>
+    }
+</nav>

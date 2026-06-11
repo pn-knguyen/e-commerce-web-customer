@@ -1,3 +1,5 @@
+@model HeaderViewModel
+
 @* =====================================================================
    HEADER COMPONENT - Views/Shared/Components/Header/Default.cshtml
 
@@ -54,7 +56,13 @@
                 <img src="~/images/logo-techstore.svg" alt="TechStore" width="150" height="45" class="header-logo-desktop" />
             </a>
 
-            <a class="header-action header-action--filled hidden h-10 w-10 gap-2 p-0 text-sm font-semibold md:flex xl:w-[155px] xl:px-4" asp-controller="Catalog" asp-action="Index" aria-label="Danh mục sản phẩm">
+            <button class="header-action header-action--filled header-category-trigger hidden h-10 w-10 gap-2 p-0 text-sm font-semibold md:flex xl:w-[155px] xl:px-4"
+                    id="header-category-trigger"
+                    type="button"
+                    aria-label="Mở danh mục sản phẩm"
+                    aria-controls="site-category-menu"
+                    aria-expanded="false"
+                    data-category-menu-trigger>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
                     <path d="M4.7 4H10.7V10H4.7V4Z" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                     <path d="M14.7 4H20.7V10H14.7V4Z" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
@@ -62,10 +70,10 @@
                     <path d="M14.7 17C14.7 17.8 15 18.6 15.6 19.1C16.1 19.7 16.9 20 17.7 20C18.5 20 19.3 19.7 19.8 19.1C20.4 18.6 20.7 17.8 20.7 17C20.7 16.2 20.4 15.4 19.8 14.9C19.3 14.3 18.5 14 17.7 14C16.9 14 16.1 14.3 15.6 14.9C15 15.4 14.7 16.2 14.7 17Z" stroke="white" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
                 <span class="hidden xl:inline">Danh mục</span>
-                <svg class="hidden xl:block" xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                <svg class="header-category-chevron hidden xl:block" xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" aria-hidden="true">
                     <path stroke="white" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m6 9 6 6 6-6"/>
                 </svg>
-            </a>
+            </button>
 
             <button class="header-action header-action--filled hidden h-10 w-[169.16px] gap-2 px-3 text-sm xl:flex" id="btn-location" aria-label="Chọn thành phố" type="button">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 20 21" aria-hidden="true">
@@ -139,3 +147,6 @@
         </div>
     </div>
 </header>
+
+<partial name="~/Views/Shared/Components/Header/_CategoryMenuOverlay.cshtml"
+         model="Model.CategoryMenu" />

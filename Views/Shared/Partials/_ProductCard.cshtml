@@ -1,1 +1,97 @@
+@model ProductCardViewModel
 
+@{
+    var wishlistLabel = Model.IsWishlisted ? "Đã thích" : "Yêu thích";
+    var wishlistAriaLabel = Model.IsWishlisted
+        ? $"Xóa {Model.Name} khỏi danh sách yêu thích"
+        : $"Thêm {Model.Name} vào danh sách yêu thích";
+    var hasMeta = !string.IsNullOrWhiteSpace(Model.DeliveryLabel)
+        || !string.IsNullOrWhiteSpace(Model.Location);
+}
+
+<article class="product-card" data-product-card data-product-id="@Model.Id">
+    @if (!string.IsNullOrWhiteSpace(Model.DiscountLabel)
+        || !string.IsNullOrWhiteSpace(Model.InstallmentLabel))
+    {
+        <div class="product-card__badges" aria-label="Khuyến mãi">
+            @if (!string.IsNullOrWhiteSpace(Model.DiscountLabel))
+            {
+                <span class="product-card__discount">@Model.DiscountLabel</span>
+            }
+            @if (!string.IsNullOrWhiteSpace(Model.InstallmentLabel))
+            {
+                <span class="product-card__installment">@Model.InstallmentLabel</span>
+            }
+        </div>
+    }
+
+    <a class="product-card__media" href="@Model.Url" aria-label="Xem @Model.Name">
+        <img src="@Model.ImageUrl"
+             alt="@Model.ImageAlt"
+             width="320"
+             height="320"
+             loading="lazy" />
+    </a>
+
+    <div class="product-card__body">
+        <h3 class="product-card__name">
+            <a href="@Model.Url">@Model.Name</a>
+        </h3>
+
+        <div class="product-card__price" aria-label="Giá sản phẩm">
+            <strong>@Model.CurrentPrice</strong>
+            @if (!string.IsNullOrWhiteSpace(Model.OldPrice))
+            {
+                <del>@Model.OldPrice</del>
+            }
+        </div>
+    </div>
+
+    @if (hasMeta)
+    {
+        <div class="product-card__meta">
+            @if (!string.IsNullOrWhiteSpace(Model.DeliveryLabel))
+            {
+                <span class="product-card__delivery">
+                    <svg aria-hidden="true"><use href="#product-card-icon-truck"></use></svg>
+                    @Model.DeliveryLabel
+                </span>
+            }
+            @if (!string.IsNullOrWhiteSpace(Model.Location))
+            {
+                <span class="product-card__location">
+                    <svg aria-hidden="true"><use href="#product-card-icon-pin"></use></svg>
+                    @Model.Location
+                </span>
+            }
+        </div>
+    }
+
+    @if (Model.Rating.HasValue || Model.ShowWishlistAction)
+    {
+        <div class="product-card__actions">
+            @if (Model.Rating.HasValue)
+            {
+                <span class="product-card__rating" aria-label="@Model.Rating.Value.ToString("0.#") trên 5 sao">
+                    <svg aria-hidden="true"><use href="#product-card-icon-star"></use></svg>
+                    @Model.Rating.Value.ToString("0.#")
+                </span>
+            }
+            @if (Model.ShowWishlistAction)
+            {
+                <button class="product-card__wishlist @(Model.IsWishlisted ? "is-active" : null)"
+                        type="button"
+                        aria-pressed="@Model.IsWishlisted.ToString().ToLowerInvariant()"
+                        aria-label="@wishlistAriaLabel"
+                        data-product-wishlist
+                        data-product-id="@Model.Id"
+                        data-product-name="@Model.Name"
+                        data-active-label="Đã thích"
+                        data-inactive-label="Yêu thích">
+                    <svg aria-hidden="true"><use href="#product-card-icon-heart"></use></svg>
+                    <span>@wishlistLabel</span>
+                </button>
+            }
+        </div>
+    }
+</article>

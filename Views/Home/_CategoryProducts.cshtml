@@ -1,0 +1,153 @@
+@model CategoryProductsViewModel
+
+@{
+    var activeTab = Model.Tabs.FirstOrDefault(tab => tab.IsActive && tab.Panel is not null)
+        ?? Model.Tabs.First(tab => tab.Panel is not null);
+    var activePanelHasBanners = activeTab.Panel!.Banners.Count > 0;
+}
+
+<section class="category-products-section"
+         id="@Model.Id"
+         aria-label="Sản phẩm theo danh mục">
+    <div class="container">
+        <div data-category-products
+             data-category-rows="@Model.Rows"
+             class="category-products-shell @(activePanelHasBanners ? "has-active-banners" : null)">
+            <div class="category-products-layout">
+                <aside class="category-banner-rail"
+                       aria-label="Ưu đãi nổi bật theo danh mục">
+                    @foreach (var tab in Model.Tabs.Where(tab => tab.Panel is not null))
+                    {
+                        var isActive = tab.Id == activeTab.Id;
+                        var bannerPanelId = $"{Model.Id}-{tab.Id}-banners";
+
+                        <div class="category-banner-panel @(isActive ? "is-active" : null)"
+                             id="@bannerPanelId"
+                             aria-hidden="@(!isActive).ToString().ToLowerInvariant()"
+                             hidden="@(!isActive)"
+                             data-category-banner-panel>
+                            @foreach (var banner in tab.Panel!.Banners)
+                            {
+                                <a class="category-banner" href="@banner.Url">
+                                    <img src="@banner.ImageUrl"
+                                         alt="@banner.ImageAlt"
+                                         width="797"
+                                         height="1974"
+                                         loading="lazy" />
+                                </a>
+                            }
+                        </div>
+                    }
+                </aside>
+
+                <div class="category-products-main">
+                    <nav class="category-products-tabs"
+                         aria-label="Nhóm sản phẩm"
+                         role="@(Model.EnableTabSwitching ? "tablist" : null)">
+                        @foreach (var tab in Model.Tabs)
+                        {
+                            var isActive = tab.Id == activeTab.Id;
+                            var panelId = $"{Model.Id}-{tab.Id}-panel";
+
+                            @if (Model.EnableTabSwitching && tab.Panel is not null)
+                            {
+                                <button class="category-products-tab @(isActive ? "is-active" : null)"
+                                        type="button"
+                                        role="tab"
+                                        id="@($"{Model.Id}-{tab.Id}-tab")"
+                                        aria-controls="@panelId"
+                                        aria-selected="@isActive.ToString().ToLowerInvariant()"
+                                        tabindex="@(isActive ? 0 : -1)"
+                                        data-category-tab
+                                        data-category-panel-id="@panelId"
+                                        data-category-banner-panel-id="@($"{Model.Id}-{tab.Id}-banners")">
+                                    @tab.Label
+                                </button>
+                            }
+                            else
+                            {
+                                <a class="category-products-tab @(isActive ? "is-active" : null)"
+                                   href="@tab.Url"
+                                   aria-current="@(isActive ? "page" : null)">
+                                    @tab.Label
+                                </a>
+                            }
+                        }
+                    </nav>
+
+                    @foreach (var tab in Model.Tabs.Where(tab => tab.Panel is not null))
+                    {
+                        var panel = tab.Panel!;
+                        var isActive = tab.Id == activeTab.Id;
+                        var panelId = $"{Model.Id}-{tab.Id}-panel";
+
+                        <div class="category-products-panel @(isActive ? "is-active" : null)"
+                             id="@panelId"
+                             role="@(Model.EnableTabSwitching ? "tabpanel" : null)"
+                             aria-labelledby="@(Model.EnableTabSwitching ? $"{Model.Id}-{tab.Id}-tab" : null)"
+                             aria-hidden="@(!isActive).ToString().ToLowerInvariant()"
+                             hidden="@(!isActive)"
+                             data-category-panel>
+                            <div class="category-quick-links" aria-label="Mua sắm theo nhu cầu">
+                                @foreach (var quickLink in panel.QuickLinks)
+                                {
+                                    <a class="category-quick-link" href="@quickLink.Url">
+                                        <img src="@quickLink.ImageUrl"
+                                             alt=""
+                                             width="56"
+                                             height="56"
+                                             loading="lazy" />
+                                        <span>@quickLink.Label</span>
+                                    </a>
+                                }
+                            </div>
+
+                            <div class="category-brand-row">
+                                <div class="category-brand-list" aria-label="Lọc theo thương hiệu">
+                                    @foreach (var brand in panel.Brands)
+                                    {
+                                        <a class="category-brand-chip" href="@brand.Url">@brand.Label</a>
+                                    }
+                                </div>
+                                <a class="category-view-all" href="@panel.ViewAllUrl">
+                                    Xem tất cả
+                                    <svg aria-hidden="true"><use href="#category-icon-chevron"></use></svg>
+                                </a>
+                            </div>
+
+                            <div class="category-products-carousel">
+                                <div class="swiper category-products-swiper">
+                                    <div class="swiper-wrapper">
+                                        @foreach (var product in panel.Products)
+                                        {
+                                            <div class="swiper-slide">
+                                                <partial name="~/Views/Shared/Partials/_ProductCard.cshtml" model="product" />
+                                            </div>
+                                        }
+                                    </div>
+                                </div>
+
+                                <button class="category-carousel-button category-carousel-button--prev"
+                                        type="button"
+                                        aria-label="Xem sản phẩm trước">
+                                    <svg aria-hidden="true"><use href="#category-icon-chevron-left"></use></svg>
+                                </button>
+                                <button class="category-carousel-button category-carousel-button--next"
+                                        type="button"
+                                        aria-label="Xem sản phẩm tiếp theo">
+                                    <svg aria-hidden="true"><use href="#category-icon-chevron"></use></svg>
+                                </button>
+                            </div>
+
+                            @if (Model.ShowPagination)
+                            {
+                                <div class="category-products-pagination"
+                                     aria-label="Chọn trang sản phẩm"></div>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</section>

@@ -1,7 +1,21 @@
+using e_commerce_web_customer.Application.Home;
+using e_commerce_web_customer.Application.Navigation;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllersWithViews();
+builder.Services.AddSingleton<ISiteCategoryMenuProvider, MockSiteCategoryMenuProvider>();
+
+var useMockData = builder.Configuration.GetValue<bool>("DatabaseSettings:UseMockData", true);
+if (useMockData)
+{
+    builder.Services.AddSingleton<IHomePageViewModelFactory, MockHomePageViewModelFactory>();
+}
+else
+{
+    builder.Services.AddScoped<IHomePageViewModelFactory, DbHomePageViewModelFactory>();
+}
 
 var app = builder.Build();
 

@@ -1,0 +1,18 @@
+@model IReadOnlyList<SiteCategoryMenuItemViewModel>
+
+<nav class="hero-cat-sidebar hero-surface" aria-label="Danh mục sản phẩm" id="hero-cat-sidebar">
+    @foreach (var category in Model)
+    {
+        <a class="hero-cat-item @(category.IsHighlighted ? "is-highlighted" : null)"
+           href="@category.Url"
+           id="@category.Id">
+            <svg class="hero-ui-icon hero-cat-icon" aria-hidden="true">
+                <use href="@($"#hero-icon-{category.Icon}")"></use>
+            </svg>
+            <span class="hero-cat-label">@category.Label</span>
+            <svg class="hero-ui-icon hero-cat-arrow" aria-hidden="true">
+                <use href="#hero-icon-chevron"></use>
+            </svg>
+        </a>
+    }
+</nav>

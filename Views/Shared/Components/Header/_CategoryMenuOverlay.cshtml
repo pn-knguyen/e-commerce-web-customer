@@ -1,0 +1,41 @@
+@model SiteCategoryMenuViewModel
+
+<div class="site-category-overlay"
+     id="site-category-menu"
+     role="dialog"
+     aria-modal="true"
+     aria-labelledby="site-category-menu-title"
+     data-category-menu
+     hidden>
+    <div class="site-category-backdrop" data-category-menu-close></div>
+
+    <div class="site-category-frame">
+        <section class="site-category-panel"
+                 tabindex="-1"
+                 data-category-menu-panel>
+            <h2 class="sr-only" id="site-category-menu-title">Danh mục sản phẩm</h2>
+
+            <nav class="site-category-list" aria-label="Danh mục sản phẩm">
+                @foreach (var category in Model.Items)
+                {
+                    <a class="site-category-item"
+                       href="@category.Url">
+                        <svg class="site-category-icon" aria-hidden="true">
+                            <use href="@($"#hero-icon-{category.Icon}")"></use>
+                        </svg>
+                        <span>@category.Label</span>
+                        <svg class="site-category-chevron" aria-hidden="true">
+                            <use href="#hero-icon-chevron"></use>
+                        </svg>
+                    </a>
+                }
+            </nav>
+
+            <button class="sr-only"
+                    type="button"
+                    data-category-menu-close>
+                Đóng danh mục sản phẩm
+            </button>
+        </section>
+    </div>
+</div>
