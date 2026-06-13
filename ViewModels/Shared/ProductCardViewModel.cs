@@ -17,6 +17,7 @@ public sealed class ProductCardViewModel
     public string? DeliveryLabel { get; init; }
     public string? Location { get; init; }
     public decimal? Rating { get; init; }
+    public int RatingCount { get; init; }
     public bool IsWishlisted { get; init; }
     public bool ShowWishlistAction { get; init; } = true;
 }

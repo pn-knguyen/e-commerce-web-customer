@@ -57,6 +57,7 @@ public sealed class CartSessionService(ISessionStorage sessionStorage)
             existingItem.ProductUrl = normalizedItem.ProductUrl;
             existingItem.ImageUrl = normalizedItem.ImageUrl;
             existingItem.ImageAlt = normalizedItem.ImageAlt;
+            existingItem.ProductVariantId = normalizedItem.ProductVariantId;
             existingItem.UnitPrice = normalizedItem.UnitPrice;
             existingItem.Quantity += normalizedItem.Quantity;
         }
@@ -117,6 +118,7 @@ public sealed class CartSessionService(ISessionStorage sessionStorage)
 
     private static CartSessionItem Normalize(CartSessionItem item) => new()
     {
+        ProductVariantId = item.ProductVariantId,
         Id = (item.Id ?? string.Empty).Trim(),
         Name = (item.Name ?? string.Empty).Trim(),
         ProductUrl = (item.ProductUrl ?? string.Empty).Trim(),
@@ -140,6 +142,7 @@ public sealed class CartSessionService(ISessionStorage sessionStorage)
 /// </summary>
 public sealed class CartSessionItem
 {
+    public long? ProductVariantId { get; set; }
     public string Id { get; set; } = string.Empty;
     public string Name { get; set; } = string.Empty;
     public string ProductUrl { get; set; } = string.Empty;

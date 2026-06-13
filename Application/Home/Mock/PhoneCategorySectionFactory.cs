@@ -5,7 +5,9 @@ namespace e_commerce_web_customer.Application.Home;
 
 internal static class PhoneCategorySectionFactory
 {
-    public static CategoryProductsViewModel Create()
+    public static CategoryProductsViewModel Create(
+        IReadOnlyList<ProductCardViewModel>? phoneProducts = null,
+        long? phoneCategoryId = null)
     {
         const string imageRoot = "/images/products/phone";
 
@@ -21,21 +23,21 @@ internal static class PhoneCategorySectionFactory
                 {
                     Id = "phones",
                     Label = "Điện thoại",
-                    Url = "/catalog?cat=phone",
+                    Url = CatalogUrl.Products("phone"),
                     IsActive = true,
                     Panel = new CategoryProductPanelViewModel
                     {
-                        ViewAllUrl = "/catalog?cat=phone",
+                        ViewAllUrl = CatalogUrl.Products("phone"),
                         Banners =
                         [
                             HomeCategoryBannerFactory.Create(
                                 "banner_iphone.png",
                                 "Ưu đãi iPhone nổi bật",
-                                "/catalog?cat=phone&brand=apple"),
+                                BrandUrl("Apple")),
                             HomeCategoryBannerFactory.Create(
                                 "banner_samsung_phone.png",
                                 "Ưu đãi điện thoại Samsung",
-                                "/catalog?cat=phone&brand=samsung")
+                                BrandUrl("Samsung"))
                         ],
                         QuickLinks =
                         [
@@ -48,11 +50,13 @@ internal static class PhoneCategorySectionFactory
                         ],
                         Brands =
                         [
-                            Brand("Apple"), Brand("Samsung"), Brand("Xiaomi"), Brand("OPPO"),
-                            Brand("TECNO"), Brand("HONOR"), Brand("Nubia"), Brand("Sony"),
-                            Brand("Nokia"), Brand("Infinix"), Brand("Nothing")
+                            Brand("Apple", brandId: 2),
+                            Brand("Samsung", brandId: 3),
+                            Brand("Xiaomi", brandId: 6),
+                            Brand("OPPO", brandId: 5),
+                            Brand("Sony", brandId: 20)
                         ],
-                        Products = HomeProductCardFactory.AddVariants(
+                        Products = phoneProducts ?? HomeProductCardFactory.AddVariants(
                         [
                             Product("iphone-17-pro-max-256gb", "iPhone 17 Pro Max 256GB | Chính hãng", "phone-orange.webp",
                                 "36.990.000đ", "37.990.000đ", "Giảm 3%", "Smember giảm đến 370.000đ",
@@ -103,20 +107,20 @@ internal static class PhoneCategorySectionFactory
                 {
                     Id = "tablets",
                     Label = "Máy tính bảng",
-                    Url = "/catalog?cat=tablet",
+                    Url = CatalogUrl.Products("tablet"),
                     Panel = new CategoryProductPanelViewModel
                     {
-                        ViewAllUrl = "/catalog?cat=tablet",
+                        ViewAllUrl = CatalogUrl.Products("tablet"),
                         Banners =
                         [
                             HomeCategoryBannerFactory.Create(
                                 "banner_ipad.png",
                                 "Ưu đãi iPad nổi bật",
-                                "/catalog?cat=tablet&brand=apple"),
+                                CatalogUrl.Products("tablet", "apple")),
                             HomeCategoryBannerFactory.Create(
                                 "banner_galaxy_tab.png",
                                 "Ưu đãi Samsung Galaxy Tab",
-                                "/catalog?cat=tablet&brand=samsung")
+                                CatalogUrl.Products("tablet", "samsung"))
                         ],
                         QuickLinks =
                         [
@@ -189,18 +193,32 @@ internal static class PhoneCategorySectionFactory
             return new CategoryQuickLinkViewModel
             {
                 Label = label,
-                Url = $"/catalog?cat={category}&{query}",
+                Url = CatalogUrl.Products(category, name: label),
                 ImageUrl = $"{imageRoot}/{imageName}"
             };
         }
 
-        static CategoryBrandViewModel Brand(string label, string category = "phone")
+        CategoryBrandViewModel Brand(
+            string label,
+            string category = "phone",
+            long? brandId = null)
         {
             return new CategoryBrandViewModel
             {
                 Label = label,
-                Url = $"/catalog?cat={category}&brand={Uri.EscapeDataString(label.ToLowerInvariant())}"
+                Url = category.Equals("phone", StringComparison.OrdinalIgnoreCase)
+                    ? CatalogUrl.ProductsById(phoneCategoryId, brandId)
+                    : CatalogUrl.Products(category, label)
             };
+        }
+
+        string BrandUrl(string label)
+        {
+            return CatalogUrl.ProductsById(
+                phoneCategoryId,
+                label.Equals("Apple", StringComparison.OrdinalIgnoreCase) ? 2 :
+                label.Equals("Samsung", StringComparison.OrdinalIgnoreCase) ? 3 :
+                null);
         }
 
         ProductCardViewModel Product(

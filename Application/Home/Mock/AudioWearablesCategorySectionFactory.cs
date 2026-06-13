@@ -17,8 +17,8 @@ internal static class AudioWearablesCategorySectionFactory
             ShowPagination = false,
             Tabs =
             [
-                Tab("watches", "Đồng hồ", "/catalog?cat=smartwatch", CreateWatchPanel(), true),
-                Tab("audio", "Âm thanh", "/catalog?cat=audio", CreateAudioPanel())
+                Tab("watches", "Đồng hồ", CatalogUrl.Products("smartwatch"), CreateWatchPanel(), true),
+                Tab("audio", "Âm thanh", CatalogUrl.Products("audio"), CreateAudioPanel())
             ]
         };
     }
@@ -26,7 +26,7 @@ internal static class AudioWearablesCategorySectionFactory
     private static CategoryProductPanelViewModel CreateWatchPanel()
     {
         return Panel(
-            "/catalog?cat=smartwatch",
+            CatalogUrl.Products("smartwatch"),
             [
                 QuickLink("Đồng hồ thể thao", "smartwatch", "usage=sport", "watch-01.webp"),
                 QuickLink("Đồng hồ thông minh", "smartwatch", "type=smart", "watch-02.webp"),
@@ -65,7 +65,7 @@ internal static class AudioWearablesCategorySectionFactory
     private static CategoryProductPanelViewModel CreateAudioPanel()
     {
         return Panel(
-            "/catalog?cat=audio",
+            CatalogUrl.Products("audio"),
             [
                 QuickLink("Tai nghe", "audio", "type=headphones", "audio-01.webp"),
                 QuickLink("Loa", "audio", "type=speaker", "audio-02.webp"),
@@ -138,19 +138,19 @@ internal static class AudioWearablesCategorySectionFactory
     {
         return viewAllUrl switch
         {
-            "/catalog?cat=smartwatch" =>
+            var url when url == CatalogUrl.Products("smartwatch") =>
             [
                 HomeCategoryBannerFactory.Create(
                     "banner_apple_watch.png",
                     "Ưu đãi Apple Watch nổi bật",
-                    "/catalog?cat=smartwatch&brand=apple")
+                    CatalogUrl.Products("smartwatch", "apple"))
             ],
-            "/catalog?cat=audio" =>
+            var url when url == CatalogUrl.Products("audio") =>
             [
                 HomeCategoryBannerFactory.Create(
                     "banner_airpod.png",
                     "Ưu đãi AirPods nổi bật",
-                    "/catalog?cat=audio&brand=apple")
+                    CatalogUrl.Products("audio", "apple"))
             ],
             _ => []
         };
@@ -165,7 +165,7 @@ internal static class AudioWearablesCategorySectionFactory
         return new CategoryQuickLinkViewModel
         {
             Label = label,
-            Url = $"/catalog?cat={category}&{query}",
+            Url = CatalogUrl.Products(category, name: label),
             ImageUrl = $"{ImageRoot}/{imageName}"
         };
     }
@@ -178,7 +178,7 @@ internal static class AudioWearablesCategorySectionFactory
             .Select(label => new CategoryBrandViewModel
             {
                 Label = label,
-                Url = $"/catalog?cat={category}&brand={Uri.EscapeDataString(label.ToLowerInvariant())}"
+                Url = CatalogUrl.Products(category, label)
             })
             .ToArray();
     }

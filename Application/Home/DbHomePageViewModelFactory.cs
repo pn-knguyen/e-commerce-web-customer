@@ -24,11 +24,11 @@ public sealed class DbHomePageViewModelFactory : IHomePageViewModelFactory
     //     _dbContext = dbContext;
     // }
 
-    public HomeIndexViewModel Create()
+    public Task<HomeIndexViewModel> CreateAsync()
     {
         // TODO: Viết code truy vấn dữ liệu từ database ở đây
         // Trả về dữ liệu trống hợp lệ (khai báo các trường required) để tránh lỗi biên dịch.
-        return new HomeIndexViewModel
+        return Task.FromResult(new HomeIndexViewModel
         {
             Hero = new HomeHeroViewModel
             {
@@ -47,6 +47,6 @@ public sealed class DbHomePageViewModelFactory : IHomePageViewModelFactory
                 Items = []
             },
             AdditionalCategorySections = []
-        };
+        });
     }
 }

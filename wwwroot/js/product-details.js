@@ -353,8 +353,14 @@
         body: JSON.stringify(payload),
       });
 
+      if (response.status === 401) {
+        window.location.href = `/Account/Login?returnUrl=${encodeURIComponent(window.location.pathname + window.location.search)}`;
+        return;
+      }
+
       if (!response.ok) {
-        throw new Error(`Cart request failed with status ${response.status}`);
+        const errorResult = await response.json().catch(() => ({}));
+        throw new Error(errorResult.error || `Cart request failed with status ${response.status}`);
       }
 
       const result = await response.json().catch(() => ({}));
@@ -371,7 +377,9 @@
       window.showToast?.('Đã thêm sản phẩm vào giỏ hàng', 'success');
     } catch (error) {
       console.error(error);
-      window.showToast?.('Không thể cập nhật giỏ hàng. Vui lòng thử lại.', 'error');
+      window.showToast?.(
+        error instanceof Error ? error.message : 'Không thể cập nhật giỏ hàng. Vui lòng thử lại.',
+        'error');
     } finally {
       setActionBusy(action, false);
     }
@@ -381,6 +389,7 @@
     const price = Number(action.dataset.cartPrice);
 
     return {
+      productVariantId: Number(action.dataset.cartVariantId) || 0,
       id: action.dataset.cartId || '',
       name: action.dataset.cartName || '',
       productUrl: action.dataset.cartUrl || window.location.pathname,

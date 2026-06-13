@@ -1,10 +1,10 @@
-using e_commerce_web_customer.Application.Contracts;
+using e_commerce_web_customer.Interfaces;
 using e_commerce_web_customer.ViewModels.Account;
 using Microsoft.AspNetCore.Mvc;
 
 namespace e_commerce_web_customer.Controllers;
 
-public sealed class AccountController(IAccountService accountService) : Controller
+public sealed class AccountController(IAuthService authService) : Controller
 {
     [HttpGet]
     public IActionResult Login(string? returnUrl = null)
@@ -23,12 +23,9 @@ public sealed class AccountController(IAccountService accountService) : Controll
             return View(model);
         }
 
-        var success = await accountService.LoginAsync(model.Email, model.Password, model.RememberMe);
+        var success = await authService.LoginAsync(model.Email, model.Password, model.RememberMe);
         if (success)
         {
-            HttpContext.Session.SetString(e_commerce_web_customer.Application.Constants.SessionKeys.IsLoggedIn, "true");
-            HttpContext.Session.SetString(e_commerce_web_customer.Application.Constants.SessionKeys.UserEmail, model.Email);
-            
             TempData["AuthSuccess"] = "Đăng nhập thành công! Chào mừng bạn quay lại TechStore.";
             
             if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
@@ -50,8 +47,7 @@ public sealed class AccountController(IAccountService accountService) : Controll
     [ValidateAntiForgeryToken]
     public IActionResult Logout()
     {
-        HttpContext.Session.Remove(e_commerce_web_customer.Application.Constants.SessionKeys.IsLoggedIn);
-        HttpContext.Session.Remove(e_commerce_web_customer.Application.Constants.SessionKeys.UserEmail);
+        authService.Logout();
         return RedirectToAction("Index", "Home");
     }
 
@@ -70,14 +66,14 @@ public sealed class AccountController(IAccountService accountService) : Controll
             return View(model);
         }
 
-        var exists = await accountService.UserExistsAsync(model.Email);
+        var exists = await authService.UserExistsAsync(model.Email);
         if (exists)
         {
             ModelState.AddModelError(nameof(model.Email), "Email này đã được đăng ký sử dụng.");
             return View(model);
         }
 
-        var success = await accountService.RegisterAsync(model);
+        var success = await authService.RegisterAsync(model);
         if (success)
         {
             TempData["AuthSuccess"] = "Đăng ký thành công! Vui lòng đăng nhập.";

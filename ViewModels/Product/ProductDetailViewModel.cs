@@ -5,6 +5,7 @@ namespace e_commerce_web_customer.ViewModels.Product;
 public sealed class ProductDetailViewModel
 {
     public required string Slug { get; init; }
+    public long? SelectedVariantId { get; init; }
     public required string Name { get; init; }
     public required string Brand { get; init; }
     public required string MainImageUrl { get; init; }
@@ -63,6 +64,7 @@ public sealed class ProductDetailStorageOptionViewModel
 public sealed class ProductDetailColorOptionViewModel
 {
     public required string Name { get; init; }
+    public string Url { get; init; } = "#";
     public required string ImageUrl { get; init; }
     public required string ImageAlt { get; init; }
     public decimal Price { get; init; }

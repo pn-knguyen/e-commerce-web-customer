@@ -27,6 +27,7 @@
   const taxOutput         = page.querySelector('[data-cart-tax]');
   const totalOutput       = page.querySelector('[data-cart-total]');
   const checkoutButton    = page.querySelector('[data-cart-checkout]');
+  const useDatabaseCart   = page.dataset.databaseCart === 'true';
 
   /* ─── Helpers ────────────────────────────────────────────────── */
 
@@ -96,6 +97,28 @@
 
   async function persistCartState() {
     try {
+      if (useDatabaseCart) {
+        const responses = await Promise.all(getItems().map((item) => fetch('/Cart/UpdateItem', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'RequestVerificationToken': readCsrfToken(),
+          },
+          body: JSON.stringify({
+            cartItemId: Number(item.dataset.productId),
+            quantity: getQuantity(item),
+          }),
+        })));
+
+        if (responses.some((response) => !response.ok)) return;
+
+        const result = await responses.at(-1)?.json().catch(() => ({}));
+        if (Number.isFinite(Number(result?.count))) {
+          window.updateCartCount?.(Number(result.count));
+        }
+        return;
+      }
+
       const res = await fetch('/Cart/SaveSession', {
         method: 'POST',
         headers: {
@@ -190,7 +213,7 @@
 
   /* ─── Event delegation (click) ──────────────────────────────── */
 
-  page.addEventListener('click', (event) => {
+  page.addEventListener('click', async (event) => {
     const increaseButton   = event.target.closest('[data-cart-increase]');
     const decreaseButton   = event.target.closest('[data-cart-decrease]');
     const removeButton     = event.target.closest('[data-cart-remove]');
@@ -214,9 +237,14 @@
 
     if (removeButton) {
       const item = removeButton.closest('[data-cart-item]');
+
+      if (useDatabaseCart && !await deleteDatabaseItem(item)) {
+        return;
+      }
+
       item.remove();
       updateSummary();
-      scheduleCartPersist();
+      if (!useDatabaseCart) scheduleCartPersist();
       return;
     }
   });
@@ -245,12 +273,20 @@
   /* ─── Delete Selected ────────────────────────────────────────── */
 
   if (deleteSelectedBtn) {
-    deleteSelectedBtn.addEventListener('click', () => {
-      getItems().forEach((item) => {
-        if (isSelected(item)) item.remove();
-      });
+    deleteSelectedBtn.addEventListener('click', async () => {
+      const selectedItems = getItems().filter(isSelected);
+
+      if (useDatabaseCart) {
+        const deleteResults = await Promise.all(selectedItems.map(deleteDatabaseItem));
+        selectedItems.forEach((item, index) => {
+          if (deleteResults[index]) item.remove();
+        });
+      } else {
+        selectedItems.forEach((item) => item.remove());
+      }
+
       updateSummary();
-      scheduleCartPersist();
+      if (!useDatabaseCart) scheduleCartPersist();
     });
   }
 
@@ -302,4 +338,31 @@
   /* ─── Init ───────────────────────────────────────────────────── */
 
   updateSummary();
+
+  async function deleteDatabaseItem(item) {
+    try {
+      const response = await fetch('/Cart/DeleteItem', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'RequestVerificationToken': readCsrfToken(),
+        },
+        body: JSON.stringify({
+          cartItemId: Number(item.dataset.productId),
+        }),
+      });
+
+      if (!response.ok) return false;
+
+      const result = await response.json().catch(() => ({}));
+      if (Number.isFinite(Number(result.count))) {
+        window.updateCartCount?.(Number(result.count));
+      }
+
+      return true;
+    } catch (error) {
+      console.warn('Cart item delete failed.', error);
+      return false;
+    }
+  }
 })();

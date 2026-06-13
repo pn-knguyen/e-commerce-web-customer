@@ -6,16 +6,16 @@ public sealed class MockProductDetailViewModelFactory : IProductDetailViewModelF
 {
     private const string PhoneImageRoot = "/images/products/phone";
 
-    public ProductDetailViewModel? Create(string slug)
+    public Task<ProductDetailViewModel?> CreateAsync(string slug, long? variantId = null)
     {
         var normalizedSlug = slug.Trim().ToLowerInvariant();
 
         if (!normalizedSlug.StartsWith("iphone-17", StringComparison.Ordinal))
         {
-            return null;
+            return Task.FromResult<ProductDetailViewModel?>(null);
         }
 
-        return CreateIphone17ProMax(normalizedSlug);
+        return Task.FromResult<ProductDetailViewModel?>(CreateIphone17ProMax(normalizedSlug));
     }
 
     private static ProductDetailViewModel CreateIphone17ProMax(string slug)

@@ -67,31 +67,32 @@
         </div>
     }
 
-    @if (Model.Rating.HasValue || Model.ShowWishlistAction)
-    {
-        <div class="product-card__actions">
+    <div class="product-card__actions">
+        <span class="product-card__rating"
+              aria-label="@(Model.Rating.HasValue
+                  ? $"{Model.Rating.Value:0.#} trên 5 sao, {Model.RatingCount} lượt đánh giá"
+                  : $"{Model.RatingCount} lượt đánh giá")">
+            <svg aria-hidden="true"><use href="#product-card-icon-star"></use></svg>
             @if (Model.Rating.HasValue)
             {
-                <span class="product-card__rating" aria-label="@Model.Rating.Value.ToString("0.#") trên 5 sao">
-                    <svg aria-hidden="true"><use href="#product-card-icon-star"></use></svg>
-                    @Model.Rating.Value.ToString("0.#")
-                </span>
+                @Model.Rating.Value.ToString("0.#")
             }
-            @if (Model.ShowWishlistAction)
-            {
-                <button class="product-card__wishlist @(Model.IsWishlisted ? "is-active" : null)"
-                        type="button"
-                        aria-pressed="@Model.IsWishlisted.ToString().ToLowerInvariant()"
-                        aria-label="@wishlistAriaLabel"
-                        data-product-wishlist
-                        data-product-id="@Model.Id"
-                        data-product-name="@Model.Name"
-                        data-active-label="Đã thích"
-                        data-inactive-label="Yêu thích">
-                    <svg aria-hidden="true"><use href="#product-card-icon-heart"></use></svg>
-                    <span>@wishlistLabel</span>
-                </button>
-            }
-        </div>
-    }
+            <span>(@Model.RatingCount)</span>
+        </span>
+        @if (Model.ShowWishlistAction)
+        {
+            <button class="product-card__wishlist @(Model.IsWishlisted ? "is-active" : null)"
+                    type="button"
+                    aria-pressed="@Model.IsWishlisted.ToString().ToLowerInvariant()"
+                    aria-label="@wishlistAriaLabel"
+                    data-product-wishlist
+                    data-product-id="@Model.Id"
+                    data-product-name="@Model.Name"
+                    data-active-label="Đã thích"
+                    data-inactive-label="Yêu thích">
+                <svg aria-hidden="true"><use href="#product-card-icon-heart"></use></svg>
+                <span>@wishlistLabel</span>
+            </button>
+        }
+    </div>
 </article>

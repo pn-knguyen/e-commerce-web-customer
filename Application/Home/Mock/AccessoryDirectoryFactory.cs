@@ -12,7 +12,7 @@ internal static class AccessoryDirectoryFactory
         {
             Id = "quality-accessories",
             Title = "Sắm thêm phụ kiện chất lượng",
-            ViewAllUrl = "/catalog?cat=accessories",
+            ViewAllUrl = CatalogUrl.Products("accessories"),
             Items =
             [
                 Item("Phụ kiện Apple", "apple", "apple-accessories"),
@@ -41,7 +41,7 @@ internal static class AccessoryDirectoryFactory
             return new CategoryDirectoryItemViewModel
             {
                 Label = label,
-                Url = $"/catalog?cat=accessories&type={slug}",
+                Url = CatalogUrl.Products("accessories", name: label),
                 ImageUrl = $"{imageRoot}/{imageName}.webp",
                 ImageAlt = label
             };

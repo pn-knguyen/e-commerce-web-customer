@@ -4,5 +4,5 @@ namespace e_commerce_web_customer.Application.Home;
 
 public interface IHomePageViewModelFactory
 {
-    HomeIndexViewModel Create();
+    Task<HomeIndexViewModel> CreateAsync();
 }

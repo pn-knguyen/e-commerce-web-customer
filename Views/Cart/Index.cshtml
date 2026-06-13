@@ -9,7 +9,10 @@
     <link rel="stylesheet" href="~/css/pages/cart.css" asp-append-version="true" />
 }
 
-<section class="cart-page" data-cart-page data-initial-count="@Model.ItemCount">
+<section class="cart-page"
+         data-cart-page
+         data-database-cart="@Model.UseDatabaseCart.ToString().ToLowerInvariant()"
+         data-initial-count="@Model.ItemCount">
     @* Hidden CSRF token — read by cart.js when calling /Cart/SaveSession *@
     @Html.AntiForgeryToken()
     <div class="container cart-container">
