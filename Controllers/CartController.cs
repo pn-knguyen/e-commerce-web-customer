@@ -14,8 +14,7 @@ namespace e_commerce_web_customer.Controllers;
 public sealed class CartController(
     CartSessionService cartSession,
     ICartItemValidator cartItemValidator,
-    ICartService cartService,
-    EcommerceDbContext dbContext,
+    IServiceProvider serviceProvider,
     IConfiguration configuration) : Controller
 {
     [HttpGet]
@@ -32,7 +31,7 @@ public sealed class CartController(
             return View(new CartIndexViewModel
             {
                 UseDatabaseCart = true,
-                Items = (await cartService.GetAsync(userId.Value))
+                Items = (await DatabaseCartService.GetAsync(userId.Value))
                     .Select(MapToCartItemViewModel)
                     .ToList()
             });
@@ -75,8 +74,8 @@ public sealed class CartController(
                     return BadRequest(new { error = "Biến thể sản phẩm không hợp lệ." });
                 }
 
-                await cartService.AddAsync(userId.Value, item.ProductVariantId.Value, item.Quantity);
-                var databaseItems = await cartService.GetAsync(userId.Value);
+                await DatabaseCartService.AddAsync(userId.Value, item.ProductVariantId.Value, item.Quantity);
+                var databaseItems = await DatabaseCartService.GetAsync(userId.Value);
 
                 return Ok(new { count = databaseItems.Sum(cartItem => cartItem.Quantity) });
             }
@@ -115,8 +114,8 @@ public sealed class CartController(
                     return BadRequest(new { error = "Biến thể sản phẩm không hợp lệ." });
                 }
 
-                await cartService.AddAsync(userId.Value, item.ProductVariantId.Value, item.Quantity);
-                var databaseItems = await cartService.GetAsync(userId.Value);
+                await DatabaseCartService.AddAsync(userId.Value, item.ProductVariantId.Value, item.Quantity);
+                var databaseItems = await DatabaseCartService.GetAsync(userId.Value);
 
                 return Ok(new
                 {
@@ -162,7 +161,7 @@ public sealed class CartController(
                 .Select(item => long.TryParse(item.Id, out var id) ? id : 0)
                 .Where(id => id > 0)
                 .ToHashSet();
-            var selectedItems = (await cartService.GetAsync(userId.Value))
+            var selectedItems = (await DatabaseCartService.GetAsync(userId.Value))
                 .Where(item => selectedCartItemIds.Contains(item.Id))
                 .Select(item => new CartSessionItem
                 {
@@ -231,6 +230,11 @@ public sealed class CartController(
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> UpdateItem([FromBody] UpdateCartItemRequest? request)
     {
+        if (UseMockData)
+        {
+            return BadRequest(new { error = "Database cart actions are unavailable in mock mode." });
+        }
+
         if (request is null || request.CartItemId <= 0 || request.Quantity < 1)
         {
             return BadRequest(new { error = "Dữ liệu giỏ hàng không hợp lệ." });
@@ -244,13 +248,13 @@ public sealed class CartController(
 
         try
         {
-            var item = await cartService.UpdateAsync(userId.Value, request.CartItemId, request.Quantity);
+            var item = await DatabaseCartService.UpdateAsync(userId.Value, request.CartItemId, request.Quantity);
             if (item is null)
             {
                 return NotFound(new { error = "Không tìm thấy sản phẩm trong giỏ hàng." });
             }
 
-            var items = await cartService.GetAsync(userId.Value);
+            var items = await DatabaseCartService.GetAsync(userId.Value);
             return Ok(new { item, count = items.Sum(cartItem => cartItem.Quantity) });
         }
         catch (Exception exception) when (exception is InvalidOperationException or ArgumentOutOfRangeException)
@@ -263,6 +267,11 @@ public sealed class CartController(
     [ValidateAntiForgeryToken]
     public async Task<IActionResult> DeleteItem([FromBody] DeleteCartItemRequest? request)
     {
+        if (UseMockData)
+        {
+            return BadRequest(new { error = "Database cart actions are unavailable in mock mode." });
+        }
+
         if (request is null || request.CartItemId <= 0)
         {
             return BadRequest(new { error = "Sản phẩm trong giỏ hàng không hợp lệ." });
@@ -274,12 +283,12 @@ public sealed class CartController(
             return Unauthorized(new { error = "Bạn cần đăng nhập để cập nhật giỏ hàng." });
         }
 
-        if (!await cartService.DeleteAsync(userId.Value, request.CartItemId))
+        if (!await DatabaseCartService.DeleteAsync(userId.Value, request.CartItemId))
         {
             return NotFound(new { error = "Không tìm thấy sản phẩm trong giỏ hàng." });
         }
 
-        var items = await cartService.GetAsync(userId.Value);
+        var items = await DatabaseCartService.GetAsync(userId.Value);
         return Ok(new { count = items.Sum(cartItem => cartItem.Quantity) });
     }
 
@@ -314,6 +323,8 @@ public sealed class CartController(
     }
 
     private bool UseMockData => configuration.GetValue<bool>("DatabaseSettings:UseMockData", true);
+    private ICartService DatabaseCartService => serviceProvider.GetRequiredService<ICartService>();
+    private EcommerceDbContext DatabaseContext => serviceProvider.GetRequiredService<EcommerceDbContext>();
 
     private async Task<long?> GetCurrentUserIdAsync()
     {
@@ -329,7 +340,7 @@ public sealed class CartController(
             return null;
         }
 
-        var resolvedUserId = await dbContext.Users
+        var resolvedUserId = await DatabaseContext.Users
             .Where(user => user.IsActive && user.Email == email)
             .Select(user => (long?)user.Id)
             .FirstOrDefaultAsync();

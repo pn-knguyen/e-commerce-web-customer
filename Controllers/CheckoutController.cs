@@ -13,7 +13,8 @@ namespace e_commerce_web_customer.Controllers;
 
 public sealed class CheckoutController(
     CartSessionService cartSession,
-    IOrderService orderService) : Controller
+    IServiceProvider serviceProvider,
+    IConfiguration configuration) : Controller
 {
     private const string SuccessSessionKey = "checkout_success_order";
 
@@ -63,6 +64,14 @@ public sealed class CheckoutController(
         }
 
         var sessionItems = mode == "buynow" ? cartSession.LoadBuyNow() : cartSession.Load();
+
+        if (UseMockData)
+        {
+            StoreSuccessModel(BuildMockSuccessModel(model, orderSnapshot));
+            ClearSubmittedCart(mode);
+            return RedirectToAction(nameof(Success));
+        }
+
         var userIdValue = HttpContext.Session.GetString(SessionKeys.UserId);
         if (!long.TryParse(userIdValue, out var userId) || userId <= 0)
         {
@@ -75,7 +84,7 @@ public sealed class CheckoutController(
         OrderDto order;
         try
         {
-            order = await orderService.CreateAsync(new CreateOrderRequest
+            order = await DatabaseOrderService.CreateAsync(new CreateOrderRequest
             {
                 UserId = userId,
                 ContactName = model.FullName,
@@ -108,17 +117,8 @@ public sealed class CheckoutController(
             return View(model);
         }
 
-        var successModel = BuildSuccessModel(model, order);
-        HttpContext.Session.SetString(SuccessSessionKey, JsonSerializer.Serialize(successModel));
-
-        if (mode == "buynow")
-        {
-            cartSession.ClearBuyNow();
-        }
-        else
-        {
-            cartSession.Clear();
-        }
+        StoreSuccessModel(BuildSuccessModel(model, order));
+        ClearSubmittedCart(mode);
         
         return RedirectToAction(nameof(Success));
     }
@@ -176,6 +176,58 @@ public sealed class CheckoutController(
         {
             return null;
         }
+    }
+
+    private void StoreSuccessModel(CheckoutSuccessViewModel model)
+    {
+        HttpContext.Session.SetString(SuccessSessionKey, JsonSerializer.Serialize(model));
+    }
+
+    private void ClearSubmittedCart(string mode)
+    {
+        if (mode == "buynow")
+        {
+            cartSession.ClearBuyNow();
+            return;
+        }
+
+        cartSession.Clear();
+    }
+
+    private static CheckoutSuccessViewModel BuildMockSuccessModel(
+        CheckoutViewModel submittedModel,
+        CheckoutViewModel order)
+    {
+        var placedAt = DateTime.Now;
+
+        return new CheckoutSuccessViewModel
+        {
+            OrderCode = $"TS{placedAt:yyMMddHHmmss}",
+            CustomerName = string.IsNullOrWhiteSpace(submittedModel.FullName)
+                ? "Quý khách"
+                : submittedModel.FullName.Trim(),
+            Phone = submittedModel.Phone?.Trim() ?? string.Empty,
+            Email = submittedModel.Email?.Trim() ?? string.Empty,
+            DeliveryAddress = BuildDeliveryAddress(submittedModel),
+            ShippingMethodName = "Giao hàng nhanh",
+            PaymentMethodName = GetPaymentMethodName(submittedModel.PaymentMethod),
+            PlacedAt = placedAt.ToString("HH:mm, dd/MM/yyyy"),
+            EstimatedDeliveryDateText = placedAt.AddDays(2).ToString("dd/MM/yyyy"),
+            ItemCountText = $"{order.Items.Sum(item => item.Quantity)} sản phẩm",
+            SubtotalText = CheckoutViewModel.FormatPrice(order.Subtotal),
+            ShippingFeeText = CheckoutViewModel.FormatPrice(order.ShippingFee),
+            DiscountText = FormatDiscount(order.Discount),
+            TotalText = CheckoutViewModel.FormatPrice(order.Total),
+            Items = order.Items.Select(item => new CheckoutSuccessItemViewModel
+            {
+                Name = item.Name,
+                ImageUrl = item.ImageUrl,
+                ImageAlt = item.ImageAlt,
+                Variant = item.Variant,
+                Quantity = item.Quantity,
+                LineTotalText = CheckoutViewModel.FormatPrice(item.UnitPrice * item.Quantity)
+            }).ToList()
+        };
     }
 
     private static CheckoutSuccessViewModel BuildSuccessModel(
@@ -236,4 +288,15 @@ public sealed class CheckoutController(
     private static string FormatDiscount(decimal discount)
         => discount > 0 ? $"-{CheckoutViewModel.FormatPrice(discount)}" : CheckoutViewModel.FormatPrice(0);
 
+    private static string GetPaymentMethodName(PaymentMethod paymentMethod) => paymentMethod switch
+    {
+        PaymentMethod.BankTransfer => "Chuyển khoản ngân hàng",
+        PaymentMethod.Momo => "Ví MoMo",
+        PaymentMethod.VnPay => "VNPay",
+        PaymentMethod.ZaloPay => "ZaloPay",
+        _ => "Thanh toán khi nhận hàng"
+    };
+
+    private bool UseMockData => configuration.GetValue<bool>("DatabaseSettings:UseMockData", true);
+    private IOrderService DatabaseOrderService => serviceProvider.GetRequiredService<IOrderService>();
 }

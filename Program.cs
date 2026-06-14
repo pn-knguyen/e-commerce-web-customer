@@ -1,3 +1,4 @@
+using e_commerce_web_customer.Application.Catalog;
 using e_commerce_web_customer.Application.Contracts;
 using e_commerce_web_customer.Application.Home;
 using e_commerce_web_customer.Application.Navigation;
@@ -13,15 +14,6 @@ using e_commerce_web_customer.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-builder.Services.AddDbContext<EcommerceDbContext>();
-builder.Services.AddScoped(typeof(IReadRepository<>), typeof(ReadRepository<>));
-builder.Services.AddScoped<IBrandService, BrandService>();
-builder.Services.AddScoped<ICategoryService, CategoryService>();
-builder.Services.AddScoped<IProductService, ProductService>();
-builder.Services.AddScoped<ICartService, CartService>();
-builder.Services.AddScoped<IAuthService, AuthService>();
-builder.Services.AddScoped<IOrderService, OrderService>();
 builder.Services.AddControllersWithViews();
 builder.Services.AddSingleton<ISiteCategoryMenuProvider, MockSiteCategoryMenuProvider>();
 
@@ -42,14 +34,23 @@ if (useMockData)
 {
     builder.Services.AddScoped<IHomePageViewModelFactory, MockHomePageViewModelFactory>();
     builder.Services.AddSingleton<IProductDetailViewModelFactory, MockProductDetailViewModelFactory>();
-    builder.Services.AddScoped<IAccountService, MockAccountService>();
+    builder.Services.AddScoped<ICatalogPageViewModelFactory, MockCatalogPageViewModelFactory>();
+    builder.Services.AddScoped<IAuthService, MockAuthService>();
     builder.Services.AddScoped<ICartItemValidator, MockCartItemValidator>();
 }
 else
 {
-    builder.Services.AddScoped<IHomePageViewModelFactory, MockHomePageViewModelFactory>();
+    builder.Services.AddDbContext<EcommerceDbContext>();
+    builder.Services.AddScoped(typeof(IReadRepository<>), typeof(ReadRepository<>));
+    builder.Services.AddScoped<IBrandService, BrandService>();
+    builder.Services.AddScoped<ICategoryService, CategoryService>();
+    builder.Services.AddScoped<IProductService, ProductService>();
+    builder.Services.AddScoped<ICartService, CartService>();
+    builder.Services.AddScoped<IAuthService, AuthService>();
+    builder.Services.AddScoped<IOrderService, OrderService>();
+    builder.Services.AddScoped<IHomePageViewModelFactory, DbHomePageViewModelFactory>();
     builder.Services.AddScoped<IProductDetailViewModelFactory, DbProductDetailViewModelFactory>();
-    builder.Services.AddScoped<IAccountService, DbAccountService>();
+    builder.Services.AddScoped<ICatalogPageViewModelFactory, DbCatalogPageViewModelFactory>();
     builder.Services.AddScoped<ICartItemValidator, DbCartItemValidator>();
 }
 
