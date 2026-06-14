@@ -1,44 +1,158 @@
+using System.Text;
 using e_commerce_web_customer.Application.Contracts;
+using e_commerce_web_customer.Data;
+using e_commerce_web_customer.Models;
 using e_commerce_web_customer.ViewModels.Account;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 
 namespace e_commerce_web_customer.Infrastructure.Services;
 
-/// <summary>
-/// Production account service connected to the database / ASP.NET Core Identity store.
-/// Backend developers should inject their DbContext or UserManager/SignInManager here.
-/// </summary>
-public sealed class DbAccountService : IAccountService
+public sealed class DbAccountService(EcommerceDbContext dbContext)
+    : IAccountService
 {
-    // private readonly MyDbContext _dbContext; // Example: Injecting EF Core DbContext
-    // private readonly UserManager<ApplicationUser> _userManager; // Example: Injecting Identity UserManager
+    private readonly PasswordHasher<User> _passwordHasher = new();
 
-    public Task<bool> LoginAsync(string email, string password, bool rememberMe)
+    public async Task<bool> LoginAsync(
+        string email,
+        string password,
+        bool rememberMe,
+        CancellationToken cancellationToken = default)
     {
-        // TODO: Implement database authentication logic here
-        // Example with Identity:
-        // var result = await _signInManager.PasswordSignInAsync(email, password, rememberMe, lockoutOnFailure: false);
-        // return result.Succeeded;
+        _ = rememberMe;
+        var normalizedEmail = NormalizeEmail(email);
+        var user = await dbContext.Users.FirstOrDefaultAsync(
+            item => item.Email == normalizedEmail && item.IsActive,
+            cancellationToken);
 
-        return Task.FromResult(false);
+        if (user is null)
+        {
+            return false;
+        }
+
+        var result = _passwordHasher.VerifyHashedPassword(
+            user,
+            user.PasswordHash,
+            password);
+
+        if (result == PasswordVerificationResult.Failed)
+        {
+            return false;
+        }
+
+        if (result == PasswordVerificationResult.SuccessRehashNeeded)
+        {
+            user.PasswordHash = _passwordHasher.HashPassword(user, password);
+            user.UpdatedAt = DateTime.UtcNow;
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        return true;
     }
 
-    public Task<bool> RegisterAsync(RegisterViewModel model)
+    public async Task<AccountProfile?> GetProfileAsync(
+        string email,
+        CancellationToken cancellationToken = default)
     {
-        // TODO: Implement database creation logic here
-        // Example with Identity:
-        // var user = new ApplicationUser { UserName = model.Email, Email = model.Email, FullName = model.FullName };
-        // var result = await _userManager.CreateAsync(user, model.Password);
-        // return result.Succeeded;
-
-        return Task.FromResult(false);
+        var normalizedEmail = NormalizeEmail(email);
+        return await dbContext.Users
+            .AsNoTracking()
+            .Where(item => item.Email == normalizedEmail && item.IsActive)
+            .Select(item => new AccountProfile(item.Email, item.FullName))
+            .FirstOrDefaultAsync(cancellationToken);
     }
 
-    public Task<bool> UserExistsAsync(string email)
+    public async Task<bool> RegisterAsync(
+        RegisterViewModel model,
+        CancellationToken cancellationToken = default)
     {
-        // TODO: Implement database lookup logic here
-        // Example with EF Core:
-        // return await _dbContext.Users.AnyAsync(u => u.Email == email);
+        var normalizedEmail = NormalizeEmail(model.Email);
+        if (await dbContext.Users.AnyAsync(
+                item => item.Email == normalizedEmail,
+                cancellationToken))
+        {
+            return false;
+        }
 
-        return Task.FromResult(false);
+        var user = new User
+        {
+            Username = await CreateUniqueUsernameAsync(
+                normalizedEmail,
+                cancellationToken),
+            Email = normalizedEmail,
+            FullName = model.FullName.Trim(),
+            Phone = string.IsNullOrWhiteSpace(model.PhoneNumber)
+                ? null
+                : model.PhoneNumber.Trim(),
+            Gender = "Other",
+            Role = "Customer",
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow,
+            PasswordHash = string.Empty
+        };
+        user.PasswordHash = _passwordHasher.HashPassword(user, model.Password);
+        dbContext.Users.Add(user);
+
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+            return true;
+        }
+        catch (DbUpdateException)
+        {
+            return false;
+        }
+    }
+
+    public Task<bool> UserExistsAsync(
+        string email,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedEmail = NormalizeEmail(email);
+        return dbContext.Users.AnyAsync(
+            item => item.Email == normalizedEmail,
+            cancellationToken);
+    }
+
+    private async Task<string> CreateUniqueUsernameAsync(
+        string email,
+        CancellationToken cancellationToken)
+    {
+        var baseUsername = SanitizeUsername(email.Split('@')[0]);
+        var username = baseUsername;
+        var suffix = 1;
+
+        while (await dbContext.Users.AnyAsync(
+                   item => item.Username == username,
+                   cancellationToken))
+        {
+            username = $"{baseUsername}{suffix}";
+            suffix++;
+        }
+
+        return username;
+    }
+
+    private static string NormalizeEmail(string email)
+    {
+        return email.Trim().ToLowerInvariant();
+    }
+
+    private static string SanitizeUsername(string value)
+    {
+        var builder = new StringBuilder();
+
+        foreach (var character in value)
+        {
+            if (char.IsLetterOrDigit(character) || character is '.' or '_' or '-')
+            {
+                builder.Append(char.ToLowerInvariant(character));
+            }
+        }
+
+        var username = builder.ToString();
+        return string.IsNullOrWhiteSpace(username)
+            ? "customer"
+            : username[..Math.Min(username.Length, 90)];
     }
 }

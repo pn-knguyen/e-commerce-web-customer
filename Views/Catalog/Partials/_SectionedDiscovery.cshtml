@@ -1,0 +1,92 @@
+@model CategoryPageViewModel
+
+<section class="catalog-sectioned-discovery" aria-labelledby="catalog-title">
+    <div class="container">
+        <nav class="catalog-breadcrumb" aria-label="Đường dẫn">
+            <ol>
+                @for (var index = 0; index < Model.Breadcrumbs.Count; index++)
+                {
+                    var item = Model.Breadcrumbs[index];
+                    <li>
+                        @if (index == 0)
+                        {
+                            <svg aria-hidden="true"><use href="#hero-icon-home"></use></svg>
+                        }
+
+                        @if (item.IsCurrent)
+                        {
+                            <span aria-current="page">@item.Label</span>
+                        }
+                        else
+                        {
+                            <a href="@item.Url">@item.Label</a>
+                            <span class="catalog-breadcrumb__separator" aria-hidden="true">/</span>
+                        }
+                    </li>
+                }
+            </ol>
+        </nav>
+
+        @if (Model.PromotionBanners.Count > 0)
+        {
+            <div class="catalog-promo-carousel catalog-sectioned-promo">
+                <div class="swiper catalog-promo-swiper" aria-label="Khuyến mãi âm thanh">
+                    <div class="swiper-wrapper">
+                        @foreach (var banner in Model.PromotionBanners)
+                        {
+                            <div class="swiper-slide">
+                                <a class="catalog-promo-card catalog-promo-card--@banner.Theme"
+                                   href="@banner.Url">
+                                    <div class="catalog-promo-card__copy">
+                                        <span>@banner.Kicker</span>
+                                        <strong>@banner.Title</strong>
+                                        <small>@banner.PriceText</small>
+                                    </div>
+                                    <img src="@banner.ImageUrl"
+                                         alt="@banner.ImageAlt"
+                                         width="320"
+                                         height="180" />
+                                </a>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <button class="catalog-carousel-button catalog-carousel-button--prev"
+                        type="button"
+                        aria-label="Khuyến mãi trước"
+                        data-promo-prev>
+                    <svg aria-hidden="true"><use href="#hero-icon-chevron-left"></use></svg>
+                </button>
+                <button class="catalog-carousel-button catalog-carousel-button--next"
+                        type="button"
+                        aria-label="Khuyến mãi tiếp theo"
+                        data-promo-next>
+                    <svg aria-hidden="true"><use href="#hero-icon-chevron"></use></svg>
+                </button>
+            </div>
+        }
+
+        <h1 id="catalog-title">@Model.Title</h1>
+
+        @if (Model.QuickLinks.Count > 0)
+        {
+            <section class="catalog-sectioned-types" aria-labelledby="catalog-sectioned-types-title">
+                <h2 id="catalog-sectioned-types-title">Chọn loại sản phẩm</h2>
+                <div class="catalog-needs__track">
+                    @foreach (var item in Model.QuickLinks)
+                    {
+                        <a class="catalog-need-card" href="@item.Url">
+                            <img src="@item.ImageUrl"
+                                 alt="@item.ImageAlt"
+                                 width="82"
+                                 height="72"
+                                 loading="lazy" />
+                            <span>@item.Label</span>
+                        </a>
+                    }
+                </div>
+            </section>
+        }
+    </div>
+</section>

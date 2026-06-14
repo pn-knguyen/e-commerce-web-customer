@@ -135,6 +135,93 @@
   text-overflow: ellipsis;
 }
 
+.product-card__availability {
+  align-self: flex-start;
+  margin-bottom: 5px;
+  padding: 3px 7px;
+  border-radius: 5px;
+  background: #dcfce7;
+  color: #15803d;
+  font-size: 10px;
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.product-card__specifications {
+  display: flex;
+  min-height: 24px;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 5px;
+}
+
+.product-card__specifications span {
+  padding: 3px 6px;
+  border: 1px solid #d4d4d8;
+  border-radius: 5px;
+  color: #52525b;
+  font-size: 9.5px;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.product-card__offers {
+  display: grid;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.product-card__offer,
+.product-card__promotion-note {
+  overflow: hidden;
+  border-radius: 4px;
+  font-size: 9.5px;
+  line-height: 1.35;
+}
+
+.product-card__offer {
+  padding: 3px 6px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.product-card__offer--member {
+  background: #dfe5ff;
+  color: #3446a8;
+}
+
+.product-card__offer--student {
+  background: #f1ddff;
+  color: #7227aa;
+}
+
+.product-card__promotion-note {
+  display: -webkit-box;
+  min-height: 37px;
+  padding: 5px 6px;
+  background: #f2f2f3;
+  color: #3f3f46;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.product-card--detailed .product-card__media {
+  padding: 28px 14px 4px;
+}
+
+.product-card--detailed .product-card__media img {
+  height: min(190px, calc(var(--product-card-media-height, 238px) - 30px));
+}
+
+.product-card--detailed .product-card__body {
+  padding: 7px 10px 8px;
+}
+
+.product-card--detailed .product-card__name {
+  min-height: 39px;
+  margin-bottom: 5px;
+}
+
 .product-card__meta {
   display: flex;
   min-width: 0;

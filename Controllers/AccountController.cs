@@ -1,10 +1,11 @@
-using e_commerce_web_customer.Interfaces;
+using e_commerce_web_customer.Application.Contracts;
+using e_commerce_web_customer.Application.Constants;
 using e_commerce_web_customer.ViewModels.Account;
 using Microsoft.AspNetCore.Mvc;
 
 namespace e_commerce_web_customer.Controllers;
 
-public sealed class AccountController(IAuthService authService) : Controller
+public sealed class AccountController(IAccountService accountService) : Controller
 {
     [HttpGet]
     public IActionResult Login(string? returnUrl = null)
@@ -15,7 +16,10 @@ public sealed class AccountController(IAuthService authService) : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Login(LoginViewModel model, string? returnUrl = null)
+    public async Task<IActionResult> Login(
+        LoginViewModel model,
+        string? returnUrl = null,
+        CancellationToken cancellationToken = default)
     {
         if (!ModelState.IsValid)
         {
@@ -23,11 +27,25 @@ public sealed class AccountController(IAuthService authService) : Controller
             return View(model);
         }
 
-        var success = await authService.LoginAsync(model.Email, model.Password, model.RememberMe);
+        var success = await accountService.LoginAsync(
+            model.Email,
+            model.Password,
+            model.RememberMe,
+            cancellationToken);
         if (success)
         {
+            var profile = await accountService.GetProfileAsync(
+                model.Email,
+                cancellationToken);
+
+            HttpContext.Session.SetString(SessionKeys.IsLoggedIn, "true");
+            HttpContext.Session.SetString(SessionKeys.UserEmail, profile?.Email ?? model.Email);
+            HttpContext.Session.SetString(
+                SessionKeys.UserDisplayName,
+                profile?.DisplayName ?? ResolveDisplayName(model.Email));
+
             TempData["AuthSuccess"] = "Đăng nhập thành công! Chào mừng bạn quay lại TechStore.";
-            
+
             if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
             {
                 return Redirect(returnUrl);
@@ -42,12 +60,14 @@ public sealed class AccountController(IAuthService authService) : Controller
         ViewData["ReturnUrl"] = returnUrl;
         return View(model);
     }
-    
+
     [HttpPost]
     [ValidateAntiForgeryToken]
     public IActionResult Logout()
     {
-        authService.Logout();
+        HttpContext.Session.Remove(SessionKeys.IsLoggedIn);
+        HttpContext.Session.Remove(SessionKeys.UserEmail);
+        HttpContext.Session.Remove(SessionKeys.UserDisplayName);
         return RedirectToAction("Index", "Home");
     }
 
@@ -59,21 +79,27 @@ public sealed class AccountController(IAuthService authService) : Controller
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Register(RegisterViewModel model)
+    public async Task<IActionResult> Register(
+        RegisterViewModel model,
+        CancellationToken cancellationToken)
     {
         if (!ModelState.IsValid)
         {
             return View(model);
         }
 
-        var exists = await authService.UserExistsAsync(model.Email);
+        var exists = await accountService.UserExistsAsync(
+            model.Email,
+            cancellationToken);
         if (exists)
         {
             ModelState.AddModelError(nameof(model.Email), "Email này đã được đăng ký sử dụng.");
             return View(model);
         }
 
-        var success = await authService.RegisterAsync(model);
+        var success = await accountService.RegisterAsync(
+            model,
+            cancellationToken);
         if (success)
         {
             TempData["AuthSuccess"] = "Đăng ký thành công! Vui lòng đăng nhập.";
@@ -117,5 +143,10 @@ public sealed class AccountController(IAuthService authService) : Controller
         return string.Equals(source, nameof(Register), StringComparison.OrdinalIgnoreCase)
             ? RedirectToAction(nameof(Register))
             : RedirectToAction(nameof(Login));
+    }
+
+    private static string ResolveDisplayName(string email)
+    {
+        return email.Split('@', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? email;
     }
 }

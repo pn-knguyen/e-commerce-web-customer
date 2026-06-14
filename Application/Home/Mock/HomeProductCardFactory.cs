@@ -68,6 +68,8 @@ internal static class HomeProductCardFactory
                 MemberOffer = source.MemberOffer,
                 StudentOffer = source.StudentOffer,
                 PromotionNote = source.PromotionNote,
+                AvailabilityLabel = source.AvailabilityLabel,
+                Specifications = source.Specifications,
                 DeliveryLabel = source.DeliveryLabel,
                 Location = source.Location,
                 Rating = source.Rating,

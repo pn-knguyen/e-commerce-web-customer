@@ -1,0 +1,23 @@
+@model CategoryPageViewModel
+
+<div class="catalog-page"
+     data-catalog-page
+     data-initial-product-count="@Model.InitialProductCount">
+    <partial name="~/Views/Catalog/Partials/_CategoryDiscovery.cshtml" model="Model" />
+
+    @if (Model.HotSale.Products.Count > 0)
+    {
+        <partial name="~/Views/Catalog/Partials/_HotSale.cshtml" model="Model.HotSale" />
+    }
+
+    <partial name="~/Views/Catalog/Partials/_FilterToolbar.cshtml" model="Model.Filter" />
+    <partial name="~/Views/Catalog/Partials/_ProductGrid.cshtml" model="Model" />
+    <partial name="~/Views/Catalog/Partials/_SeoContent.cshtml" model="Model.SeoContent" />
+
+    <div class="container catalog-question-answer">
+        <partial name="~/Views/Shared/Sections/_QuestionAnswer.cshtml"
+                 model="Model.QuestionAnswer" />
+    </div>
+
+    <partial name="~/Views/Catalog/Partials/_CatalogIconSprite.cshtml" />
+</div>

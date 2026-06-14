@@ -1,0 +1,58 @@
+@model CategoryHotSaleViewModel
+
+<section class="catalog-hot-sale" aria-labelledby="catalog-hot-sale-title">
+    <div class="container">
+        <div class="catalog-hot-sale__shell">
+            <header class="catalog-hot-sale__header">
+                <h2 id="catalog-hot-sale-title">
+                    <span class="catalog-hot-sale__icon" aria-hidden="true">
+                        <svg><use href="#hero-icon-discount"></use></svg>
+                    </span>
+                    @Model.Title
+                </h2>
+
+                @if (Model.EndsAt.HasValue)
+                {
+                    <div class="catalog-countdown"
+                         data-hot-sale-countdown
+                         data-ends-at="@Model.EndsAt.Value.ToString("O")">
+                        <span>Kết thúc sau:</span>
+                        <time aria-live="polite">
+                            <b data-countdown-hours>00</b>
+                            <i>:</i>
+                            <b data-countdown-minutes>00</b>
+                            <i>:</i>
+                            <b data-countdown-seconds>00</b>
+                        </time>
+                    </div>
+                }
+            </header>
+
+            <div class="catalog-hot-sale__carousel">
+                <div class="swiper catalog-hot-sale-swiper">
+                    <div class="swiper-wrapper">
+                        @foreach (var product in Model.Products)
+                        {
+                            <div class="swiper-slide">
+                                <partial name="~/Views/Shared/Partials/_ProductCard.cshtml" model="product" />
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <button class="catalog-carousel-button catalog-carousel-button--prev"
+                        type="button"
+                        aria-label="Sản phẩm hot sale trước"
+                        data-hot-sale-prev>
+                    <svg aria-hidden="true"><use href="#hero-icon-chevron-left"></use></svg>
+                </button>
+                <button class="catalog-carousel-button catalog-carousel-button--next"
+                        type="button"
+                        aria-label="Sản phẩm hot sale tiếp theo"
+                        data-hot-sale-next>
+                    <svg aria-hidden="true"><use href="#hero-icon-chevron"></use></svg>
+                </button>
+            </div>
+        </div>
+    </div>
+</section>

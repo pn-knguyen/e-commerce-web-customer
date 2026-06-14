@@ -31,8 +31,14 @@ public sealed class MockAccountService : IAccountService
 
     private static readonly object Lock = new();
 
-    public Task<bool> LoginAsync(string email, string password, bool rememberMe)
+    public Task<bool> LoginAsync(
+        string email,
+        string password,
+        bool rememberMe,
+        CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         lock (Lock)
         {
             var user = Users.FirstOrDefault(u =>
@@ -43,8 +49,29 @@ public sealed class MockAccountService : IAccountService
         }
     }
 
-    public Task<bool> RegisterAsync(RegisterViewModel model)
+    public Task<AccountProfile?> GetProfileAsync(
+        string email,
+        CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        lock (Lock)
+        {
+            var user = Users.FirstOrDefault(u =>
+                string.Equals(u.Email, email, StringComparison.OrdinalIgnoreCase));
+
+            return Task.FromResult(user is null
+                ? null
+                : new AccountProfile(user.Email, user.FullName));
+        }
+    }
+
+    public Task<bool> RegisterAsync(
+        RegisterViewModel model,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
         lock (Lock)
         {
             if (Users.Any(u => string.Equals(u.Email, model.Email, StringComparison.OrdinalIgnoreCase)))
@@ -64,8 +91,12 @@ public sealed class MockAccountService : IAccountService
         }
     }
 
-    public Task<bool> UserExistsAsync(string email)
+    public Task<bool> UserExistsAsync(
+        string email,
+        CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
+
         lock (Lock)
         {
             var exists = Users.Any(u => string.Equals(u.Email, email, StringComparison.OrdinalIgnoreCase));

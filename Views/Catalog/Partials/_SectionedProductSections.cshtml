@@ -1,0 +1,105 @@
+﻿@model CategoryPageViewModel
+
+@if (Model.ProductSections.Count > 0)
+{
+    <div class="catalog-sectioned-products">
+        @foreach (var productSection in Model.ProductSections)
+        {
+            var visibleProducts = productSection.Products.Take(productSection.VisibleProductLimit).ToList();
+            var hasMoreProducts = productSection.Products.Count > productSection.VisibleProductLimit;
+
+            <section id="@productSection.Id"
+                     class="catalog-audio-section"
+                     aria-labelledby="@($"{productSection.Id}-title")"
+                     data-section-target="@productSection.Id.Replace("section-", "")">
+                <div class="container">
+                    @if (productSection.Banner is not null)
+                    {
+                        <a class="catalog-audio-banner catalog-audio-banner--@productSection.Banner.Theme"
+                           href="@productSection.ViewAllUrl">
+                            <div>
+                                <strong>@productSection.Banner.Title</strong>
+                                <span>@productSection.Banner.Subtitle</span>
+                            </div>
+                            <img src="@productSection.Banner.ImageUrl"
+                                 alt="@productSection.Banner.ImageAlt"
+                                 width="320"
+                                 height="180"
+                                 loading="lazy" />
+                        </a>
+                    }
+
+                    @if (productSection.Subcategories.Count > 0)
+                    {
+                        <nav class="catalog-section-pill-nav"
+                             aria-label="@($"Danh mục con {productSection.Title}")">
+                            @foreach (var subcategory in productSection.Subcategories)
+                            {
+                                <a class="catalog-section-pill @(subcategory.IsActive ? "is-active" : null)"
+                                   href="@subcategory.Url"
+                                   data-section-pill-link
+                                   aria-current="@(subcategory.IsActive ? "true" : null)">
+                                    <span>
+                                        <img src="@subcategory.ImageUrl"
+                                             alt="@subcategory.ImageAlt"
+                                             width="54"
+                                             height="54"
+                                             loading="lazy" />
+                                    </span>
+                                    <strong>@subcategory.Label</strong>
+                                </a>
+                            }
+                        </nav>
+                    }
+
+                    <div class="catalog-section-header">
+                        <div>
+                            <h2 id="@($"{productSection.Id}-title")">@productSection.Title</h2>
+                            @if (!string.IsNullOrWhiteSpace(productSection.Description))
+                            {
+                                <p>@productSection.Description</p>
+                            }
+                        </div>
+
+                        <a class="catalog-section-view-all" href="@productSection.ViewAllUrl">
+                            Xem tất cả sản phẩm
+                            <svg aria-hidden="true"><use href="#hero-icon-chevron"></use></svg>
+                        </a>
+                    </div>
+
+                    @if (visibleProducts.Count > 0)
+                    {
+                        <div class="catalog-section-product-grid">
+                            @foreach (var product in visibleProducts)
+                            {
+                                <div class="catalog-section-product-grid__item">
+                                    <partial name="~/Views/Shared/Partials/_ProductCard.cshtml"
+                                             model="product" />
+                                </div>
+                            }
+                        </div>
+
+                        @if (hasMoreProducts)
+                        {
+                            <div class="catalog-section-more">
+                                <a href="@productSection.ViewAllUrl">
+                                    Xem tất cả @productSection.Products.Count sản phẩm
+                                    <svg aria-hidden="true"><use href="#hero-icon-chevron"></use></svg>
+                                </a>
+                            </div>
+                        }
+                    }
+                    else
+                    {
+                        <div class="catalog-empty-state">
+                            <h3>Chưa có sản phẩm</h3>
+                            <p>Nhóm sản phẩm này đang được cập nhật.</p>
+                        </div>
+                    }
+                </div>
+            </section>
+        }
+    </div>
+
+    <div class="catalog-section-nav-end" data-section-nav-end aria-hidden="true"></div>
+}

@@ -1,7 +1,7 @@
 using System.Diagnostics;
+using Microsoft.AspNetCore.Mvc;
 using e_commerce_web_customer.Application.Home;
 using e_commerce_web_customer.Models;
-using Microsoft.AspNetCore.Mvc;
 
 namespace e_commerce_web_customer.Controllers;
 
@@ -14,9 +14,10 @@ public class HomeController : Controller
         _homePageViewModelFactory = homePageViewModelFactory;
     }
 
-    public async Task<IActionResult> Index()
+    public async Task<IActionResult> Index(CancellationToken cancellationToken)
     {
-        return View(await _homePageViewModelFactory.CreateAsync());
+        var model = await _homePageViewModelFactory.CreateAsync(cancellationToken);
+        return View(model);
     }
 
     public IActionResult Privacy()

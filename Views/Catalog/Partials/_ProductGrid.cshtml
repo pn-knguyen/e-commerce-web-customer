@@ -1,0 +1,43 @@
+@model CategoryPageViewModel
+
+<section class="catalog-products" aria-label="Danh sách điện thoại">
+    <div class="container">
+        @if (Model.Products.Count > 0)
+        {
+            <div class="catalog-product-grid"
+                 data-product-grid
+                 aria-busy="false">
+                @for (var index = 0; index < Model.Products.Count; index++)
+                {
+                    <div class="catalog-product-grid__item"
+                         data-product-grid-item
+                         @(index >= Model.InitialProductCount ? "hidden" : null)>
+                        <partial name="~/Views/Shared/Partials/_ProductCard.cshtml"
+                                 model="Model.Products[index]" />
+                    </div>
+                }
+            </div>
+
+            @if (Model.Products.Count > Model.InitialProductCount)
+            {
+                <div class="catalog-load-more">
+                    <button type="button"
+                            data-load-more
+                            data-batch-size="5"
+                            data-remaining-count="@(Model.Products.Count - Model.InitialProductCount)">
+                        <span>Xem thêm @(Model.Products.Count - Model.InitialProductCount) sản phẩm</span>
+                        <i aria-hidden="true"></i>
+                    </button>
+                </div>
+            }
+        }
+        else
+        {
+            <div class="catalog-empty-state">
+                <h2>Chưa có sản phẩm</h2>
+                <p>Sản phẩm của danh mục này đang được cập nhật.</p>
+                <a class="btn btn-primary" href="/">Về trang chủ</a>
+            </div>
+        }
+    </div>
+</section>

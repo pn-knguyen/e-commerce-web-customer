@@ -10,26 +10,55 @@
     <div class="site-category-backdrop" data-category-menu-close></div>
 
     <div class="site-category-frame">
-        <section class="site-category-panel"
+        <section class="site-category-surface"
                  tabindex="-1"
-                 data-category-menu-panel>
+                 data-category-menu-panel
+                 data-category-mega-root>
             <h2 class="sr-only" id="site-category-menu-title">Danh mục sản phẩm</h2>
 
-            <nav class="site-category-list" aria-label="Danh mục sản phẩm">
-                @foreach (var category in Model.Items)
+            <div class="site-category-panel">
+                <nav class="site-category-list" aria-label="Danh mục sản phẩm">
+                    @foreach (var category in Model.Items)
+                    {
+                        var megaPanelId = $"header-{category.Id}-mega";
+                        var labelId = $"header-{category.Id}-menu-label";
+                        var labelParts = category.Label.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+
+                        <div class="site-category-entry"
+                             data-category-entry
+                             data-category-mega-panel-id="@megaPanelId">
+                            <a class="site-category-item"
+                               href="@category.Url"
+                               aria-label="@category.Label"
+                               aria-haspopup="true"
+                               aria-expanded="false"
+                               aria-controls="@megaPanelId"
+                               data-category-link>
+                                <svg class="site-category-icon" aria-hidden="true">
+                                    <use href="@($"#hero-icon-{category.Icon}")"></use>
+                                </svg>
+                                <span class="site-category-label" id="@labelId">
+                                    @foreach (var labelPart in labelParts)
+                                    {
+                                        <span class="site-category-label-part">@labelPart</span>
+                                    }
+                                </span>
+                                <svg class="site-category-chevron" aria-hidden="true">
+                                    <use href="#hero-icon-chevron"></use>
+                                </svg>
+                            </a>
+                        </div>
+                    }
+                </nav>
+            </div>
+
+            <partial name="~/Views/Shared/Partials/_CategoryMegaPanels.cshtml"
+                     model="@(new SiteCategoryMegaPanelsViewModel
                 {
-                    <a class="site-category-item"
-                       href="@category.Url">
-                        <svg class="site-category-icon" aria-hidden="true">
-                            <use href="@($"#hero-icon-{category.Icon}")"></use>
-                        </svg>
-                        <span>@category.Label</span>
-                        <svg class="site-category-chevron" aria-hidden="true">
-                            <use href="#hero-icon-chevron"></use>
-                        </svg>
-                    </a>
-                }
-            </nav>
+                    IdPrefix = "header",
+                    StageClass = "site-category-mega-stage",
+                    Items = Model.Items
+                })" />
 
             <button class="sr-only"
                     type="button"

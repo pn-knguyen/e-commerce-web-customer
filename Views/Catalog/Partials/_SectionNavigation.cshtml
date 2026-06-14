@@ -1,0 +1,26 @@
+@model CategoryPageViewModel
+
+@if (Model.SectionTabs.Count > 0)
+{
+    <div class="catalog-section-nav-sentinel" data-section-nav-sentinel aria-hidden="true"></div>
+
+    <nav class="catalog-section-nav"
+         aria-label="Nhóm sản phẩm âm thanh"
+         aria-hidden="true"
+         data-section-nav-shell>
+        <div class="container">
+            <div class="catalog-section-nav__track">
+                @foreach (var tab in Model.SectionTabs)
+                {
+                    <a class="catalog-section-nav__link @(tab.IsActive ? "is-active" : null)"
+                       href="@tab.Url"
+                       data-section-nav-link="@tab.Id"
+                       tabindex="-1"
+                       aria-current="@(tab.IsActive ? "true" : null)">
+                        @tab.Label
+                    </a>
+                }
+            </div>
+        </div>
+    </nav>
+}

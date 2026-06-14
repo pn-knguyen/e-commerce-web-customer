@@ -8,26 +8,38 @@ public sealed class MockSiteCategoryMenuProvider : ISiteCategoryMenuProvider
     {
         Items =
         [
-            Item("site-cat-phone", Catalog("phone"), "Điện thoại, Tablet", "phone"),
-            Item("site-cat-laptop", Catalog("laptop"), "Laptop", "laptop"),
-            Item("site-cat-audio", Catalog("audio"), "Âm thanh, Mic thu âm", "audio"),
-            Item("site-cat-watch", Catalog("smartwatch"), "Đồng hồ, Camera", "watch"),
-            Item("site-cat-appliances", Catalog("appliances"), "Đồ gia dụng, Làm đẹp", "home"),
-            Item("site-cat-accessories", Catalog("accessories"), "Phụ kiện", "cable"),
-            Item("site-cat-pc", Catalog("pc"), "PC, Màn hình, Máy in", "desktop"),
-            Item("site-cat-tv", Catalog("tv"), "Tivi, Điện máy", "tv"),
-            Item("site-cat-tradein", "/trade-in", "Thu cũ đổi mới", "swap"),
-            Item("site-cat-used", Catalog(name: "Hàng cũ"), "Hàng cũ", "history"),
-            Item("site-cat-deals", "/deals", "Khuyến mãi", "discount", true),
-            Item("site-cat-tech", Catalog("tech"), "Tin công nghệ", "news")
+            Item("site-cat-phone", "/catalog?cat=phone", "Điện thoại, Tablet", "phone",
+                MockSiteCategoryMegaMenuData.Phone),
+            Item("site-cat-laptop", "/catalog?cat=laptop", "Laptop", "laptop",
+                MockSiteCategoryMegaMenuData.Laptop),
+            Item("site-cat-audio", "/catalog?cat=audio", "Âm thanh, Mic thu âm", "audio",
+                MockSiteCategoryMegaMenuData.Audio),
+            Item("site-cat-watch", "/catalog?cat=watch", "Đồng hồ, Camera", "watch",
+                MockSiteCategoryMegaMenuData.Watch),
+            Item("site-cat-appliances", "/catalog?cat=appliances", "Đồ gia dụng, Làm đẹp", "home",
+                MockSiteCategoryMegaMenuData.Appliances),
+            Item("site-cat-accessories", "/catalog?cat=accessories", "Phụ kiện", "cable",
+                MockSiteCategoryMegaMenuData.Accessories),
+            Item("site-cat-pc", "/catalog?cat=pc", "PC, Màn hình, Máy in", "desktop",
+                MockSiteCategoryMegaMenuData.Pc),
+            Item("site-cat-tv", "/catalog?cat=tv", "Tivi, Điện máy", "tv",
+                MockSiteCategoryMegaMenuData.Tv),
+            Item("site-cat-tradein", "/catalog?cat=trade-in", "Thu cũ đổi mới", "swap",
+                MockSiteCategoryMegaMenuData.TradeIn),
+            Item("site-cat-used", "/catalog?cat=used", "Hàng cũ", "history",
+                MockSiteCategoryMegaMenuData.Used),
+            Item("site-cat-deals", "/catalog?cat=deals", "Khuyến mãi", "discount",
+                MockSiteCategoryMegaMenuData.Deals, true),
+            Item("site-cat-tech", "/catalog?cat=tech", "Tin công nghệ", "news",
+                MockSiteCategoryMegaMenuData.Tech)
         ]
     };
 
-    public SiteCategoryMenuViewModel GetMenu() => Menu;
-
-    private static string Catalog(string? category = null, string? brand = null, string? name = null)
+    public Task<SiteCategoryMenuViewModel> GetMenuAsync(
+        CancellationToken cancellationToken = default)
     {
-        return e_commerce_web_customer.Application.Home.CatalogUrl.Products(category, brand, name);
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(Menu);
     }
 
     private static SiteCategoryMenuItemViewModel Item(
@@ -35,6 +47,7 @@ public sealed class MockSiteCategoryMenuProvider : ISiteCategoryMenuProvider
         string url,
         string label,
         string icon,
+        IReadOnlyList<SiteCategoryMenuGroupViewModel> groups,
         bool isHighlighted = false)
     {
         return new SiteCategoryMenuItemViewModel
@@ -43,6 +56,7 @@ public sealed class MockSiteCategoryMenuProvider : ISiteCategoryMenuProvider
             Url = url,
             Label = label,
             Icon = icon,
+            Groups = groups,
             IsHighlighted = isHighlighted
         };
     }

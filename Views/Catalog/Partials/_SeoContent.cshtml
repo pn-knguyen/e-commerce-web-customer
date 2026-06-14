@@ -1,0 +1,24 @@
+@model CategorySeoContentViewModel
+
+@if (Model.Paragraphs.Count > 0)
+{
+    <section class="catalog-seo-content" aria-labelledby="catalog-seo-title" data-seo-content>
+        <div class="container">
+            <div class="catalog-seo-content__panel">
+                <h2 id="catalog-seo-title">@Model.Title</h2>
+                <div class="catalog-seo-content__body" data-seo-body>
+                    @foreach (var paragraph in Model.Paragraphs)
+                    {
+                        <p>@paragraph</p>
+                    }
+                </div>
+                <button type="button"
+                        aria-expanded="false"
+                        data-seo-toggle>
+                    <span>Xem thêm</span>
+                    <i aria-hidden="true"></i>
+                </button>
+            </div>
+        </div>
+    </section>
+}

@@ -12,11 +12,14 @@ public sealed class MockHomePageViewModelFactory : IHomePageViewModelFactory
         _categoryMenuProvider = categoryMenuProvider;
     }
 
-    public Task<HomeIndexViewModel> CreateAsync()
+    public async Task<HomeIndexViewModel> CreateAsync(
+        CancellationToken cancellationToken = default)
     {
-        return Task.FromResult(new HomeIndexViewModel
+        var categoryMenu = await _categoryMenuProvider.GetMenuAsync(cancellationToken);
+
+        return new HomeIndexViewModel
         {
-            Hero = HomeHeroViewModelFactory.Create(_categoryMenuProvider.GetMenu().Items),
+            Hero = HomeHeroViewModelFactory.Create(categoryMenu.Items),
             FeaturedCategorySections = [PhoneCategorySectionFactory.Create()],
             AccessoryDirectory = AccessoryDirectoryFactory.Create(),
             AdditionalCategorySections =
@@ -24,6 +27,6 @@ public sealed class MockHomePageViewModelFactory : IHomePageViewModelFactory
                 ComputerCategorySectionFactory.Create(),
                 AudioWearablesCategorySectionFactory.Create()
             ]
-        });
+        };
     }
 }

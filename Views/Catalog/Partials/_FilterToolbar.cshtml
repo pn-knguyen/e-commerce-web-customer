@@ -1,0 +1,70 @@
+@model CategoryFilterViewModel
+
+<div class="catalog-filter-sentinel" data-filter-sentinel aria-hidden="true"></div>
+
+<section class="catalog-filter-shell" data-filter-shell aria-labelledby="catalog-filter-title">
+    <div class="container">
+        <h2 id="catalog-filter-title">@Model.Title</h2>
+
+        <div class="catalog-filter-row catalog-filter-row--primary">
+            @foreach (var item in Model.PrimaryItems)
+            {
+                <a class="catalog-filter-chip @(item.IsEmphasized ? "is-emphasized" : null)"
+                   href="@item.Url">
+                    @if (!string.IsNullOrWhiteSpace(item.Icon))
+                    {
+                        <svg aria-hidden="true">
+                            <use href="#catalog-icon-@item.Icon"></use>
+                        </svg>
+                    }
+                    <span>@item.Label</span>
+                    @if (item.HasDropdown)
+                    {
+                        <i class="catalog-filter-chip__chevron" aria-hidden="true"></i>
+                    }
+                </a>
+            }
+        </div>
+
+        @if (Model.SecondaryItems.Count > 0)
+        {
+            <div class="catalog-filter-row catalog-filter-row--secondary">
+                @foreach (var item in Model.SecondaryItems)
+                {
+                    <a class="catalog-filter-chip" href="@item.Url">
+                        <span>@item.Label</span>
+                        @if (item.HasDropdown)
+                        {
+                            <i class="catalog-filter-chip__chevron" aria-hidden="true"></i>
+                        }
+                    </a>
+                }
+            </div>
+        }
+    </div>
+</section>
+
+@if (Model.SortOptions.Count > 0)
+{
+    <section class="catalog-sort">
+        <div class="container catalog-sort__layout">
+            <h2>Sắp xếp theo</h2>
+            <nav aria-label="Sắp xếp sản phẩm">
+                @foreach (var option in Model.SortOptions)
+                {
+                    <a class="catalog-sort-chip @(option.IsActive ? "is-active" : null)"
+                       href="@option.Url"
+                       aria-current="@(option.IsActive ? "page" : null)">
+                        @if (!string.IsNullOrWhiteSpace(option.Icon))
+                        {
+                            <svg aria-hidden="true">
+                                <use href="#catalog-icon-@option.Icon"></use>
+                            </svg>
+                        }
+                        <span>@option.Label</span>
+                    </a>
+                }
+            </nav>
+        </div>
+    </section>
+}

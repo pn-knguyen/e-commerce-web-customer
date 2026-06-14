@@ -1,4 +1,5 @@
 using System.Globalization;
+using e_commerce_web_customer.ViewModels.Shared;
 
 namespace e_commerce_web_customer.ViewModels.Product;
 
@@ -22,7 +23,7 @@ public sealed class ProductDetailViewModel
     public required IReadOnlyList<ProductTechnicalSpecSectionViewModel> TechnicalSpecSections { get; init; }
     public required IReadOnlyList<ProductRelatedProductGroupViewModel> RelatedProductGroups { get; init; }
     public required ProductReviewSummaryViewModel ReviewSummary { get; init; }
-    public required ProductQuestionAnswerSectionViewModel QuestionAnswerSection { get; init; }
+    public required QuestionAnswerSectionViewModel QuestionAnswerSection { get; init; }
 
     public string RatingLabel => Rating.ToString("0.#", CultureInfo.InvariantCulture);
 
@@ -95,6 +96,7 @@ public sealed class ProductRelatedProductGroupViewModel
 
 public sealed class ProductRelatedProductViewModel
 {
+    public required string Url { get; init; }
     public required string Name { get; init; }
     public required string ImageUrl { get; init; }
     public required string ImageAlt { get; init; }
@@ -149,33 +151,4 @@ public sealed class ProductReviewViewModel
     public IReadOnlyList<string> Tags { get; init; } = [];
 
     public string RatingLabel => Rating.ToString("0.#", CultureInfo.InvariantCulture);
-}
-
-public sealed class ProductQuestionAnswerSectionViewModel
-{
-    public required string Title { get; init; }
-    public required string FormTitle { get; init; }
-    public required string Description { get; init; }
-    public required string Placeholder { get; init; }
-    public required string SubmitLabel { get; init; }
-    public int VisibleThreadLimit { get; init; } = 3;
-    public int AdditionalCommentCount { get; init; }
-    public required IReadOnlyList<ProductQuestionThreadViewModel> Threads { get; init; }
-}
-
-public sealed class ProductQuestionThreadViewModel
-{
-    public required string Author { get; init; }
-    public required string Initial { get; init; }
-    public required string TimeAgo { get; init; }
-    public required string Question { get; init; }
-    public required IReadOnlyList<ProductQuestionReplyViewModel> Replies { get; init; }
-}
-
-public sealed class ProductQuestionReplyViewModel
-{
-    public required string Author { get; init; }
-    public required string Badge { get; init; }
-    public required string TimeAgo { get; init; }
-    public required string Content { get; init; }
 }

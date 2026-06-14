@@ -12,15 +12,32 @@ public interface IAccountService
     /// <summary>
     /// Authenticates a user with email and password.
     /// </summary>
-    Task<bool> LoginAsync(string email, string password, bool rememberMe);
+    Task<bool> LoginAsync(
+        string email,
+        string password,
+        bool rememberMe,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets the lightweight profile needed by shared UI after a successful login.
+    /// </summary>
+    Task<AccountProfile?> GetProfileAsync(
+        string email,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Registers a new user.
     /// </summary>
-    Task<bool> RegisterAsync(RegisterViewModel model);
+    Task<bool> RegisterAsync(
+        RegisterViewModel model,
+        CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Checks if a user email already exists in the system.
     /// </summary>
-    Task<bool> UserExistsAsync(string email);
+    Task<bool> UserExistsAsync(
+        string email,
+        CancellationToken cancellationToken = default);
 }
+
+public sealed record AccountProfile(string Email, string DisplayName);

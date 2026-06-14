@@ -5,6 +5,7 @@ public static class SessionKeys
     public const string IsLoggedIn = "IsLoggedIn";
     public const string UserId = "UserId";
     public const string UserEmail = "UserEmail";
+    public const string UserDisplayName = "UserDisplayName";
     public const string CartSession = "CartSession";
     public const string BuyNowSession = "BuyNowSession";
 }

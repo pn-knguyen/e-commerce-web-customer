@@ -46,6 +46,7 @@ public static class MockCartData
     {
         return GetCartDemoItems().Select(item => new CheckoutItemViewModel
         {
+            ProductId = item.Id,
             Name = item.Name,
             ImageUrl = item.ImageUrl,
             ImageAlt = item.ImageAlt,

@@ -1,21 +1,114 @@
+using System.Globalization;
+using System.Text;
+using e_commerce_web_customer.Application.Catalog;
+using e_commerce_web_customer.Application.Contracts;
+using e_commerce_web_customer.Application.Home;
+using e_commerce_web_customer.Application.Products;
+using e_commerce_web_customer.Application.Search;
 using e_commerce_web_customer.ViewModels.Product;
+using e_commerce_web_customer.ViewModels.Shared;
 
 namespace e_commerce_web_customer.Application.Product;
 
-public sealed class MockProductDetailViewModelFactory : IProductDetailViewModelFactory
+public sealed class MockProductDetailViewModelFactory(
+    IProductCatalog productCatalog) : IProductDetailViewModelFactory
 {
     private const string PhoneImageRoot = "/images/products/phone";
+    private static readonly Lazy<IReadOnlyList<ProductCardViewModel>> AllMockProducts =
+        new(CreateAllMockProducts);
 
-    public Task<ProductDetailViewModel?> CreateAsync(string slug, long? variantId = null)
+    public async Task<ProductDetailViewModel?> CreateAsync(
+        string slug,
+        long? variantId = null,
+        CancellationToken cancellationToken = default)
     {
+        _ = variantId;
         var normalizedSlug = slug.Trim().ToLowerInvariant();
 
-        if (!normalizedSlug.StartsWith("iphone-17", StringComparison.Ordinal))
+        if (normalizedSlug.StartsWith("iphone-17-pro-max", StringComparison.Ordinal))
         {
-            return Task.FromResult<ProductDetailViewModel?>(null);
+            return CreateIphone17ProMax(normalizedSlug);
         }
 
-        return Task.FromResult<ProductDetailViewModel?>(CreateIphone17ProMax(normalizedSlug));
+        var catalogProduct = await productCatalog.GetByIdAsync(
+            normalizedSlug,
+            cancellationToken);
+        var productCard = catalogProduct is null
+            ? FindMockProduct(normalizedSlug)
+            : ProductViewModelMapper.ToProductCard(catalogProduct);
+
+        return CreateGenericProduct(normalizedSlug, productCard);
+    }
+
+    private static ProductDetailViewModel CreateGenericProduct(
+        string slug,
+        ProductCardViewModel? product)
+    {
+        var name = product?.Name ?? HumanizeProductSlug(slug);
+        var imageUrl = product?.ImageUrl ?? ResolveFallbackImage(slug);
+        var currentPrice = ParsePrice(product?.CurrentPrice) ?? ResolveFallbackPrice(slug);
+        var oldPrice = ParsePrice(product?.OldPrice);
+        var category = ResolveProductCategory(slug, imageUrl);
+        var brand = ResolveBrand(name);
+
+        return new ProductDetailViewModel
+        {
+            Slug = slug,
+            Name = name,
+            Brand = brand,
+            MainImageUrl = imageUrl,
+            MainImageAlt = product?.ImageAlt ?? name,
+            CurrentPrice = currentPrice,
+            OldPrice = oldPrice,
+            Rating = product?.Rating ?? 4.8m,
+            ReviewCount = 12,
+            Breadcrumbs =
+            [
+                new() { Label = "Trang chủ", Url = "/" },
+                new() { Label = category.Label, Url = $"/catalog?cat={category.Slug}" },
+                new() { Label = name }
+            ],
+            QuickLinks =
+            [
+                new() { Label = "Yêu thích", IconId = "product-card-icon-heart" },
+                new() { Label = "Hỏi đáp", IconId = "hero-icon-news", Url = "#block-comment-cps" },
+                new() { Label = "Thông số", IconId = "hero-icon-phone" },
+                new() { Label = "So sánh", IconId = "hero-icon-swap" }
+            ],
+            GalleryItems =
+            [
+                new()
+                {
+                    Label = "Sản phẩm",
+                    ImageUrl = imageUrl,
+                    ImageAlt = product?.ImageAlt ?? name
+                }
+            ],
+            StorageOptions =
+            [
+                new()
+                {
+                    Label = "Phiên bản tiêu chuẩn",
+                    Url = $"/product/{slug}",
+                    IsActive = true
+                }
+            ],
+            ColorOptions =
+            [
+                new()
+                {
+                    Name = "Mặc định",
+                    ImageUrl = imageUrl,
+                    ImageAlt = product?.ImageAlt ?? name,
+                    Price = currentPrice,
+                    IsActive = true
+                }
+            ],
+            TechnicalSpecSections = CreateGenericTechnicalSpecs(slug, category.Label, brand),
+            RelatedProductGroups = CreateGenericRelatedProductGroups(slug, category.Slug),
+            ReviewSummary = CreateGenericReviewSummary(name),
+            QuestionAnswerSection = CreateGenericQuestionAnswer(name)
+        };
     }
 
     private static ProductDetailViewModel CreateIphone17ProMax(string slug)
@@ -310,9 +403,9 @@ public sealed class MockProductDetailViewModelFactory : IProductDetailViewModelF
         };
     }
 
-    private static ProductQuestionAnswerSectionViewModel CreateQuestionAnswerSection(string activeStorage)
+    private static QuestionAnswerSectionViewModel CreateQuestionAnswerSection(string activeStorage)
     {
-        return new ProductQuestionAnswerSectionViewModel
+        return new QuestionAnswerSectionViewModel
         {
             Title = "Hỏi và đáp",
             FormTitle = "Hãy đặt câu hỏi cho chúng tôi",
@@ -383,10 +476,12 @@ public sealed class MockProductDetailViewModelFactory : IProductDetailViewModelF
         string? giftNote,
         decimal? rating = null,
         string? usedPriceLabel = null,
-        string? savingLabel = null)
+        string? savingLabel = null,
+        string? url = null)
     {
         return new ProductRelatedProductViewModel
         {
+            Url = url ?? $"/product/{SlugifyProductName(name)}",
             Name = name,
             ImageUrl = imageUrl,
             ImageAlt = imageAlt,
@@ -403,14 +498,14 @@ public sealed class MockProductDetailViewModelFactory : IProductDetailViewModelF
         };
     }
 
-    private static ProductQuestionThreadViewModel QuestionThread(
+    private static QuestionThreadViewModel QuestionThread(
         string author,
         string initial,
         string timeAgo,
         string question,
         string reply)
     {
-        return new ProductQuestionThreadViewModel
+        return new QuestionThreadViewModel
         {
             Author = author,
             Initial = initial,
@@ -427,6 +522,376 @@ public sealed class MockProductDetailViewModelFactory : IProductDetailViewModelF
                 }
             ]
         };
+    }
+
+    private static ProductCardViewModel? FindMockProduct(string slug)
+    {
+        return GetAllMockProducts()
+            .FirstOrDefault(product => string.Equals(product.Id, slug, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static IReadOnlyList<ProductCardViewModel> GetAllMockProducts()
+    {
+        return AllMockProducts.Value;
+    }
+
+    private static IReadOnlyList<ProductCardViewModel> CreateAllMockProducts()
+    {
+        var homeSections = new[]
+        {
+            PhoneCategorySectionFactory.Create(),
+            ComputerCategorySectionFactory.Create(),
+            AudioWearablesCategorySectionFactory.Create()
+        };
+
+        var homeProducts = homeSections
+            .SelectMany(section => section.Tabs)
+            .Where(tab => tab.Panel is not null)
+            .SelectMany(tab => tab.Panel!.Products);
+        var categoryProducts = MockCategoryPageViewModelFactory.CreatePhoneProducts()
+            .Concat(MockCategoryPageViewModelFactory
+                .CreateAudioSections(new CategoryPageRequest("audio"))
+                .SelectMany(section => section.Products));
+        return homeProducts
+            .Concat(categoryProducts)
+            .DistinctBy(product => product.Id, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static IReadOnlyList<ProductTechnicalSpecSectionViewModel> CreateGenericTechnicalSpecs(
+        string slug,
+        string categoryLabel,
+        string brand)
+    {
+        return
+        [
+            Section("thong-tin-chung", "Thông tin chung",
+            [
+                Row("Mã sản phẩm", slug, isHighlighted: true),
+                Row("Nhóm sản phẩm", categoryLabel, isHighlighted: true),
+                Row("Thương hiệu", brand),
+                Row("Tình trạng", "Mới, chính hãng"),
+                Row("Bảo hành", "Theo chính sách của nhà sản xuất")
+            ]),
+            Section("mua-hang", "Thông tin mua hàng",
+            [
+                Row("Giao hàng", "Giao nhanh tùy khu vực", isHighlighted: true),
+                Row("Thanh toán", "Tiền mặt, chuyển khoản hoặc trả góp"),
+                Row("Đổi trả", "Áp dụng theo chính sách TechStore")
+            ])
+        ];
+    }
+
+    private static IReadOnlyList<ProductRelatedProductGroupViewModel> CreateGenericRelatedProductGroups(
+        string slug,
+        string categorySlug)
+    {
+        var products = GetAllMockProducts()
+            .Where(product => !string.Equals(product.Id, slug, StringComparison.OrdinalIgnoreCase))
+            .Where(product =>
+            {
+                var category = ResolveProductCategory(product.Id, product.ImageUrl);
+                return string.Equals(category.Slug, categorySlug, StringComparison.OrdinalIgnoreCase);
+            })
+            .Take(5)
+            .Select(product => Related(
+                product.Name,
+                product.ImageUrl,
+                product.ImageAlt,
+                ParsePrice(product.CurrentPrice) ?? 0m,
+                ParsePrice(product.OldPrice),
+                product.DiscountLabel,
+                product.PromotionNote,
+                product.Rating,
+                url: product.Url))
+            .ToList();
+
+        return
+        [
+            new()
+            {
+                Id = "similar",
+                Label = "Sản phẩm tương tự",
+                IsActive = true,
+                Products = products
+            }
+        ];
+    }
+
+    private static ProductReviewSummaryViewModel CreateGenericReviewSummary(string productName)
+    {
+        return new ProductReviewSummaryViewModel
+        {
+            Title = $"Đánh giá {productName}",
+            Score = 4.8m,
+            TotalReviews = 12,
+            RatingBreakdown =
+            [
+                new() { Stars = 5, Count = 10, Percent = 83 },
+                new() { Stars = 4, Count = 2, Percent = 17 },
+                new() { Stars = 3, Count = 0, Percent = 0 },
+                new() { Stars = 2, Count = 0, Percent = 0 },
+                new() { Stars = 1, Count = 0, Percent = 0 }
+            ],
+            ExperienceRatings =
+            [
+                new() { Label = "Chất lượng sản phẩm", Score = 4.8m, Count = 12 },
+                new() { Label = "Thiết kế", Score = 4.7m, Count = 10 },
+                new() { Label = "Giá trị sử dụng", Score = 4.8m, Count = 11 }
+            ],
+            Reviews =
+            [
+                new()
+                {
+                    Author = "Minh Anh",
+                    Initial = "M",
+                    Rating = 5m,
+                    RatingText = "Rất hài lòng",
+                    Content = "Sản phẩm đúng mô tả, đóng gói cẩn thận và giao hàng nhanh.",
+                    TimeAgo = "Đánh giá đã đăng vào 1 tuần trước"
+                },
+                new()
+                {
+                    Author = "Quốc Bảo",
+                    Initial = "B",
+                    Rating = 4.5m,
+                    RatingText = "Tốt",
+                    Content = "Trải nghiệm sử dụng ổn định, nhân viên tư vấn rõ ràng.",
+                    TimeAgo = "Đánh giá đã đăng vào 3 tuần trước"
+                }
+            ]
+        };
+    }
+
+    private static QuestionAnswerSectionViewModel CreateGenericQuestionAnswer(string productName)
+    {
+        return new QuestionAnswerSectionViewModel
+        {
+            Title = "Hỏi và đáp",
+            FormTitle = "Hãy đặt câu hỏi cho chúng tôi",
+            Description = "TechStore sẽ phản hồi thông tin về giá, tồn kho, bảo hành và giao hàng trong thời gian sớm nhất.",
+            Placeholder = "Viết câu hỏi của bạn tại đây",
+            SubmitLabel = "Gửi câu hỏi",
+            VisibleThreadLimit = 2,
+            Threads =
+            [
+                QuestionThread(
+                    "Thanh Tùng",
+                    "T",
+                    "2 ngày trước",
+                    "Sản phẩm này có hỗ trợ trả góp không?",
+                    $"{productName} có thể áp dụng trả góp tùy phương thức thanh toán và chương trình tại thời điểm đặt hàng."),
+                QuestionThread(
+                    "Ngọc Linh",
+                    "L",
+                    "1 tuần trước",
+                    "Mua online có được bảo hành chính hãng không?",
+                    "Chào bạn, sản phẩm chính hãng được áp dụng chính sách bảo hành theo nhà sản xuất và thông tin hiển thị trên đơn hàng.")
+            ]
+        };
+    }
+
+    private static (string Slug, string Label) ResolveProductCategory(string slug, string imageUrl)
+    {
+        var source = $"{slug} {imageUrl}".ToLowerInvariant();
+
+        if (source.Contains("laptop", StringComparison.Ordinal) || source.Contains("macbook", StringComparison.Ordinal))
+        {
+            return ("laptop", "Laptop");
+        }
+
+        if (source.Contains("monitor", StringComparison.Ordinal))
+        {
+            return ("monitor", "Màn hình máy tính");
+        }
+
+        if (source.Contains("desktop", StringComparison.Ordinal) || source.Contains("pc-", StringComparison.Ordinal))
+        {
+            return ("desktop", "PC và máy tính để bàn");
+        }
+
+        if (source.Contains("component", StringComparison.Ordinal)
+            || source.Contains("ssd", StringComparison.Ordinal)
+            || source.Contains("ram-", StringComparison.Ordinal)
+            || source.Contains("psu", StringComparison.Ordinal))
+        {
+            return ("computer-accessories", "Linh kiện máy tính");
+        }
+
+        if (source.Contains("watch", StringComparison.Ordinal) || source.Contains("smartwatch", StringComparison.Ordinal))
+        {
+            return ("smartwatch", "Đồng hồ thông minh");
+        }
+
+        if (source.Contains("audio", StringComparison.Ordinal)
+            || source.Contains("headphone", StringComparison.Ordinal)
+            || source.Contains("earbuds", StringComparison.Ordinal)
+            || source.Contains("airpods", StringComparison.Ordinal)
+            || source.Contains("speaker", StringComparison.Ordinal)
+            || source.Contains("mic-", StringComparison.Ordinal))
+        {
+            return ("audio", "Thiết bị âm thanh");
+        }
+
+        if (source.Contains("accessor", StringComparison.Ordinal)
+            || source.Contains("/categories/", StringComparison.Ordinal)
+            || source.Contains("charging", StringComparison.Ordinal))
+        {
+            return ("accessories", "Phụ kiện");
+        }
+
+        if (source.Contains("ipad", StringComparison.Ordinal) || source.Contains("tablet", StringComparison.Ordinal))
+        {
+            return ("tablet", "Máy tính bảng");
+        }
+
+        return ("phone", "Điện thoại");
+    }
+
+    private static string ResolveBrand(string productName)
+    {
+        var normalizedName = productName.Trim();
+
+        if (normalizedName.StartsWith("iPhone", StringComparison.OrdinalIgnoreCase)
+            || normalizedName.StartsWith("iPad", StringComparison.OrdinalIgnoreCase)
+            || normalizedName.StartsWith("MacBook", StringComparison.OrdinalIgnoreCase)
+            || normalizedName.StartsWith("AirPods", StringComparison.OrdinalIgnoreCase))
+        {
+            return "Apple";
+        }
+
+        var firstWord = normalizedName.Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+        return string.IsNullOrWhiteSpace(firstWord) ? "TechStore" : firstWord;
+    }
+
+    private static string ResolveFallbackImage(string slug)
+    {
+        var normalizedSlug = slug.ToLowerInvariant();
+
+        if (normalizedSlug.Contains("laptop", StringComparison.Ordinal)
+            || normalizedSlug.Contains("macbook", StringComparison.Ordinal))
+        {
+            return "/images/products/computing/laptop-08.webp";
+        }
+
+        if (normalizedSlug.Contains("monitor", StringComparison.Ordinal))
+        {
+            return "/images/products/computing/monitor-01.webp";
+        }
+
+        if (normalizedSlug.Contains("desktop", StringComparison.Ordinal)
+            || normalizedSlug.StartsWith("pc-", StringComparison.Ordinal))
+        {
+            return "/images/products/computing/desktop-01.webp";
+        }
+
+        if (normalizedSlug.Contains("ssd", StringComparison.Ordinal)
+            || normalizedSlug.Contains("ram", StringComparison.Ordinal)
+            || normalizedSlug.Contains("usb", StringComparison.Ordinal)
+            || normalizedSlug.Contains("psu", StringComparison.Ordinal))
+        {
+            return "/images/products/computing/component-01.webp";
+        }
+
+        if (normalizedSlug.Contains("watch", StringComparison.Ordinal))
+        {
+            return "/images/products/audio-wearables/watch-01.webp";
+        }
+
+        if (normalizedSlug.Contains("speaker", StringComparison.Ordinal)
+            || normalizedSlug.Contains("jbl", StringComparison.Ordinal)
+            || normalizedSlug.Contains("marshall", StringComparison.Ordinal))
+        {
+            return "/images/products/audio-wearables/audio-02.webp";
+        }
+
+        if (normalizedSlug.Contains("audio", StringComparison.Ordinal)
+            || normalizedSlug.Contains("headphone", StringComparison.Ordinal)
+            || normalizedSlug.Contains("earbuds", StringComparison.Ordinal)
+            || normalizedSlug.Contains("airpods", StringComparison.Ordinal)
+            || normalizedSlug.Contains("buds", StringComparison.Ordinal)
+            || normalizedSlug.Contains("mic", StringComparison.Ordinal))
+        {
+            return "/images/products/audio-wearables/audio-01.webp";
+        }
+
+        if (normalizedSlug.Contains("accessory", StringComparison.Ordinal)
+            || normalizedSlug.Contains("charge", StringComparison.Ordinal)
+            || normalizedSlug.Contains("cable", StringComparison.Ordinal))
+        {
+            return "/images/categories/accessories/charging-cables.webp";
+        }
+
+        return $"{PhoneImageRoot}/phone-orange-cutout.png";
+    }
+
+    private static decimal ResolveFallbackPrice(string slug)
+    {
+        var category = ResolveProductCategory(slug, ResolveFallbackImage(slug));
+
+        return category.Slug switch
+        {
+            "accessories" => 199_000m,
+            "audio" => 1_990_000m,
+            "smartwatch" => 4_990_000m,
+            "computer-accessories" => 2_990_000m,
+            "monitor" => 4_990_000m,
+            "laptop" => 19_990_000m,
+            "desktop" => 14_990_000m,
+            "tablet" => 12_990_000m,
+            _ => 9_990_000m
+        };
+    }
+
+    private static decimal? ParsePrice(string? price)
+    {
+        if (string.IsNullOrWhiteSpace(price))
+        {
+            return null;
+        }
+
+        var digits = new string(price.Where(char.IsDigit).ToArray());
+        return decimal.TryParse(digits, out var value) ? value : null;
+    }
+
+    private static string HumanizeProductSlug(string slug)
+    {
+        var words = slug.Split('-', StringSplitOptions.RemoveEmptyEntries);
+        if (words.Length == 0)
+        {
+            return "Sản phẩm TechStore";
+        }
+
+        return string.Join(' ', words.Select(word =>
+            word.Length <= 3 && word.All(char.IsLetterOrDigit)
+                ? word.ToUpperInvariant()
+                : char.ToUpperInvariant(word[0]) + word[1..]));
+    }
+
+    private static string SlugifyProductName(string value)
+    {
+        var normalized = value.Trim().ToLowerInvariant().Normalize(NormalizationForm.FormD);
+        var builder = new StringBuilder(normalized.Length);
+
+        foreach (var character in normalized)
+        {
+            if (CharUnicodeInfo.GetUnicodeCategory(character) == UnicodeCategory.NonSpacingMark)
+            {
+                continue;
+            }
+
+            var normalizedCharacter = character == 'đ' ? 'd' : character;
+            if (char.IsLetterOrDigit(normalizedCharacter))
+            {
+                builder.Append(normalizedCharacter);
+            }
+            else if (builder.Length > 0 && builder[^1] != '-')
+            {
+                builder.Append('-');
+            }
+        }
+
+        return builder.ToString().Trim('-');
     }
 
     private static string ResolveActiveStorage(string slug)

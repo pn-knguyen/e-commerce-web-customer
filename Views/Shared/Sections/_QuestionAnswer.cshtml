@@ -1,0 +1,90 @@
+@model QuestionAnswerSectionViewModel
+
+@{
+    var hasMoreQuestions = Model.Threads.Count > Model.VisibleThreadLimit;
+}
+
+<section id="@Model.SectionId"
+         class="pd-section pd-qa-section"
+         aria-labelledby="@($"{Model.SectionId}-title")"
+         data-question-answer>
+    <h2 id="@($"{Model.SectionId}-title")">@Model.Title</h2>
+
+    <div class="comment-form">
+        <div class="pd-qa-mascot" aria-hidden="true">
+            <img src="~/images/logo-techstore-icon.svg" alt="" width="70" height="74" />
+        </div>
+
+        <div class="pd-qa-form-body">
+            <h3 class="comment-form-title">@Model.FormTitle</h3>
+            <p class="question-content">@Model.Description</p>
+
+            <div class="pd-qa-input-row">
+                <label class="sr-only" for="@($"{Model.SectionId}-input")">Câu hỏi của bạn</label>
+                <textarea id="@($"{Model.SectionId}-input")"
+                          rows="1"
+                          placeholder="@Model.Placeholder"
+                          data-qa-input></textarea>
+                <button type="button" data-qa-submit>
+                    @Model.SubmitLabel
+                    <svg aria-hidden="true"><use href="#hero-icon-chevron"></use></svg>
+                </button>
+            </div>
+            <p class="pd-qa-feedback" data-qa-feedback role="status" aria-live="polite"></p>
+        </div>
+    </div>
+
+    @if (Model.Threads.Count > 0)
+    {
+        <div class="block-comment__box-list-comment">
+            @for (var threadIndex = 0; threadIndex < Model.Threads.Count; threadIndex++)
+            {
+                var thread = Model.Threads[threadIndex];
+
+                <article class="pd-qa-thread"
+                         data-qa-thread
+                         @(threadIndex >= Model.VisibleThreadLimit ? "hidden" : null)>
+                    <div class="pd-qa-avatar" aria-hidden="true">@thread.Initial</div>
+
+                    <div class="pd-qa-content">
+                        <header>
+                            <strong>@thread.Author</strong>
+                            <time>@thread.TimeAgo</time>
+                        </header>
+
+                        <p>@thread.Question</p>
+                        <button class="pd-qa-reply-link" type="button">Phản hồi</button>
+
+                        @foreach (var reply in thread.Replies)
+                        {
+                            <div class="pd-qa-admin-reply">
+                                <div class="pd-qa-admin-avatar" aria-hidden="true">
+                                    <img src="~/images/logo-techstore-icon.svg" alt="" width="24" height="26" />
+                                </div>
+                                <div>
+                                    <header>
+                                        <strong>@reply.Author</strong>
+                                        <span>@reply.Badge</span>
+                                        <time>@reply.TimeAgo</time>
+                                    </header>
+                                    <p>@reply.Content</p>
+                                    <button class="pd-qa-reply-link" type="button">Phản hồi</button>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </article>
+            }
+
+            @if (hasMoreQuestions)
+            {
+                <div class="pd-qa-more">
+                    <button type="button" data-qa-show-more>
+                        Xem thêm @Model.AdditionalCommentCount bình luận
+                        <svg aria-hidden="true"><use href="#hero-icon-chevron"></use></svg>
+                    </button>
+                </div>
+            }
+        </div>
+    }
+</section>

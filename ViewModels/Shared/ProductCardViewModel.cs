@@ -14,6 +14,8 @@ public sealed class ProductCardViewModel
     public string? MemberOffer { get; init; }
     public string? StudentOffer { get; init; }
     public string? PromotionNote { get; init; }
+    public string? AvailabilityLabel { get; init; }
+    public IReadOnlyList<string> Specifications { get; init; } = [];
     public string? DeliveryLabel { get; init; }
     public string? Location { get; init; }
     public decimal? Rating { get; init; }

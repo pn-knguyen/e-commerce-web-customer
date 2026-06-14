@@ -7,9 +7,15 @@
         : $"Thêm {Model.Name} vào danh sách yêu thích";
     var hasMeta = !string.IsNullOrWhiteSpace(Model.DeliveryLabel)
         || !string.IsNullOrWhiteSpace(Model.Location);
+    var hasOffers = !string.IsNullOrWhiteSpace(Model.MemberOffer)
+        || !string.IsNullOrWhiteSpace(Model.StudentOffer)
+        || !string.IsNullOrWhiteSpace(Model.PromotionNote);
+    var hasDetailedContent = Model.Specifications.Count > 0;
 }
 
-<article class="product-card" data-product-card data-product-id="@Model.Id">
+<article class="product-card @(hasDetailedContent ? "product-card--detailed" : null)"
+         data-product-card
+         data-product-id="@Model.Id">
     @if (!string.IsNullOrWhiteSpace(Model.DiscountLabel)
         || !string.IsNullOrWhiteSpace(Model.InstallmentLabel))
     {
@@ -38,6 +44,11 @@
             <a href="@Model.Url">@Model.Name</a>
         </h3>
 
+        @if (!string.IsNullOrWhiteSpace(Model.AvailabilityLabel))
+        {
+            <span class="product-card__availability">@Model.AvailabilityLabel</span>
+        }
+
         <div class="product-card__price" aria-label="Giá sản phẩm">
             <strong>@Model.CurrentPrice</strong>
             @if (!string.IsNullOrWhiteSpace(Model.OldPrice))
@@ -45,6 +56,37 @@
                 <del>@Model.OldPrice</del>
             }
         </div>
+
+        @if (hasDetailedContent)
+        {
+            @if (Model.Specifications.Count > 0)
+            {
+                <div class="product-card__specifications" aria-label="Thông số nổi bật">
+                    @foreach (var specification in Model.Specifications)
+                    {
+                        <span>@specification</span>
+                    }
+                </div>
+            }
+
+            @if (hasOffers)
+            {
+                <div class="product-card__offers">
+                    @if (!string.IsNullOrWhiteSpace(Model.MemberOffer))
+                    {
+                        <span class="product-card__offer product-card__offer--member">@Model.MemberOffer</span>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(Model.StudentOffer))
+                    {
+                        <span class="product-card__offer product-card__offer--student">@Model.StudentOffer</span>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(Model.PromotionNote))
+                    {
+                        <p class="product-card__promotion-note">@Model.PromotionNote</p>
+                    }
+                </div>
+            }
+        }
     </div>
 
     @if (hasMeta)

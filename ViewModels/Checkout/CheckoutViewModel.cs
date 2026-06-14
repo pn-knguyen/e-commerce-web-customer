@@ -54,7 +54,7 @@ public sealed class CheckoutViewModel
     public decimal Discount { get; set; }
 
     public decimal Subtotal => Items.Sum(i => i.UnitPrice * i.Quantity);
-    public decimal Total    => Subtotal + ShippingFee - Discount;
+    public decimal Total => Subtotal + ShippingFee - Discount;
 
     public static string FormatPrice(decimal value)
         => $"{value.ToString("N0", VietnameseCulture)}đ";
@@ -62,12 +62,13 @@ public sealed class CheckoutViewModel
 
 public sealed class CheckoutItemViewModel
 {
-    public string Name      { get; init; } = string.Empty;
-    public string ImageUrl  { get; init; } = string.Empty;
-    public string ImageAlt  { get; init; } = string.Empty;
-    public string Variant   { get; init; } = string.Empty;
+    public string ProductId { get; init; } = string.Empty;
+    public string Name { get; init; } = string.Empty;
+    public string ImageUrl { get; init; } = string.Empty;
+    public string ImageAlt { get; init; } = string.Empty;
+    public string Variant { get; init; } = string.Empty;
     public decimal UnitPrice { get; init; }
-    public int Quantity     { get; init; } = 1;
+    public int Quantity { get; init; } = 1;
 }
 
 public enum PaymentMethod

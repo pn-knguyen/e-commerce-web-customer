@@ -1,0 +1,100 @@
+@model HeaderSearchViewModel
+
+<div class="site-search-layer"
+     data-search-layer
+     hidden>
+    <button class="site-search-backdrop"
+            type="button"
+            aria-label="Đóng tìm kiếm"
+            data-search-close></button>
+
+    <section class="site-search-panel"
+             id="site-search-panel"
+             aria-label="Gợi ý tìm kiếm"
+             data-search-panel>
+        <div class="site-search-state is-active" data-search-state="idle">
+            @if (Model.RecentSearches.Count > 0)
+            {
+                <section class="site-search-block" data-search-history-block>
+                    <header class="site-search-block-header">
+                        <h3 class="site-search-title">
+                            <span class="site-search-title-icon" aria-hidden="true">↺</span>
+                            Lịch sử tìm kiếm
+                        </h3>
+                        <button class="site-search-reset"
+                                type="button"
+                                data-search-clear-history>
+                            Xóa tất cả
+                        </button>
+                    </header>
+
+                    <div class="site-search-history-list">
+                        @foreach (var recentSearch in Model.RecentSearches)
+                        {
+                            <a class="site-search-history-link" href="@recentSearch.Url">
+                                <span class="site-search-history-icon" aria-hidden="true">↺</span>
+                                <span>@recentSearch.Label</span>
+                            </a>
+                        }
+                    </div>
+                </section>
+            }
+
+            @if (Model.TrendingSearches.Count > 0)
+            {
+                <section class="site-search-block">
+                    <h3 class="site-search-title">
+                        <span class="site-search-title-icon site-search-title-icon--hot" aria-hidden="true">⌁</span>
+                        Xu hướng tìm kiếm
+                    </h3>
+
+                    <div class="site-search-trending-grid">
+                        @foreach (var trendingSearch in Model.TrendingSearches)
+                        {
+                            <a class="site-search-suggestion-link" href="@trendingSearch.Url">
+                                @if (!string.IsNullOrWhiteSpace(trendingSearch.ImageUrl))
+                                {
+                                    <img src="@trendingSearch.ImageUrl"
+                                         alt="@(trendingSearch.ImageAlt ?? trendingSearch.Label)"
+                                         width="36"
+                                         height="36"
+                                         loading="lazy" />
+                                }
+                                <span>@trendingSearch.Label</span>
+                            </a>
+                        }
+                    </div>
+                </section>
+            }
+        </div>
+
+        <div class="site-search-state" data-search-state="results" hidden>
+            <section class="site-search-block" data-search-suggestion-block hidden>
+                <h3 class="site-search-title">
+                    <span class="site-search-title-icon site-search-title-icon--search" aria-hidden="true">⌕</span>
+                    Có phải bạn muốn tìm
+                </h3>
+                <div class="site-search-suggestion-grid" data-search-suggestions></div>
+            </section>
+
+            <section class="site-search-block site-search-block--products" data-search-product-block hidden>
+                <h3 class="site-search-title">
+                    <span class="site-search-title-icon site-search-title-icon--hot" aria-hidden="true">⌁</span>
+                    Sản phẩm gợi ý
+                </h3>
+                <div class="site-search-product-list" data-search-products></div>
+            </section>
+        </div>
+
+        <div class="site-search-state" data-search-state="empty" hidden>
+            <div class="site-search-empty">
+                <img src="@Model.EmptyLogoUrl"
+                     alt="TechStore"
+                     width="72"
+                     height="72"
+                     loading="lazy" />
+                <p>Không có kết quả bạn cần tìm!</p>
+            </div>
+        </div>
+    </section>
+</div>

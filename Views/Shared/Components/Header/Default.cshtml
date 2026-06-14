@@ -97,8 +97,18 @@
                 </div>
             </button>
 
-            <div class="min-w-[72px] flex-1 xl:w-[387.73px] xl:flex-none" role="search">
-                <form class="flex h-10 items-center overflow-hidden rounded border border-search-border bg-white shadow-sm transition-all duration-300 focus-within:border-cellphones-500 focus-within:ring-2 focus-within:ring-cellphones-100" action="/search" method="get" id="header-search-form" autocomplete="off">
+            <div class="header-search-shell min-w-[72px] flex-1 xl:w-[387.73px] xl:flex-none"
+                 role="search"
+                 data-header-search
+                 data-search-endpoint="/search/suggest">
+                <form class="header-search-form flex h-10 items-center overflow-hidden rounded border border-search-border bg-white shadow-sm transition-all duration-300 focus-within:border-cellphones-500 focus-within:ring-2 focus-within:ring-cellphones-100"
+                      action="/search"
+                      method="get"
+                      id="header-search-form"
+                      autocomplete="off"
+                      aria-controls="site-search-panel"
+                      aria-expanded="false"
+                      data-search-form>
                     <label for="header-search-input" class="sr-only">Tìm kiếm sản phẩm</label>
                     <div class="flex shrink-0 items-center justify-center px-2 text-search-text sm:px-3 xl:w-[47.73px] xl:px-0" aria-hidden="true">
                         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="none" viewBox="0 0 512 512">
@@ -110,10 +120,22 @@
                         type="search"
                         name="q"
                         id="header-search-input"
+                        aria-autocomplete="list"
+                        data-search-input
                         class="h-6 min-w-0 flex-1 bg-transparent pr-2 text-sm text-search-text outline-none placeholder:text-zinc-400 sm:pr-5 xl:w-[338px] xl:flex-none xl:pr-4"
                         placeholder="Bạn muốn mua gì hôm nay?"
+                        value="@Model.Search.Query"
                         aria-label="Tìm kiếm sản phẩm"
                     />
+                    <button class="header-search-clear"
+                            type="button"
+                            aria-label="Xóa nội dung tìm kiếm"
+                            data-search-clear
+                            hidden>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="none" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.4" d="M6 6l12 12M18 6 6 18"/>
+                        </svg>
+                    </button>
                 </form>
             </div>
 
@@ -128,16 +150,22 @@
                 <span class="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full border-2 border-cellphones-500 bg-white px-1 text-[10px] font-bold leading-none text-cellphones-500" id="cart-item-count" aria-label="@Model.CartItemCount sản phẩm trong giỏ" @(Model.CartItemCount > 0 ? "" : "hidden")>@(Model.CartItemCount > 99 ? "99+" : Model.CartItemCount)</span>
             </a>
 
-            @if (Model.IsLoggedIn)
+            @if (Model.Account.IsLoggedIn)
             {
-                <form asp-controller="Account" asp-action="Logout" method="post" class="m-0 hidden lg:flex">
-                    <button type="submit" class="header-action header-action--filled flex h-10 w-[131.94px] gap-2 px-3 text-sm font-medium">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 512 512" aria-hidden="true">
-                            <path d="M377.9 105.9L500.7 228.7c7.2 7.2 11.3 17.1 11.3 27.3s-4.1 20.1-11.3 27.3L377.9 406.1c-6.4 6.4-15 9.9-24 9.9c-18.7 0-33.9-15.2-33.9-33.9l0-62.1-128 0c-17.7 0-32-14.3-32-32l0-64c0-17.7 14.3-32 32-32l128 0 0-62.1c0-18.7 15.2-33.9 33.9-33.9c9 0 17.6 3.6 24 9.9zM160 96L96 96c-17.7 0-32 14.3-32 32l0 256c0 17.7 14.3 32 32 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32l-64 0c-53 0-96-43-96-96L0 128C0 75 43 32 96 32l64 0c17.7 0 32 14.3 32 32s-14.3 32-32 32z"/>
+                <div class="header-account-shell hidden lg:flex" data-header-account>
+                    <button class="header-action header-action--filled header-account-trigger h-10 w-[131.94px] gap-2 px-3 text-sm font-medium"
+                            id="btn-account"
+                            type="button"
+                            aria-label="Mở thông báo tài khoản"
+                            aria-controls="site-account-panel"
+                            aria-expanded="false"
+                            data-account-trigger>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor" viewBox="0 0 496 512" aria-hidden="true">
+                            <path d="M248 104c-53 0-96 43-96 96s43 96 96 96 96-43 96-96-43-96-96-96zm0 144c-26.5 0-48-21.5-48-48s21.5-48 48-48 48 21.5 48 48-21.5 48-48 48zm0-240C111 8 0 119 0 256s111 248 248 248 248-111 248-248S385 8 248 8zm0 448c-49.7 0-95.1-18.3-130.1-48.4 14.9-23 40.4-38.6 69.6-39.5 20.8 6.4 40.6 9.6 60.5 9.6s39.7-3.1 60.5-9.6c29.2 1 54.7 16.5 69.6 39.5-35 30.1-80.4 48.4-130.1 48.4zm162.7-84.1c-24.4-31.4-62.1-51.9-105.1-51.9-10.2 0-26 9.6-57.6 9.6-31.5 0-47.4-9.6-57.6-9.6-42.9 0-80.6 20.5-105.1 51.9C61.9 339.2 48 299.2 48 256c0-110.3 89.7-200 200-200s200 89.7 200 200c0 43.2-13.9 83.2-37.3 115.9z"/>
                         </svg>
-                        <span>Đăng xuất</span>
+                        <span class="header-account-name">@Model.Account.DisplayName</span>
                     </button>
-                </form>
+                </div>
             }
             else
             {
@@ -164,3 +192,9 @@
 
 <partial name="~/Views/Shared/Components/Header/_CategoryMenuOverlay.cshtml"
          model="Model.CategoryMenu" />
+
+<partial name="~/Views/Shared/Components/Header/_SearchOverlay.cshtml"
+         model="Model.Search" />
+
+<partial name="~/Views/Shared/Components/Header/_AccountOverlay.cshtml"
+         model="Model.Account" />

@@ -1,1 +1,107 @@
+@model SearchResultPageViewModel
 
+@{
+    ViewData["Title"] = $"Kết quả tìm kiếm cho {Model.Query}";
+    ViewData["MetaDescription"] = $"Tìm kiếm {Model.Query} tại TechStore: sản phẩm Samsung, ưu đãi, trả góp và giao nhanh.";
+}
+
+<div class="search-result-page" data-search-result-page>
+    <div class="container search-result-container">
+        <nav class="search-result-breadcrumb" aria-label="Điều hướng">
+            <a href="/" aria-label="Trang chủ">
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+                    <path d="M3 11.5 12 4l9 7.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                    <path d="M5.5 10.5V20h13v-9.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                    <path d="M9.5 20v-5h5v5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                </svg>
+                <span>Trang chủ</span>
+            </a>
+            <span aria-hidden="true">/</span>
+            <span>Kết quả tìm kiếm cho: '@Model.Query'</span>
+        </nav>
+
+        <p class="search-result-summary">
+            Tìm thấy <strong>@Model.TotalCount</strong> sản phẩm cho từ khoá '<strong>@Model.Query</strong>'
+        </p>
+
+        <div class="search-categories-list" aria-label="Danh mục liên quan">
+            @foreach (var category in Model.Categories)
+            {
+                <a class="search-category-chip @(category.IsActive ? "is-active" : null)"
+                   href="@category.Url"
+                   aria-current="@(category.IsActive ? "true" : null)">
+                    @category.Label
+                </a>
+            }
+        </div>
+
+        <section class="search-sort" aria-labelledby="search-sort-title">
+            <h1 id="search-sort-title">Sắp xếp theo</h1>
+            <div class="search-sort__options">
+                @foreach (var option in Model.SortOptions)
+                {
+                    <a class="search-sort-chip @(option.IsActive ? "is-active" : null)"
+                       href="@option.Url"
+                       aria-current="@(option.IsActive ? "true" : null)">
+                        @if (!string.Equals(option.Icon, "relevance", StringComparison.OrdinalIgnoreCase))
+                        {
+                            <span class="search-sort-chip__icon search-sort-chip__icon--@option.Icon" aria-hidden="true"></span>
+                        }
+                        <span>@option.Label</span>
+                    </a>
+                }
+            </div>
+        </section>
+
+        <div class="search-result-content">
+            <section class="block-product-list-filter" aria-label="Danh sách sản phẩm tìm kiếm">
+                @if (Model.HasProducts)
+                {
+                    <div class="search-result-product-grid"
+                         data-search-product-grid
+                         aria-busy="false">
+                        @for (var index = 0; index < Model.Products.Count; index++)
+                        {
+                            <div class="search-result-product-grid__item"
+                                 data-search-product-item
+                                 @(index >= Model.InitialProductCount ? "hidden" : null)>
+                                <partial name="~/Views/Shared/Partials/_ProductCard.cshtml"
+                                         model="Model.Products[index]" />
+                            </div>
+                        }
+                    </div>
+
+                    @if (Model.RemainingProductCount > 0)
+                    {
+                        <div class="search-result-load-more">
+                            <button type="button"
+                                    data-search-load-more
+                                    data-batch-size="5"
+                                    data-remaining-count="@Model.RemainingProductCount">
+                                <span>Xem thêm @Model.RemainingProductCount sản phẩm</span>
+                                <i aria-hidden="true"></i>
+                            </button>
+                        </div>
+                    }
+                }
+                else
+                {
+                    <div class="search-result-empty">
+                        <h2>Không có sản phẩm phù hợp</h2>
+                        <p>Thử tìm bằng từ khóa ngắn hơn hoặc chọn một danh mục liên quan.</p>
+                        <a class="btn btn-primary" href="/search?q=samsung">Xem kết quả Samsung</a>
+                    </div>
+                }
+            </section>
+
+        </div>
+    </div>
+</div>
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/search-results.css" asp-append-version="true" />
+}
+
+@section Scripts {
+    <script src="~/js/search-results.js" asp-append-version="true"></script>
+}

@@ -1,0 +1,23 @@
+@model CategoryPageViewModel
+
+<div class="catalog-page catalog-page--sectioned"
+     data-catalog-page
+     data-sectioned-catalog>
+    <partial name="~/Views/Catalog/Partials/_SectionedDiscovery.cshtml" model="Model" />
+
+    @if (Model.HotSale.Products.Count > 0)
+    {
+        <partial name="~/Views/Catalog/Partials/_HotSale.cshtml" model="Model.HotSale" />
+    }
+
+    <partial name="~/Views/Catalog/Partials/_SectionNavigation.cshtml" model="Model" />
+    <partial name="~/Views/Catalog/Partials/_SectionedProductSections.cshtml" model="Model" />
+    <partial name="~/Views/Catalog/Partials/_SeoContent.cshtml" model="Model.SeoContent" />
+
+    <div class="container catalog-question-answer">
+        <partial name="~/Views/Shared/Sections/_QuestionAnswer.cshtml"
+                 model="Model.QuestionAnswer" />
+    </div>
+
+    <partial name="~/Views/Catalog/Partials/_CatalogIconSprite.cshtml" />
+</div>

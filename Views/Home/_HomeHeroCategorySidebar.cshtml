@@ -1,18 +1,48 @@
 @model IReadOnlyList<SiteCategoryMenuItemViewModel>
 
-<nav class="hero-cat-sidebar hero-surface" aria-label="Danh mục sản phẩm" id="hero-cat-sidebar">
-    @foreach (var category in Model)
-    {
-        <a class="hero-cat-item @(category.IsHighlighted ? "is-highlighted" : null)"
-           href="@category.Url"
-           id="@category.Id">
-            <svg class="hero-ui-icon hero-cat-icon" aria-hidden="true">
-                <use href="@($"#hero-icon-{category.Icon}")"></use>
-            </svg>
-            <span class="hero-cat-label">@category.Label</span>
-            <svg class="hero-ui-icon hero-cat-arrow" aria-hidden="true">
-                <use href="#hero-icon-chevron"></use>
-            </svg>
-        </a>
-    }
-</nav>
+<div class="hero-category-menu"
+     data-category-mega-root>
+    <nav class="hero-cat-sidebar hero-surface"
+         aria-label="Danh mục sản phẩm"
+         id="hero-cat-sidebar">
+        @foreach (var category in Model)
+        {
+            var megaPanelId = $"home-{category.Id}-mega";
+            var labelId = $"home-{category.Id}-menu-label";
+            var labelParts = category.Label.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+
+            <div class="hero-cat-entry"
+                 data-category-entry
+                 data-category-mega-panel-id="@megaPanelId">
+                <a class="hero-cat-item"
+                   href="@category.Url"
+                   aria-label="@category.Label"
+                   aria-haspopup="true"
+                   aria-expanded="false"
+                   aria-controls="@megaPanelId"
+                   data-category-link>
+                    <svg class="hero-ui-icon hero-cat-icon" aria-hidden="true">
+                        <use href="@($"#hero-icon-{category.Icon}")"></use>
+                    </svg>
+                    <span class="hero-cat-label" id="@labelId">
+                        @foreach (var labelPart in labelParts)
+                        {
+                            <span class="hero-cat-label-part">@labelPart</span>
+                        }
+                    </span>
+                    <svg class="hero-ui-icon hero-cat-arrow" aria-hidden="true">
+                        <use href="#hero-icon-chevron"></use>
+                    </svg>
+                </a>
+            </div>
+        }
+    </nav>
+
+    <partial name="~/Views/Shared/Partials/_CategoryMegaPanels.cshtml"
+             model="@(new SiteCategoryMegaPanelsViewModel
+             {
+                 IdPrefix = "home",
+                 StageClass = "hero-category-mega-stage",
+                 Items = Model
+             })" />
+</div>

@@ -1,0 +1,60 @@
+@model SiteCategoryMegaPanelsViewModel
+
+<div class="@Model.StageClass"
+     data-category-mega-stage>
+    @foreach (var category in Model.Items)
+    {
+        var megaPanelId = $"{Model.IdPrefix}-{category.Id}-mega";
+        var labelId = $"{Model.IdPrefix}-{category.Id}-menu-label";
+
+        <section class="site-category-mega-panel"
+                 id="@megaPanelId"
+                 aria-labelledby="@labelId"
+                 aria-hidden="true"
+                 data-category-mega-panel
+                 hidden>
+            <header class="site-category-mega-header">
+                <h3>@category.Label</h3>
+                <a href="@category.Url">
+                    Xem tất cả
+                    <svg aria-hidden="true">
+                        <use href="#hero-icon-chevron"></use>
+                    </svg>
+                </a>
+            </header>
+
+            <div class="site-category-mega-grid">
+                @foreach (var group in category.Groups)
+                {
+                    <section class="site-category-mega-group">
+                        <h4>@group.Title</h4>
+                        <div class="site-category-mega-links">
+                            @foreach (var link in group.Links)
+                            {
+                                <a class="site-category-mega-link" href="@link.Url">
+                                    @if (!string.IsNullOrWhiteSpace(link.ImageUrl))
+                                    {
+                                        <img src="@link.ImageUrl"
+                                             alt="@(link.ImageAlt ?? string.Empty)"
+                                             width="76"
+                                             height="28"
+                                             loading="lazy" />
+                                    }
+                                    else
+                                    {
+                                        <span>@link.Label</span>
+                                    }
+
+                                    @if (!string.IsNullOrWhiteSpace(link.Badge))
+                                    {
+                                        <small>@link.Badge</small>
+                                    }
+                                </a>
+                            }
+                        </div>
+                    </section>
+                }
+            </div>
+        </section>
+    }
+</div>

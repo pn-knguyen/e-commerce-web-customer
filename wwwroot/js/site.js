@@ -12,16 +12,33 @@
   const backToTopBtn = document.getElementById('back-to-top');
 
   if (backToTopBtn) {
-    window.addEventListener('scroll', () => {
-      if (window.scrollY > 400) {
-        backToTopBtn.classList.add('visible');
-      } else {
-        backToTopBtn.classList.remove('visible');
-      }
-    }, { passive: true });
+    const topSentinel = document.getElementById('page-top-sentinel');
+
+    if (topSentinel && 'IntersectionObserver' in window) {
+      const observer = new IntersectionObserver((entries) => {
+        backToTopBtn.classList.toggle('visible', !entries[0].isIntersecting);
+      }, {
+        rootMargin: '400px 0px 0px 0px'
+      });
+
+      observer.observe(topSentinel);
+    } else {
+      window.addEventListener('scroll', () => {
+        if (window.scrollY > 400) {
+          backToTopBtn.classList.add('visible');
+        } else {
+          backToTopBtn.classList.remove('visible');
+        }
+      }, { passive: true });
+    }
 
     backToTopBtn.addEventListener('click', () => {
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      window.scrollTo({
+        top: 0,
+        behavior: reducedMotion ? 'auto' : 'smooth'
+      });
     });
   }
 

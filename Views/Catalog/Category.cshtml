@@ -1,1 +1,32 @@
+@model CategoryPageViewModel
 
+@{
+    ViewData["Title"] = Model.Title;
+    ViewData["MetaDescription"] = Model.MetaDescription;
+}
+
+@if (Model.LayoutMode == CategoryPageLayoutMode.FilterListing)
+{
+    <partial name="Templates/_FilterListing" model="Model" />
+}
+else if (Model.LayoutMode == CategoryPageLayoutMode.Sectioned)
+{
+    <partial name="Templates/_Sectioned" model="Model" />
+}
+else
+{
+    <section class="container section">
+        <h1>@Model.Title</h1>
+        <p>Giao diện danh mục này đang được cập nhật.</p>
+    </section>
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/lib/swiper/swiper-bundle.min.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/pages/catalog.css" asp-append-version="true" />
+}
+
+@section Scripts {
+    <script src="~/lib/swiper/swiper-bundle.min.js" asp-append-version="true"></script>
+    <script src="~/js/catalog-page.js" asp-append-version="true"></script>
+}

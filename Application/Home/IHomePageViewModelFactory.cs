@@ -4,5 +4,6 @@ namespace e_commerce_web_customer.Application.Home;
 
 public interface IHomePageViewModelFactory
 {
-    Task<HomeIndexViewModel> CreateAsync();
+    Task<HomeIndexViewModel> CreateAsync(
+        CancellationToken cancellationToken = default);
 }

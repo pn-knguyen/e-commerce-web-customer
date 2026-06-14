@@ -8,5 +8,7 @@ namespace e_commerce_web_customer.Application.Contracts;
 /// </summary>
 public interface ICartItemValidator
 {
-    Task<CartSessionItem> ValidateAsync(CartSessionItem requestItem);
+    Task<CartSessionItem> ValidateAsync(
+        CartSessionItem requestItem,
+        CancellationToken cancellationToken = default);
 }
