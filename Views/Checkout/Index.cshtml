@@ -11,7 +11,7 @@
 }
 
 <section class="checkout-page" aria-label="Trang thanh toán">
-    <form asp-controller="Checkout" asp-action="Index" method="post" novalidate>
+    <form asp-controller="Checkout" asp-action="Index" method="post">
         @Html.AntiForgeryToken()
 
         <div class="checkout-layout">
@@ -28,7 +28,10 @@
                         <svg aria-hidden="true" viewBox="0 0 20 20" fill="currentColor">
                             <path fill-rule="evenodd" clip-rule="evenodd" d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm-1-5a1 1 0 1 0 2 0V9a1 1 0 1 0-2 0v4Zm1-8a1.25 1.25 0 1 1 0 2.5A1.25 1.25 0 0 1 10 5Z" />
                         </svg>
-                        <span>Vui lòng kiểm tra lại thông tin bên dưới trước khi đặt hàng.</span>
+                        <div>
+                            <strong>Vui lòng kiểm tra lại thông tin trước khi đặt hàng.</strong>
+                            <div asp-validation-summary="All"></div>
+                        </div>
                     </div>
                 }
 
@@ -191,7 +194,7 @@
                                        name="PaymentMethod"
                                        id="pay-cod"
                                        value="0"
-                                       @(Model.PaymentMethod == PaymentMethod.Cod ? "checked" : null) />
+                                       @(Model.PaymentMethod == e_commerce_web_customer.ViewModels.Checkout.PaymentMethod.Cod ? "checked" : null) />
                                 <label for="pay-cod" class="co-payment-label">
                                     <span class="co-payment-icon" aria-hidden="true">
                                         <svg viewBox="0 0 24 24" fill="none">
@@ -210,7 +213,7 @@
                                        name="PaymentMethod"
                                        id="pay-bank"
                                        value="1"
-                                       @(Model.PaymentMethod == PaymentMethod.BankTransfer ? "checked" : null) />
+                                       @(Model.PaymentMethod == e_commerce_web_customer.ViewModels.Checkout.PaymentMethod.BankTransfer ? "checked" : null) />
                                 <label for="pay-bank" class="co-payment-label">
                                     <span class="co-payment-icon" aria-hidden="true">
                                         <svg viewBox="0 0 24 24" fill="none">
@@ -229,7 +232,7 @@
                                        name="PaymentMethod"
                                        id="pay-momo"
                                        value="2"
-                                       @(Model.PaymentMethod == PaymentMethod.Momo ? "checked" : null) />
+                                       @(Model.PaymentMethod == e_commerce_web_customer.ViewModels.Checkout.PaymentMethod.Momo ? "checked" : null) />
                                 <label for="pay-momo" class="co-payment-label">
                                     <span class="co-payment-icon" aria-hidden="true">
                                         <svg viewBox="0 0 48 48" fill="none">
@@ -248,7 +251,7 @@
                                        name="PaymentMethod"
                                        id="pay-vnpay"
                                        value="3"
-                                       @(Model.PaymentMethod == PaymentMethod.VnPay ? "checked" : null) />
+                                       @(Model.PaymentMethod == e_commerce_web_customer.ViewModels.Checkout.PaymentMethod.VnPay ? "checked" : null) />
                                 <label for="pay-vnpay" class="co-payment-label">
                                     <span class="co-payment-icon" aria-hidden="true">
                                         <svg viewBox="0 0 48 48" fill="none">
@@ -267,7 +270,7 @@
                                        name="PaymentMethod"
                                        id="pay-zalopay"
                                        value="4"
-                                       @(Model.PaymentMethod == PaymentMethod.ZaloPay ? "checked" : null) />
+                                       @(Model.PaymentMethod == e_commerce_web_customer.ViewModels.Checkout.PaymentMethod.ZaloPay ? "checked" : null) />
                                 <label for="pay-zalopay" class="co-payment-label">
                                     <span class="co-payment-icon" aria-hidden="true">
                                         <svg viewBox="0 0 48 48" fill="none">

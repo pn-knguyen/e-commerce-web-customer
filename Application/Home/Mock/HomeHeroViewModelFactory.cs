@@ -20,9 +20,9 @@ internal static class HomeHeroViewModelFactory
 
     private static IReadOnlyList<HomeHeroCampaignTabViewModel> CreateCampaignTabs() =>
     [
-        new() { Url = "/catalog?brand=samsung", Title = "Galaxy S25 Ultra", Subtitle = "Siêu đỉnh AI", Icon = "phone", IsActive = true },
+        new() { Url = CatalogUrl.Products(brand: "samsung"), Title = "Galaxy S25 Ultra", Subtitle = "Siêu đỉnh AI", Icon = "phone", IsActive = true },
         new() { Url = "/product/iphone-16-pro-max", Title = "iPhone 16 Pro Max", Subtitle = "Nâng tầm Pro", Icon = "phone" },
-        new() { Url = "/catalog?cat=laptop&tag=student", Title = "Laptop sinh viên", Subtitle = "Ưu đãi học tập", Icon = "laptop" },
+        new() { Url = CatalogUrl.Products("laptop", name: "sinh viên"), Title = "Laptop sinh viên", Subtitle = "Ưu đãi học tập", Icon = "laptop" },
         new() { Url = "/trade-in", Title = "Thu cũ đổi mới", Subtitle = "Trợ giá đến 3 triệu", Icon = "swap" }
     ];
 
@@ -60,7 +60,7 @@ internal static class HomeHeroViewModelFactory
             PriceLabel = "Giá chỉ từ",
             Price = "15.990.000đ",
             ActionLabel = "Khám phá ngay",
-            ActionUrl = "/catalog?cat=laptop&tag=sale",
+            ActionUrl = CatalogUrl.Products("laptop", name: "sale"),
             FeatureIcon = "laptop"
         },
         new()
@@ -82,7 +82,7 @@ internal static class HomeHeroViewModelFactory
     [
         new()
         {
-            Url = "/catalog?cat=laptop&brand=apple",
+            Url = CatalogUrl.Products("laptop", "apple"),
             Eyebrow = "Mỏng nhẹ. Mạnh mẽ.",
             Title = "MacBook Air M3",
             Price = "Từ 25.490.000đ",
@@ -92,7 +92,7 @@ internal static class HomeHeroViewModelFactory
         },
         new()
         {
-            Url = "/catalog?brand=samsung",
+            Url = CatalogUrl.Products(brand: "samsung"),
             Eyebrow = "Galaxy AI thông minh",
             Title = "Galaxy S25 | S25+",
             Price = "Giảm đến 4 triệu",
@@ -102,7 +102,7 @@ internal static class HomeHeroViewModelFactory
         },
         new()
         {
-            Url = "/catalog?cat=laptop&tag=student",
+            Url = CatalogUrl.Products("laptop", name: "sinh viên"),
             Eyebrow = "Ưu đãi sinh viên",
             Title = "Laptop học tập",
             Price = "Giảm đến 3 triệu",
@@ -120,7 +120,7 @@ internal static class HomeHeroViewModelFactory
             [
                 new() { Url = "/deals/education", Label = "Đăng ký nhận", StrongText = "ưu đãi", Icon = "graduation" },
                 new() { Url = "/deals/student", Label = "Deal hot", StrongText = "học sinh sinh viên", Icon = "discount" },
-                new() { Url = "/catalog?cat=laptop&tag=student", Label = "Laptop", StrongText = "ưu đãi khủng", Icon = "laptop" }
+                new() { Url = CatalogUrl.Products("laptop", name: "sinh viên"), Label = "Laptop", StrongText = "ưu đãi khủng", Icon = "laptop" }
             ]
         },
         new()

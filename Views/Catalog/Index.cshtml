@@ -1,1 +1,71 @@
+@model CatalogIndexViewModel
 
+@{
+    ViewData["Title"] = "Danh sách sản phẩm";
+}
+
+<section class="catalog-page">
+    <div class="site-container">
+        <header class="catalog-page__header">
+            <h1>Danh sách sản phẩm</h1>
+            <p>@Model.TotalItems sản phẩm phù hợp</p>
+        </header>
+
+        @if (Model.Products.Count == 0)
+        {
+            <p>Không tìm thấy sản phẩm phù hợp.</p>
+        }
+        else
+        {
+            <div class="catalog-page__grid">
+                @foreach (var product in Model.Products)
+                {
+                    <partial name="~/Views/Shared/Partials/_ProductCard.cshtml" model="product" />
+                }
+            </div>
+        }
+
+        @if (Model.TotalPages > 1)
+        {
+            <nav class="catalog-page__pagination" aria-label="Phân trang sản phẩm">
+                @if (Model.HasPreviousPage)
+                {
+                    <a href="@PageUrl(Model.PageNumber - 1)">Trang trước</a>
+                }
+
+                <span>Trang @Model.PageNumber / @Model.TotalPages</span>
+
+                @if (Model.HasNextPage)
+                {
+                    <a href="@PageUrl(Model.PageNumber + 1)">Trang sau</a>
+                }
+            </nav>
+        }
+    </div>
+</section>
+
+<partial name="~/Views/Shared/Partials/_ProductCardIconSprite.cshtml" />
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/catalog.css" asp-append-version="true" />
+}
+
+@functions {
+    private string PageUrl(int pageNumber)
+    {
+        var query = new Dictionary<string, string?>
+        {
+            ["Name"] = Model.Query.Name,
+            ["CategoryId"] = Model.Query.CategoryId?.ToString(),
+            ["BrandId"] = Model.Query.BrandId?.ToString(),
+            ["PageNumber"] = pageNumber.ToString(),
+            ["PageSize"] = Model.PageSize.ToString()
+        };
+
+        var queryString = string.Join("&", query
+            .Where(item => !string.IsNullOrWhiteSpace(item.Value))
+            .Select(item => $"{item.Key}={Uri.EscapeDataString(item.Value!)}"));
+
+        return $"/catalog?{queryString}";
+    }
+}

@@ -14,9 +14,9 @@ public sealed class ProductController : Controller
     }
 
     [HttpGet("{slug}")]
-    public IActionResult Details(string slug)
+    public async Task<IActionResult> Details(string slug, [FromQuery] long? variantId)
     {
-        var viewModel = _productDetailViewModelFactory.Create(slug);
+        var viewModel = await _productDetailViewModelFactory.CreateAsync(slug, variantId);
 
         if (viewModel is null)
         {

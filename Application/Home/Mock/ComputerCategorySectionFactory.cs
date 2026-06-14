@@ -17,10 +17,10 @@ internal static class ComputerCategorySectionFactory
             ShowPagination = false,
             Tabs =
             [
-                Tab("laptops", "Laptop", "/catalog?cat=laptop", CreateLaptopPanel(), true),
-                Tab("monitors", "Màn hình máy tính", "/catalog?cat=monitor", CreateMonitorPanel()),
-                Tab("desktop-pcs", "PC", "/catalog?cat=desktop", CreateDesktopPanel()),
-                Tab("computer-accessories", "Phụ kiện máy tính", "/catalog?cat=computer-accessories", CreateComponentPanel())
+                Tab("laptops", "Laptop", CatalogUrl.Products("laptop"), CreateLaptopPanel(), true),
+                Tab("monitors", "Màn hình máy tính", CatalogUrl.Products("monitor"), CreateMonitorPanel()),
+                Tab("desktop-pcs", "PC", CatalogUrl.Products("desktop"), CreateDesktopPanel()),
+                Tab("computer-accessories", "Phụ kiện máy tính", CatalogUrl.Products("computer-accessories"), CreateComponentPanel())
             ]
         };
     }
@@ -28,7 +28,7 @@ internal static class ComputerCategorySectionFactory
     private static CategoryProductPanelViewModel CreateLaptopPanel()
     {
         return Panel(
-            "/catalog?cat=laptop",
+            CatalogUrl.Products("laptop"),
             [
                 QuickLink("Văn phòng", "laptop", "usage=office", "laptop-03.webp"),
                 QuickLink("Gaming", "laptop", "usage=gaming", "laptop-01.webp"),
@@ -83,7 +83,7 @@ internal static class ComputerCategorySectionFactory
     private static CategoryProductPanelViewModel CreateMonitorPanel()
     {
         return Panel(
-            "/catalog?cat=monitor",
+            CatalogUrl.Products("monitor"),
             [
                 QuickLink("Gaming", "monitor", "usage=gaming", "monitor-01.webp"),
                 QuickLink("Văn phòng", "monitor", "usage=office", "monitor-02.webp"),
@@ -138,7 +138,7 @@ internal static class ComputerCategorySectionFactory
     private static CategoryProductPanelViewModel CreateDesktopPanel()
     {
         return Panel(
-            "/catalog?cat=desktop",
+            CatalogUrl.Products("desktop"),
             [
                 QuickLink("Build PC", "desktop", "type=build", "desktop-01.webp"),
                 QuickLink("PC ráp sẵn", "desktop", "type=prebuilt", "desktop-02.webp"),
@@ -192,7 +192,7 @@ internal static class ComputerCategorySectionFactory
     private static CategoryProductPanelViewModel CreateComponentPanel()
     {
         return Panel(
-            "/catalog?cat=computer-accessories",
+            CatalogUrl.Products("computer-accessories"),
             [
                 QuickLink("CPU", "computer-accessories", "type=cpu", "component-10.webp"),
                 QuickLink("Mainboard", "computer-accessories", "type=mainboard", "component-03.webp"),
@@ -281,49 +281,49 @@ internal static class ComputerCategorySectionFactory
     {
         return viewAllUrl switch
         {
-            "/catalog?cat=laptop" =>
+            var url when url == CatalogUrl.Products("laptop") =>
             [
                 HomeCategoryBannerFactory.Create(
                     "banner_laptop.png",
                     "Ưu đãi laptop nổi bật",
-                    "/catalog?cat=laptop"),
+                    CatalogUrl.Products("laptop")),
                 HomeCategoryBannerFactory.Create(
                     "banner_mac.png",
                     "Ưu đãi MacBook dành cho sinh viên",
-                    "/catalog?cat=laptop&brand=apple")
+                    CatalogUrl.Products("laptop", "apple"))
             ],
-            "/catalog?cat=monitor" =>
+            var url when url == CatalogUrl.Products("monitor") =>
             [
                 HomeCategoryBannerFactory.Create(
                     "banner_asus_monitor.png",
                     "Ưu đãi màn hình ASUS",
-                    "/catalog?cat=monitor&brand=asus"),
+                    CatalogUrl.Products("monitor", "asus")),
                 HomeCategoryBannerFactory.Create(
                     "banner_acer_monitor.png",
                     "Ưu đãi màn hình Acer",
-                    "/catalog?cat=monitor&brand=acer")
+                    CatalogUrl.Products("monitor", "acer"))
             ],
-            "/catalog?cat=desktop" =>
+            var url when url == CatalogUrl.Products("desktop") =>
             [
                 HomeCategoryBannerFactory.Create(
                     "banner_pc_acer.png",
                     "Ưu đãi máy tính Acer",
-                    "/catalog?cat=desktop&brand=acer"),
+                    CatalogUrl.Products("desktop", "acer")),
                 HomeCategoryBannerFactory.Create(
                     "banner_pc_asus.png",
                     "Ưu đãi máy tính ASUS",
-                    "/catalog?cat=desktop&brand=asus")
+                    CatalogUrl.Products("desktop", "asus"))
             ],
-            "/catalog?cat=computer-accessories" =>
+            var url when url == CatalogUrl.Products("computer-accessories") =>
             [
                 HomeCategoryBannerFactory.Create(
                     "banner_amd.png",
                     "Linh kiện máy tính AMD nổi bật",
-                    "/catalog?cat=computer-accessories&brand=amd"),
+                    CatalogUrl.Products("computer-accessories", "amd")),
                 HomeCategoryBannerFactory.Create(
                     "banner_nvidia.png",
                     "Linh kiện máy tính NVIDIA nổi bật",
-                    "/catalog?cat=computer-accessories&brand=nvidia")
+                    CatalogUrl.Products("computer-accessories", "nvidia"))
             ],
             _ => []
         };
@@ -338,7 +338,7 @@ internal static class ComputerCategorySectionFactory
         return new CategoryQuickLinkViewModel
         {
             Label = label,
-            Url = $"/catalog?cat={category}&{query}",
+            Url = CatalogUrl.Products(category, name: label),
             ImageUrl = $"{ImageRoot}/{imageName}"
         };
     }
@@ -351,7 +351,7 @@ internal static class ComputerCategorySectionFactory
             .Select(label => new CategoryBrandViewModel
             {
                 Label = label,
-                Url = $"/catalog?cat={category}&brand={Uri.EscapeDataString(label.ToLowerInvariant())}"
+                Url = CatalogUrl.Products(category, label)
             })
             .ToArray();
     }

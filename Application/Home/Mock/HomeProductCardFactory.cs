@@ -71,6 +71,7 @@ internal static class HomeProductCardFactory
                 DeliveryLabel = source.DeliveryLabel,
                 Location = source.Location,
                 Rating = source.Rating,
+                RatingCount = source.RatingCount,
                 IsWishlisted = source.IsWishlisted,
                 ShowWishlistAction = source.ShowWishlistAction
             });

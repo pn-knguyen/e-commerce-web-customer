@@ -4,5 +4,5 @@ namespace e_commerce_web_customer.Application.Product;
 
 public interface IProductDetailViewModelFactory
 {
-    ProductDetailViewModel? Create(string slug);
+    Task<ProductDetailViewModel?> CreateAsync(string slug, long? variantId = null);
 }

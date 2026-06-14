@@ -12,9 +12,9 @@ public sealed class MockHomePageViewModelFactory : IHomePageViewModelFactory
         _categoryMenuProvider = categoryMenuProvider;
     }
 
-    public HomeIndexViewModel Create()
+    public Task<HomeIndexViewModel> CreateAsync()
     {
-        return new HomeIndexViewModel
+        return Task.FromResult(new HomeIndexViewModel
         {
             Hero = HomeHeroViewModelFactory.Create(_categoryMenuProvider.GetMenu().Items),
             FeaturedCategorySections = [PhoneCategorySectionFactory.Create()],
@@ -24,6 +24,6 @@ public sealed class MockHomePageViewModelFactory : IHomePageViewModelFactory
                 ComputerCategorySectionFactory.Create(),
                 AudioWearablesCategorySectionFactory.Create()
             ]
-        };
+        });
     }
 }
