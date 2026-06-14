@@ -18,7 +18,8 @@
     selectEl.innerHTML = `<option value="">${placeholder}</option>`;
     items.forEach(({ code, name }) => {
       const opt = document.createElement('option');
-      opt.value = code;
+      opt.value = name;
+      opt.dataset.code = code;
       opt.textContent = name;
       selectEl.appendChild(opt);
     });
@@ -45,6 +46,47 @@
 
   const API_BASE = 'https://provinces.open-api.vn/api';
 
+  function getSelectedCode(selectEl) {
+    return selectEl?.selectedOptions[0]?.dataset.code || '';
+  }
+
+  async function restoreAddressSelection() {
+    const provinceCode = getSelectedCode(provinceSelect);
+    const districtValue = districtSelect?.dataset.serverValue || '';
+    const wardValue = wardSelect?.dataset.serverValue || '';
+
+    if (!provinceCode || !districtValue) return;
+
+    const districtPlaceholder = districtSelect.options[0]?.textContent || '';
+    const provinceResponse = await fetch(`${API_BASE}/p/${provinceCode}?depth=2`);
+    const province = await provinceResponse.json();
+    populateSelect(
+      districtSelect,
+      (province.districts || []).map((district) => ({
+        code: district.code,
+        name: district.name
+      })),
+      districtPlaceholder
+    );
+    districtSelect.value = districtValue;
+
+    const districtCode = getSelectedCode(districtSelect);
+    if (!districtCode || !wardValue) return;
+
+    const wardPlaceholder = wardSelect.options[0]?.textContent || '';
+    const districtResponse = await fetch(`${API_BASE}/d/${districtCode}?depth=2`);
+    const district = await districtResponse.json();
+    populateSelect(
+      wardSelect,
+      (district.wards || []).map((ward) => ({
+        code: ward.code,
+        name: ward.name
+      })),
+      wardPlaceholder
+    );
+    wardSelect.value = wardValue;
+  }
+
   // Load all provinces on page init
   if (provinceSelect) {
     fetch(`${API_BASE}/p/`)
@@ -59,6 +101,7 @@
         // Restore server-side selected value after form validation failure
         const serverValue = provinceSelect.dataset.serverValue;
         if (serverValue) provinceSelect.value = serverValue;
+        return restoreAddressSelection();
       })
       .catch(() => {
         provinceSelect.innerHTML = '<option value="">Không tải được dữ liệu</option>';
@@ -66,7 +109,7 @@
   }
 
   provinceSelect?.addEventListener('change', () => {
-    const code = provinceSelect.value;
+    const code = getSelectedCode(provinceSelect);
     resetSelect(districtSelect, '-- Chọn Quận / Huyện --');
     resetSelect(wardSelect, '-- Chọn Phường / Xã --');
 
@@ -89,7 +132,7 @@
   });
 
   districtSelect?.addEventListener('change', () => {
-    const code = districtSelect.value;
+    const code = getSelectedCode(districtSelect);
     resetSelect(wardSelect, '-- Chọn Phường / Xã --');
 
     if (!code) return;
