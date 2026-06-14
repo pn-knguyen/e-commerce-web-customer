@@ -1,9 +1,10 @@
-using e_commerce_web_customer.Application.Home;
+using e_commerce_web_customer.Application.Catalog;
+using e_commerce_web_customer.Infrastructure.Home.Mock;
 using e_commerce_web_customer.DTOs.Product;
 using e_commerce_web_customer.ViewModels.Catalog;
 using e_commerce_web_customer.ViewModels.Shared;
 
-namespace e_commerce_web_customer.Application.Catalog;
+namespace e_commerce_web_customer.Infrastructure.Catalog.Mock;
 
 public sealed class MockCatalogPageViewModelFactory : ICatalogPageViewModelFactory
 {

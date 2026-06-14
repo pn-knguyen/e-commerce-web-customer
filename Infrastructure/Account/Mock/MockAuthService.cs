@@ -2,7 +2,7 @@ using e_commerce_web_customer.Application.Constants;
 using e_commerce_web_customer.Interfaces;
 using e_commerce_web_customer.ViewModels.Account;
 
-namespace e_commerce_web_customer.Infrastructure.MockData;
+namespace e_commerce_web_customer.Infrastructure.Account.Mock;
 
 public sealed class MockAuthService(IHttpContextAccessor httpContextAccessor) : IAuthService
 {

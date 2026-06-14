@@ -1,6 +1,8 @@
+using e_commerce_web_customer.Application.Navigation;
+using e_commerce_web_customer.Infrastructure.Home.Mock;
 using e_commerce_web_customer.ViewModels.Shared;
 
-namespace e_commerce_web_customer.Application.Navigation;
+namespace e_commerce_web_customer.Infrastructure.Navigation.Mock;
 
 public sealed class MockSiteCategoryMenuProvider : ISiteCategoryMenuProvider
 {
@@ -27,7 +29,7 @@ public sealed class MockSiteCategoryMenuProvider : ISiteCategoryMenuProvider
 
     private static string Catalog(string? category = null, string? brand = null, string? name = null)
     {
-        return e_commerce_web_customer.Application.Home.CatalogUrl.Products(category, brand, name);
+        return CatalogUrl.Products(category, brand, name);
     }
 
     private static SiteCategoryMenuItemViewModel Item(

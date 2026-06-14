@@ -1,7 +1,7 @@
 using e_commerce_web_customer.ViewModels.Cart;
 using e_commerce_web_customer.ViewModels.Checkout;
 
-namespace e_commerce_web_customer.Infrastructure.MockData;
+namespace e_commerce_web_customer.Infrastructure.Cart.Mock;
 
 /// <summary>
 /// Centralized provider for cart-related mock/demo data to ensure consistency and avoid duplication.

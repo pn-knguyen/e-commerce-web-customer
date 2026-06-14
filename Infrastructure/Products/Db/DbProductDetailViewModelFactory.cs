@@ -1,10 +1,11 @@
+using e_commerce_web_customer.Application.Product;
 using e_commerce_web_customer.DTOs.Product;
 using e_commerce_web_customer.Interfaces;
 using e_commerce_web_customer.ViewModels.Product;
 using System.Globalization;
 using System.Text;
 
-namespace e_commerce_web_customer.Application.Product;
+namespace e_commerce_web_customer.Infrastructure.Products.Db;
 
 public sealed class DbProductDetailViewModelFactory : IProductDetailViewModelFactory
 {

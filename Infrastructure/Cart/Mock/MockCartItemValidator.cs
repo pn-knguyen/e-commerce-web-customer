@@ -1,7 +1,7 @@
 using e_commerce_web_customer.Application.Contracts;
 using e_commerce_web_customer.Application.Services;
 
-namespace e_commerce_web_customer.Infrastructure.MockData;
+namespace e_commerce_web_customer.Infrastructure.Cart.Mock;
 
 /// <summary>
 /// Mock implementation that implicitly trusts the client's payload.

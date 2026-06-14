@@ -1,7 +1,7 @@
 using e_commerce_web_customer.Application.Contracts;
 using e_commerce_web_customer.ViewModels.Account;
 
-namespace e_commerce_web_customer.Infrastructure.Services;
+namespace e_commerce_web_customer.Infrastructure.Account.Db;
 
 /// <summary>
 /// Production account service connected to the database / ASP.NET Core Identity store.
