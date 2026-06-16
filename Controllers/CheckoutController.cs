@@ -1,7 +1,7 @@
 using e_commerce_web_customer.Application.Constants;
 using e_commerce_web_customer.Application.Services;
 using e_commerce_web_customer.DTOs.Order;
-using e_commerce_web_customer.Infrastructure.MockData;
+using e_commerce_web_customer.Infrastructure.Cart.Mock;
 using e_commerce_web_customer.Interfaces;
 using e_commerce_web_customer.ViewModels.Cart;
 using e_commerce_web_customer.ViewModels.Checkout;

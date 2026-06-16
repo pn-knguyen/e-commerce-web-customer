@@ -1,10 +1,11 @@
+using e_commerce_web_customer.Application.Catalog;
 using System.Globalization;
 using e_commerce_web_customer.DTOs.Product;
 using e_commerce_web_customer.Interfaces;
 using e_commerce_web_customer.ViewModels.Catalog;
 using e_commerce_web_customer.ViewModels.Shared;
 
-namespace e_commerce_web_customer.Application.Catalog;
+namespace e_commerce_web_customer.Infrastructure.Catalog.Db;
 
 public sealed class DbCatalogPageViewModelFactory(IProductService productService)
     : ICatalogPageViewModelFactory

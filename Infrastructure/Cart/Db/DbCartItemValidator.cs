@@ -1,7 +1,7 @@
 using e_commerce_web_customer.Application.Contracts;
 using e_commerce_web_customer.Application.Services;
 
-namespace e_commerce_web_customer.Infrastructure.Services;
+namespace e_commerce_web_customer.Infrastructure.Cart.Db;
 
 /// <summary>
 /// Real database implementation. Needs to query the DB by ID and Variant

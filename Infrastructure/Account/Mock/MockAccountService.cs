@@ -1,7 +1,7 @@
 using e_commerce_web_customer.Application.Contracts;
 using e_commerce_web_customer.ViewModels.Account;
 
-namespace e_commerce_web_customer.Infrastructure.MockData;
+namespace e_commerce_web_customer.Infrastructure.Account.Mock;
 
 /// <summary>
 /// Simulation of a user repository/database in-memory.

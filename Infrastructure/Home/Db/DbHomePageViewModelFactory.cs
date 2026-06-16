@@ -1,3 +1,5 @@
+using e_commerce_web_customer.Application.Home;
+using e_commerce_web_customer.Infrastructure.Home.Mock;
 using System.Globalization;
 using e_commerce_web_customer.Application.Navigation;
 using e_commerce_web_customer.DTOs.Product;
@@ -5,7 +7,7 @@ using e_commerce_web_customer.Interfaces;
 using e_commerce_web_customer.ViewModels.Home;
 using e_commerce_web_customer.ViewModels.Shared;
 
-namespace e_commerce_web_customer.Application.Home;
+namespace e_commerce_web_customer.Infrastructure.Home.Db;
 
 public sealed class DbHomePageViewModelFactory : IHomePageViewModelFactory
 {

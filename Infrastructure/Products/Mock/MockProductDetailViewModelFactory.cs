@@ -1,6 +1,7 @@
+using e_commerce_web_customer.Application.Product;
 using e_commerce_web_customer.ViewModels.Product;
 
-namespace e_commerce_web_customer.Application.Product;
+namespace e_commerce_web_customer.Infrastructure.Products.Mock;
 
 public sealed class MockProductDetailViewModelFactory : IProductDetailViewModelFactory
 {
