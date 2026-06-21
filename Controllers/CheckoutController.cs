@@ -3,8 +3,10 @@ using e_commerce_web_customer.Application.Constants;
 using e_commerce_web_customer.Application.Contracts;
 using e_commerce_web_customer.Application.Orders;
 using e_commerce_web_customer.Application.Services;
+using e_commerce_web_customer.Infrastructure.Integrations.SePay;
 using e_commerce_web_customer.ViewModels.Checkout;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace e_commerce_web_customer.Controllers;
 
@@ -15,7 +17,8 @@ public sealed class CheckoutController(
     ICartDemoDataProvider demoDataProvider,
     ICheckoutPaymentMethodProvider paymentMethodProvider,
     IOrderService orderService,
-    IMoMoIntegration momoIntegration) : Controller
+    IMoMoIntegration momoIntegration,
+    IOptions<SePayPaymentOptions> sePayPaymentOptions) : Controller
 {
     private const string SuccessSessionKey = "checkout_success_order";
 
@@ -109,6 +112,14 @@ public sealed class CheckoutController(
                 RestoreOrderSummary(model, orderSnapshot);
                 ViewData["Mode"] = mode;
                 return View(model);
+            }
+
+            if (model.PaymentMethodId == sePayPaymentOptions.Value.PaymentMethodId)
+            {
+                return RedirectToAction(
+                    "SePay",
+                    "Payment",
+                    new { orderCode = placedOrder.OrderCode });
             }
 
             return RedirectToAction(nameof(Success));

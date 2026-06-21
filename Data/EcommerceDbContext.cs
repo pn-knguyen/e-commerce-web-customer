@@ -28,6 +28,7 @@ public class EcommerceDbContext : DbContext
     public DbSet<CategoryVariantAttribute> CategoryVariantAttributes => Set<CategoryVariantAttribute>();
     public DbSet<VariantAttribute> VariantAttributes => Set<VariantAttribute>();
     public DbSet<PaymentMethod> PaymentMethods => Set<PaymentMethod>();
+    public DbSet<SePayWebhookEvent> SePayWebhookEvents => Set<SePayWebhookEvent>();
     public DbSet<Order> Orders => Set<Order>();
     public DbSet<OrderItem> OrderItems => Set<OrderItem>();
     public DbSet<Rating> Ratings => Set<Rating>();
@@ -269,6 +270,27 @@ public class EcommerceDbContext : DbContext
 
     private static void ConfigureOrders(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<SePayWebhookEvent>(entity =>
+        {
+            entity.ToTable("sepay_webhook_events");
+            entity.HasIndex(item => item.SePayTransactionId).IsUnique();
+            entity.Property(item => item.Gateway).HasMaxLength(100).IsRequired();
+            entity.Property(item => item.TransactionDate).HasMaxLength(19).IsRequired();
+            entity.Property(item => item.AccountNumber).HasMaxLength(100).IsRequired();
+            entity.Property(item => item.SubAccount).HasMaxLength(100);
+            entity.Property(item => item.Code).HasMaxLength(100);
+            entity.Property(item => item.Content).HasMaxLength(1000).IsRequired();
+            entity.Property(item => item.TransferType).HasMaxLength(10).IsRequired();
+            entity.Property(item => item.Description).HasMaxLength(2000);
+            entity.Property(item => item.TransferAmount).HasPrecision(18, 2);
+            entity.Property(item => item.Accumulated).HasPrecision(18, 2);
+            entity.Property(item => item.ReferenceCode).HasMaxLength(200);
+            entity.Property(item => item.RawPayload).HasColumnType("nvarchar(max)").IsRequired();
+            entity.Property(item => item.ProcessingStatus).HasMaxLength(50).IsRequired();
+            entity.Property(item => item.ProcessingMessage).HasMaxLength(500);
+            entity.HasIndex(item => item.MatchedOrderId);
+        });
+
         modelBuilder.Entity<PaymentMethod>(entity =>
         {
             entity.ToTable("payment_methods");
