@@ -16,6 +16,7 @@ using e_commerce_web_customer.Infrastructure.Home.Db;
 using e_commerce_web_customer.Infrastructure.Home.Mock;
 using e_commerce_web_customer.Infrastructure.Integrations.GoogleMaps;
 using e_commerce_web_customer.Infrastructure.Integrations.MoMo;
+using e_commerce_web_customer.Infrastructure.Integrations.SePay;
 using e_commerce_web_customer.Infrastructure.Navigation.Db;
 using e_commerce_web_customer.Infrastructure.Navigation.Mock;
 using e_commerce_web_customer.Infrastructure.Orders.Db;
@@ -43,6 +44,12 @@ public static class StorefrontServiceCollectionExtensions
         services.Configure<MoMoOptions>(
             configuration.GetSection(MoMoOptions.SectionName));
         services.AddHttpClient<IMoMoIntegration, MoMoIntegration>();
+
+        services.Configure<SePayWebhookOptions>(
+            configuration.GetSection(SePayWebhookOptions.SectionName));
+        services.Configure<SePayPaymentOptions>(
+            configuration.GetSection(SePayPaymentOptions.SectionName));
+        services.AddSingleton<SePayWebhookAuthenticator>();
 
         return services;
     }
@@ -104,6 +111,8 @@ public static class StorefrontServiceCollectionExtensions
         services.AddScoped<ICartPersistenceService, DbCartPersistenceService>();
         services.AddScoped<ICheckoutPaymentMethodProvider, DbCheckoutPaymentMethodProvider>();
         services.AddScoped<IOrderService, DbOrderService>();
+        services.AddScoped<ISePayWebhookService, SePayWebhookService>();
+        services.AddScoped<ISePayPaymentService, SePayPaymentService>();
         services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
         services.AddScoped<IAccountService, DbAccountService>();
         services.AddScoped<ICartItemValidator, DbCartItemValidator>();

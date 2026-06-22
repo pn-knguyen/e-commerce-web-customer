@@ -50,6 +50,7 @@ public sealed class DbCheckoutPaymentMethodProvider(EcommerceDbContext dbContext
 
         return iconKey switch
         {
+            "sepay" => "Quét QR chuyển khoản ngân hàng",
             "cod" => "Thanh toán khi nhận hàng",
             "banktransfer" => "Ngân hàng nội địa",
             "momo" => "Ví điện tử",
@@ -62,6 +63,11 @@ public sealed class DbCheckoutPaymentMethodProvider(EcommerceDbContext dbContext
     private static string DetectIconKey(string name, string? description)
     {
         var normalized = NormalizeText($"{name} {description}");
+
+        if (normalized.Contains("sepay", StringComparison.Ordinal))
+        {
+            return "sepay";
+        }
 
         if (normalized.Contains("momo", StringComparison.Ordinal))
         {
