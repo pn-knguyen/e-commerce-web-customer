@@ -8,44 +8,9 @@ using Microsoft.EntityFrameworkCore;
 namespace e_commerce_web_customer.Infrastructure.Account.Db;
 
 public sealed class DbAccountService(
-    EcommerceDbContext dbContext,
-    IPasswordHasher<User> passwordHasher) : IAccountService
+    EcommerceDbContext dbContext) : IAccountService
 {
-    public async Task<bool> LoginAsync(
-        string email,
-        string password,
-        bool rememberMe,
-        CancellationToken cancellationToken = default)
-    {
-        _ = rememberMe;
 
-        var normalizedEmail = NormalizeEmail(email);
-        if (string.IsNullOrWhiteSpace(normalizedEmail))
-        {
-            return false;
-        }
-
-        var user = await FindUserByEmailAsync(normalizedEmail, asTracking: true, cancellationToken);
-        if (user is null || !user.IsActive)
-        {
-            return false;
-        }
-
-        var result = passwordHasher.VerifyHashedPassword(user, user.PasswordHash, password);
-        if (result == PasswordVerificationResult.Failed)
-        {
-            return false;
-        }
-
-        if (result == PasswordVerificationResult.SuccessRehashNeeded)
-        {
-            user.PasswordHash = passwordHasher.HashPassword(user, password);
-            user.UpdatedAt = DateTime.UtcNow;
-            await dbContext.SaveChangesAsync(cancellationToken);
-        }
-
-        return true;
-    }
 
     public async Task<AccountProfile?> GetProfileAsync(
         string email,
@@ -90,7 +55,7 @@ public sealed class DbAccountService(
             IsActive = true,
             CreatedAt = DateTime.UtcNow
         };
-        user.PasswordHash = passwordHasher.HashPassword(user, model.Password);
+        user.PasswordHash = model.Password;
 
         dbContext.Users.Add(user);
 
@@ -119,6 +84,29 @@ public sealed class DbAccountService(
         return await dbContext.Users
             .AsNoTracking()
             .AnyAsync(user => user.Email.ToLower() == emailLower, cancellationToken);
+    }
+
+    public async Task<string?> FindEmailByPhoneNumberAsync(string phoneNumber, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(phoneNumber)) return null;
+
+        var phone1 = phoneNumber.Trim();
+        var phone2 = phone1;
+
+        if (phone1.StartsWith("+84"))
+        {
+            phone2 = "0" + phone1[3..];
+        }
+        else if (phone1.StartsWith("0"))
+        {
+            phone2 = "+84" + phone1[1..];
+        }
+
+        var user = await dbContext.Users
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.Phone == phone1 || u.Phone == phone2, cancellationToken);
+
+        return user?.Email;
     }
 
     private Task<User?> FindUserByEmailAsync(

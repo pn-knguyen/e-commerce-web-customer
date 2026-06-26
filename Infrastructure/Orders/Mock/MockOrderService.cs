@@ -10,6 +10,7 @@ public sealed class MockOrderService : IOrderService
 
     public Task<PlacedOrder> PlaceOrderAsync(
         PlaceOrderRequest request,
+        bool clearCart = true,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -36,6 +37,35 @@ public sealed class MockOrderService : IOrderService
         CancellationToken cancellationToken = default)
     {
         // Mock: no persistent storage — status update is a no-op
+        return Task.CompletedTask;
+    }
+
+    public Task<OrderForPayment?> GetOrderForPaymentAsync(
+        string orderCode,
+        string userEmail,
+        CancellationToken cancellationToken = default)
+    {
+        if (_orders.TryGetValue(orderCode, out var request) && request.Email.Equals(userEmail, StringComparison.OrdinalIgnoreCase))
+        {
+            var subtotal = request.Items.Sum(item => item.UnitPrice * item.Quantity);
+            var total = Math.Max(0m, subtotal + request.ShippingFee - request.Discount);
+            return Task.FromResult<OrderForPayment?>(new OrderForPayment(orderCode, total));
+        }
+
+        return Task.FromResult<OrderForPayment?>(null);
+    }
+
+    public Task CancelFailedOrderAsync(
+        string orderCode,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.CompletedTask;
+    }
+
+    public Task ConfirmOnlinePaymentAsync(
+        string orderCode,
+        CancellationToken cancellationToken = default)
+    {
         return Task.CompletedTask;
     }
 }

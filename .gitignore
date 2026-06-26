@@ -2,11 +2,13 @@ appsettings.json
 appsettings.Development.json
 appsettings.*.json
 !appsettings.example.json
-!appsettings.GoogleMaps.example.json
-appsettings.GoogleMaps.json
 *.user
 *.suo
 bin/
 obj/
 .agents/
 node_modules/
+.firebaserc
+firebase.json
+firebase-admin-key.json  
+ 

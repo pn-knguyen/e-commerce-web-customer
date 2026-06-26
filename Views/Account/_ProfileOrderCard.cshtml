@@ -1,5 +1,21 @@
 @model AccountProfileOrderViewModel
 
+@{
+    IEnumerable<AccountProfileOrderItemViewModel> items = Model.Items.Count > 0
+        ? Model.Items
+        : new[]
+        {
+            new AccountProfileOrderItemViewModel
+            {
+                ProductName = Model.ProductName,
+                ProductImageUrl = Model.ProductImageUrl,
+                ProductImageAlt = Model.ProductImageAlt,
+                Quantity = 1,
+                LineTotalText = Model.ProductPriceText
+            }
+        };
+}
+
 <article class="ap-order-card">
     <div class="ap-order-meta">
         <span>Đơn hàng: <strong>@Model.OrderCode</strong></span>
@@ -8,22 +24,37 @@
         <mark class="ap-order-status ap-order-status--@Model.StatusTone">@Model.StatusText</mark>
     </div>
 
-    <div class="ap-order-body">
-        <img src="@Model.ProductImageUrl" alt="@Model.ProductImageAlt" width="48" height="48" loading="lazy" />
-        <div class="ap-order-product">
-            <h3>@Model.ProductName</h3>
-            <strong>@Model.ProductPriceText</strong>
-            @if (!string.IsNullOrWhiteSpace(Model.OtherItemsText))
-            {
-                <p>@Model.OtherItemsText</p>
-            }
-        </div>
-        <div class="ap-order-total">
-            <p>Tổng thanh toán: <strong>@Model.TotalText</strong></p>
-            <a href="@Model.DetailUrl">
-                Xem chi tiết
-                <svg aria-hidden="true"><use href="#profile-icon-chevron"></use></svg>
-            </a>
-        </div>
+    <div class="ap-order-detail-head" aria-hidden="true">
+        <span>Sản phẩm</span>
+        <span>SL</span>
+        <span>Thành tiền</span>
+    </div>
+
+    <ul class="ap-order-items" aria-label="Sản phẩm trong đơn hàng @Model.OrderCode">
+        @foreach (var item in items)
+        {
+            <li class="ap-order-item">
+                <div class="ap-order-product">
+                    <img src="@item.ProductImageUrl" alt="@item.ProductImageAlt" width="58" height="58" loading="lazy" />
+                    <div class="ap-order-product-copy">
+                        <h3>@item.ProductName</h3>
+                        @if (!string.IsNullOrWhiteSpace(item.VariantText))
+                        {
+                            <p>@item.VariantText</p>
+                        }
+                    </div>
+                </div>
+                <strong class="ap-order-quantity">SL: @item.Quantity</strong>
+                <strong class="ap-order-line-total">@item.LineTotalText</strong>
+            </li>
+        }
+    </ul>
+
+    <div class="ap-order-total">
+        <p>Tổng thanh toán: <strong>@Model.TotalText</strong></p>
+        <a href="@Model.DetailUrl">
+            Xem chi tiết
+            <svg aria-hidden="true"><use href="#profile-icon-chevron"></use></svg>
+        </a>
     </div>
 </article>

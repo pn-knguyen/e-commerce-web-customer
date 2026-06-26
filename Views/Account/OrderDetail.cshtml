@@ -23,6 +23,14 @@
                         <strong>Chi tiết đơn hàng</strong>
                     </nav>
 
+                    @if (TempData["PaymentError"] is string paymentError)
+                    {
+                        <div class="od-flash-error" role="alert" style="background-color: #fef2f2; border: 1px solid #ef4444; color: #b91c1c; padding: 12px 16px; border-radius: 8px; margin-bottom: 24px; font-weight: 500;">
+                            <svg aria-hidden="true" style="width: 20px; height: 20px; display: inline-block; vertical-align: text-bottom; margin-right: 6px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                            @paymentError
+                        </div>
+                    }
+
                     <section class="od-card od-overview" aria-labelledby="order-overview-title">
                         <h1 id="order-overview-title">Tổng quan</h1>
                         <div class="od-order-meta">
@@ -43,11 +51,7 @@
                                         <strong>@item.UnitPriceText</strong>
                                         @if (!string.IsNullOrWhiteSpace(item.ColorText))
                                         {
-                                            <p><span>@item.ColorText</span> @item.WarrantyText</p>
-                                        }
-                                        else
-                                        {
-                                            <p>@item.WarrantyText</p>
+                                            <p><span>@item.ColorText</span></p>
                                         }
                                     </div>
                                     <div class="od-item-actions">
@@ -66,6 +70,100 @@
                             <div class="od-step @(step.IsDone ? "is-done" : null)">
                                 <span>@(step.IsDone ? "✓" : (index + 1).ToString())</span>
                                 <strong>@step.Label</strong>
+                            </div>
+                        }
+                    </section>
+
+                    <section class="od-card od-shipment-card" aria-labelledby="order-shipment-title">
+                        <div class="od-shipment-header">
+                            <div>
+                                <span class="od-section-kicker">Theo dõi vận chuyển</span>
+                                <h2 id="order-shipment-title">@Model.Shipment.StatusText</h2>
+                                <p>@Model.Shipment.UpdatedAtText</p>
+                            </div>
+                            <mark class="od-shipment-status od-shipment-status--@Model.Shipment.StatusTone">
+                                @Model.Shipment.StatusText
+                            </mark>
+                        </div>
+
+                        @if (!Model.Shipment.HasShipment)
+                        {
+                            <div class="od-shipment-empty">
+                                <span aria-hidden="true">1</span>
+                                <div>
+                                    <strong>Cửa hàng đang xử lý đơn hàng</strong>
+                                    <p>Vận đơn GHN chưa được tạo. Trạng thái sẽ tự xuất hiện tại đây sau khi cửa hàng bàn giao đơn cho đơn vị vận chuyển.</p>
+                                </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <dl class="od-shipment-meta">
+                                <div>
+                                    <dt>Đơn vị vận chuyển</dt>
+                                    <dd>@Model.Shipment.ProviderName</dd>
+                                </div>
+                                <div>
+                                    <dt>Mã vận đơn</dt>
+                                    <dd>@(string.IsNullOrWhiteSpace(Model.Shipment.TrackingCode) ? "Đang cập nhật" : Model.Shipment.TrackingCode)</dd>
+                                </div>
+                                @if (!string.IsNullOrWhiteSpace(Model.Shipment.TrackingUrl))
+                                {
+                                    <div class="od-shipment-track-action">
+                                        <dt>Theo dõi trên GHN</dt>
+                                        <dd>
+                                            <a href="@Model.Shipment.TrackingUrl" target="_blank" rel="noopener noreferrer">
+                                                Mở trang theo dõi
+                                                <svg aria-hidden="true"><use href="#profile-icon-external"></use></svg>
+                                            </a>
+                                        </dd>
+                                    </div>
+                                }
+                            </dl>
+
+                            @if (!string.IsNullOrWhiteSpace(Model.Shipment.FailureReason))
+                            {
+                                <div class="od-shipment-warning" role="alert">
+                                    <strong>Cần lưu ý</strong>
+                                    <span>@Model.Shipment.FailureReason</span>
+                                </div>
+                            }
+
+                            <div class="od-shipment-timeline">
+                                @if (Model.Shipment.Events.Count == 0)
+                                {
+                                    <div class="od-shipment-event is-current">
+                                        <i class="od-shipment-dot od-shipment-dot--@Model.Shipment.StatusTone" aria-hidden="true"></i>
+                                        <div>
+                                            <strong>@Model.Shipment.StatusText</strong>
+                                            <time>@Model.Shipment.UpdatedAtText</time>
+                                        </div>
+                                    </div>
+                                }
+                                else
+                                {
+                                    @for (var index = 0; index < Model.Shipment.Events.Count; index++)
+                                    {
+                                        var shipmentEvent = Model.Shipment.Events[index];
+                                        <article class="od-shipment-event @(index == 0 ? "is-current" : null)">
+                                            <i class="od-shipment-dot od-shipment-dot--@shipmentEvent.StatusTone" aria-hidden="true"></i>
+                                            <div>
+                                                <div class="od-shipment-event-title">
+                                                    <strong>@shipmentEvent.StatusText</strong>
+                                                    <time>@shipmentEvent.OccurredAtText</time>
+                                                </div>
+                                                @if (!string.IsNullOrWhiteSpace(shipmentEvent.Message))
+                                                {
+                                                    <p>@shipmentEvent.Message</p>
+                                                }
+                                                @if (!string.IsNullOrWhiteSpace(shipmentEvent.DriverText))
+                                                {
+                                                    <span class="od-shipment-driver">@shipmentEvent.DriverText</span>
+                                                }
+                                            </div>
+                                        </article>
+                                    }
+                                }
                             </div>
                         }
                     </section>
@@ -177,6 +275,8 @@
                                         <dd class="is-total">@Model.Payment.RemainingText</dd>
                                     </div>
                                 </dl>
+
+
                             </div>
                         </section>
                     </div>

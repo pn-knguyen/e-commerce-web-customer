@@ -13,6 +13,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="FirebaseAdmin" Version="3.5.0" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.9">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
@@ -25,6 +26,11 @@
     <PackageReference Include="Microsoft.VisualStudio.Web.CodeGeneration.Design" Version="10.0.2" />
     <PackageReference Include="NuGet.Packaging" Version="6.13.1" />
     <PackageReference Include="NuGet.Protocol" Version="6.13.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="e-commerce-web-customer.Tests" />
+    <Compile Remove="tests/**/*.cs" />
   </ItemGroup>
 
   <ItemGroup>
@@ -41,19 +47,11 @@
     <Exec Command="$(NpmExecutable) ci" />
   </Target>
 
-  <Target
-    Name="InvalidateVendorAssetsStampWhenOutputsMissing"
-    BeforeTargets="CopyVendorAssets"
-    Condition="!Exists('wwwroot/lib/swiper/swiper-bundle.min.css') Or !Exists('wwwroot/lib/swiper/swiper-bundle.min.js')">
+  <Target Name="InvalidateVendorAssetsStampWhenOutputsMissing" BeforeTargets="CopyVendorAssets" Condition="!Exists('wwwroot/lib/swiper/swiper-bundle.min.css') Or !Exists('wwwroot/lib/swiper/swiper-bundle.min.js')">
     <Delete Files="$(SwiperAssetsStamp)" />
   </Target>
 
-  <Target
-    Name="CopyVendorAssets"
-    BeforeTargets="BuildTailwindCss"
-    DependsOnTargets="RestoreFrontendDependencies"
-    Inputs="node_modules/swiper/swiper-bundle.min.css;node_modules/swiper/swiper-bundle.min.js"
-    Outputs="$(SwiperAssetsStamp)">
+  <Target Name="CopyVendorAssets" BeforeTargets="BuildTailwindCss" DependsOnTargets="RestoreFrontendDependencies" Inputs="node_modules/swiper/swiper-bundle.min.css;node_modules/swiper/swiper-bundle.min.js" Outputs="$(SwiperAssetsStamp)">
     <ItemGroup>
       <SwiperCss Include="node_modules/swiper/swiper-bundle.min.css" />
       <SwiperJs Include="node_modules/swiper/swiper-bundle.min.js" />
@@ -65,19 +63,11 @@
     <Touch Files="$(SwiperAssetsStamp)" AlwaysCreate="true" />
   </Target>
 
-  <Target
-    Name="InvalidateTailwindCssStampWhenOutputMissing"
-    BeforeTargets="BuildTailwindCss"
-    Condition="!Exists('wwwroot/css/tailwind.css')">
+  <Target Name="InvalidateTailwindCssStampWhenOutputMissing" BeforeTargets="BuildTailwindCss" Condition="!Exists('wwwroot/css/tailwind.css')">
     <Delete Files="$(TailwindCssStamp)" />
   </Target>
 
-  <Target
-    Name="BuildTailwindCss"
-    BeforeTargets="PrepareForBuild"
-    DependsOnTargets="RestoreFrontendDependencies;CopyVendorAssets"
-    Inputs="@(TailwindBuildInput)"
-    Outputs="$(TailwindCssStamp)">
+  <Target Name="BuildTailwindCss" BeforeTargets="PrepareForBuild" DependsOnTargets="RestoreFrontendDependencies;CopyVendorAssets" Inputs="@(TailwindBuildInput)" Outputs="$(TailwindCssStamp)">
     <MakeDir Directories="$(FrontendBuildStampDir)" />
     <Exec Command="$(NpmExecutable) run css:build" />
     <Touch Files="$(TailwindCssStamp)" AlwaysCreate="true" />

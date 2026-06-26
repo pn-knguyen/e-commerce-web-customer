@@ -13,6 +13,10 @@
 <section class="checkout-page" aria-label="Trang thanh toán">
     <form asp-controller="Checkout" asp-action="Index" asp-route-mode="@(ViewData["Mode"]?.ToString() ?? "")" method="post" novalidate>
         @Html.AntiForgeryToken()
+        <input asp-for="ShippingAddressId" type="hidden" id="co-shipping-address-id" />
+        <input asp-for="ProvinceName" type="hidden" id="co-province-name" />
+        <input asp-for="DistrictName" type="hidden" id="co-district-name" />
+        <input asp-for="WardName" type="hidden" id="co-ward-name" />
 
         <div class="checkout-layout">
 
@@ -136,7 +140,7 @@
                                 <span asp-validation-for="AddressDetail" class="co-field-error"></span>
                             </div>
 
-                            @* Google Map picker (Đã ẩn - sẽ mở lại sau)
+                            @* Mapbox location picker (Đã ẩn - sẽ mở lại sau)
                             <div class="col-span-2">
                                 <div class="co-map-row">
                                     <div class="co-map-info">
@@ -347,15 +351,8 @@
     </form>
 </section>
 
-@* ════ Google Map Modal (Đã ẩn - portal at bottom of body) ════════════
-<div id="co-map-modal"
-     class="co-map-modal"
-     data-google-maps-config-url="/api/integrations/google-maps/config"
-     data-google-maps-reverse-geocode-url="/api/integrations/google-maps/reverse-geocode"
-     role="dialog"
-     aria-modal="true"
-     aria-labelledby="co-map-modal-title"
-     tabindex="-1">
+@* ════ Mapbox Modal ════════════
+<div id="co-map-modal" class="co-map-modal" role="dialog" aria-modal="true" aria-labelledby="co-map-modal-title" tabindex="-1">
     <div class="co-map-modal-box">
         <div class="co-map-modal-header">
             <h2 id="co-map-modal-title">Chọn vị trí trên Mapbox</h2>

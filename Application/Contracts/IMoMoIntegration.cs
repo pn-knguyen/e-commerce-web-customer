@@ -20,6 +20,11 @@ public interface IMoMoIntegration
     /// Equivalent to verifying the deeplink params in Flutter.
     /// </summary>
     MoMoCallbackResult ProcessCallback(IQueryCollection query);
+
+    /// <summary>
+    /// Verifies the HMAC-SHA256 signature from MoMo IPN (JSON POST) callback.
+    /// </summary>
+    MoMoCallbackResult ProcessIpn(MoMoIpnRequest request);
 }
 
 // ── Request / Result models ──────────────────────────────────────────────────
@@ -42,3 +47,20 @@ public sealed record MoMoCallbackResult(
     string TransactionId,
     string ResultCode,
     string Message);
+
+public sealed class MoMoIpnRequest
+{
+    public string partnerCode { get; set; } = string.Empty;
+    public string orderId { get; set; } = string.Empty;
+    public string requestId { get; set; } = string.Empty;
+    public long amount { get; set; }
+    public string orderInfo { get; set; } = string.Empty;
+    public string orderType { get; set; } = string.Empty;
+    public long transId { get; set; }
+    public int resultCode { get; set; }
+    public string message { get; set; } = string.Empty;
+    public string payType { get; set; } = string.Empty;
+    public long responseTime { get; set; }
+    public string extraData { get; set; } = string.Empty;
+    public string signature { get; set; } = string.Empty;
+}

@@ -26,19 +26,24 @@ public sealed class CheckoutViewModel
     [Required(ErrorMessage = "Vui lòng chọn tỉnh / thành phố.")]
     [Display(Name = "Tỉnh / Thành phố")]
     public string Province { get; set; } = string.Empty;
+    public string ProvinceName { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "Vui lòng chọn quận / huyện.")]
     [Display(Name = "Quận / Huyện")]
     public string District { get; set; } = string.Empty;
+    public string DistrictName { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "Vui lòng chọn phường / xã.")]
     [Display(Name = "Phường / Xã")]
     public string Ward { get; set; } = string.Empty;
+    public string WardName { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "Vui lòng nhập địa chỉ cụ thể.")]
     [Display(Name = "Địa chỉ cụ thể")]
     [MaxLength(300)]
     public string AddressDetail { get; set; } = string.Empty;
+
+    public long? ShippingAddressId { get; set; }
 
     [Display(Name = "Ghi chú cho đơn hàng")]
     [MaxLength(500)]

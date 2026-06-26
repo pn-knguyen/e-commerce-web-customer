@@ -60,6 +60,11 @@ public sealed class DbAccountProfilePageProvider(EcommerceDbContext dbContext) :
             .Include(order => order.OrderItems)
                 .ThenInclude(item => item.ProductVariant)
                     .ThenInclude(variant => variant!.ProductVariantImages)
+            .Include(order => order.OrderItems)
+                .ThenInclude(item => item.ProductVariant)
+                    .ThenInclude(variant => variant!.VariantAttributes)
+                        .ThenInclude(item => item.AttributeOption)
+                            .ThenInclude(option => option!.Attribute)
             .Where(order => order.UserId == user.Id)
             .OrderByDescending(order => order.CreatedAt)
             .Take(20)
@@ -138,23 +143,24 @@ public sealed class DbAccountProfilePageProvider(EcommerceDbContext dbContext) :
 
     private static AccountProfileOrderViewModel ToOrderViewModel(Order order)
     {
-        var firstItem = order.OrderItems.FirstOrDefault();
-        var variant = firstItem?.ProductVariant;
-        var product = variant?.Product;
-        var image = variant?.ProductVariantImages
-            .OrderBy(item => item.Position)
-            .FirstOrDefault();
+        var items = order.OrderItems
+            .OrderBy(item => item.Id)
+            .Select(ToOrderItemViewModel)
+            .ToList();
+        var firstItem = items.FirstOrDefault();
+        var firstOrderItem = order.OrderItems.OrderBy(item => item.Id).FirstOrDefault();
         var itemCount = order.OrderItems.Sum(item => Math.Max(1, item.Quantity));
-        var firstPrice = firstItem is null ? 0m : firstItem.UnitPrice;
+        var firstPrice = firstOrderItem is null ? 0m : firstOrderItem.UnitPrice;
         var orderCode = string.IsNullOrWhiteSpace(order.OrderCode) ? order.Id.ToString(ViCulture) : order.OrderCode.TrimStart('#');
 
         return new AccountProfileOrderViewModel
         {
             OrderCode = "#" + orderCode,
             OrderedDateText = order.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy", ViCulture),
-            ProductName = product?.Name ?? "Sản phẩm TechStore",
-            ProductImageUrl = NormalizeImageUrl(image?.ImagePath),
-            ProductImageAlt = image?.AltText ?? product?.Name ?? "Sản phẩm TechStore",
+            Items = items,
+            ProductName = firstItem?.ProductName ?? "Sản phẩm TechStore",
+            ProductImageUrl = firstItem?.ProductImageUrl ?? FallbackImage,
+            ProductImageAlt = firstItem?.ProductImageAlt ?? "Sản phẩm TechStore",
             ProductPriceText = FormatCurrency(firstPrice),
             OtherItemsText = itemCount > 1 ? $"Cùng {itemCount - 1} sản phẩm khác" : string.Empty,
             TotalText = FormatCurrency(order.TotalAmount),
@@ -162,6 +168,51 @@ public sealed class DbAccountProfilePageProvider(EcommerceDbContext dbContext) :
             StatusTone = GetStatusTone(order.OrderStatus),
             DetailUrl = BuildOrderDetailUrl(orderCode)
         };
+    }
+
+    private static AccountProfileOrderItemViewModel ToOrderItemViewModel(OrderItem item)
+    {
+        var variant = item.ProductVariant;
+        var product = variant?.Product;
+        var image = variant?.ProductVariantImages
+            .OrderBy(image => image.Position)
+            .FirstOrDefault();
+        var quantity = Math.Max(1, item.Quantity);
+
+        return new AccountProfileOrderItemViewModel
+        {
+            ProductName = product?.Name ?? "Sản phẩm TechStore",
+            ProductImageUrl = NormalizeImageUrl(image?.ImagePath),
+            ProductImageAlt = image?.AltText ?? product?.Name ?? "Sản phẩm TechStore",
+            VariantText = BuildVariantText(variant),
+            Quantity = quantity,
+            LineTotalText = FormatCurrency(item.UnitPrice * quantity)
+        };
+    }
+
+    private static string BuildVariantText(ProductVariant? variant)
+    {
+        if (variant is null)
+        {
+            return string.Empty;
+        }
+
+        var parts = variant.VariantAttributes
+            .OrderBy(item => item.AttributeOption?.Attribute?.Id ?? item.AttributeOption?.AttributeId ?? 0)
+            .ThenBy(item => item.AttributeOptionId)
+            .Select(item => item.AttributeOption?.Label ?? item.AttributeOption?.Value)
+            .Where(part => !string.IsNullOrWhiteSpace(part))
+            .Select(part => part!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (!string.IsNullOrWhiteSpace(variant.ColorName)
+            && !parts.Contains(variant.ColorName.Trim(), StringComparer.OrdinalIgnoreCase))
+        {
+            parts.Add(variant.ColorName.Trim());
+        }
+
+        return string.Join(" - ", parts);
     }
 
     private static string GetStatusText(OrderStatus status) => status switch
@@ -193,14 +244,20 @@ public sealed class DbAccountProfilePageProvider(EcommerceDbContext dbContext) :
 
     private static string FormatAddress(UserAddress address)
     {
+        if (!string.IsNullOrWhiteSpace(address.FormattedAddress))
+        {
+            return address.FormattedAddress.Trim();
+        }
+
         var parts = new[]
         {
             address.DetailAddress,
             address.WardName,
+            address.DistrictName,
             address.ProvinceName
         }
             .Where(part => !string.IsNullOrWhiteSpace(part))
-            .Select(part => part.Trim());
+            .Select(part => part!.Trim());
 
         var formatted = string.Join(", ", parts);
         return string.IsNullOrWhiteSpace(formatted) ? "-" : formatted;

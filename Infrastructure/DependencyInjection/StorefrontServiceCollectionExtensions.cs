@@ -14,9 +14,10 @@ using e_commerce_web_customer.Infrastructure.Catalog.Db;
 using e_commerce_web_customer.Infrastructure.Catalog.Mock;
 using e_commerce_web_customer.Infrastructure.Home.Db;
 using e_commerce_web_customer.Infrastructure.Home.Mock;
-using e_commerce_web_customer.Infrastructure.Integrations.GoogleMaps;
 using e_commerce_web_customer.Infrastructure.Integrations.MoMo;
 using e_commerce_web_customer.Infrastructure.Integrations.Gemini;
+using e_commerce_web_customer.Infrastructure.Integrations.VnPay;
+using e_commerce_web_customer.Infrastructure.Integrations.SePay;
 using e_commerce_web_customer.Infrastructure.Navigation.Db;
 using e_commerce_web_customer.Infrastructure.Navigation.Mock;
 using e_commerce_web_customer.Infrastructure.Orders.Db;
@@ -37,13 +38,19 @@ public static class StorefrontServiceCollectionExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        services.Configure<GoogleMapsOptions>(
-            configuration.GetSection(GoogleMapsOptions.SectionName));
-        services.AddHttpClient<IGoogleMapsIntegration, GoogleMapsIntegration>();
-
         services.Configure<MoMoOptions>(
             configuration.GetSection(MoMoOptions.SectionName));
         services.AddHttpClient<IMoMoIntegration, MoMoIntegration>();
+        
+        services.Configure<VnPayOptions>(
+            configuration.GetSection(VnPayOptions.SectionName));
+        services.AddSingleton<IVnPayIntegration, VnPayIntegration>();
+        
+        services.Configure<SePayPaymentOptions>(
+            configuration.GetSection(SePayPaymentOptions.SectionName));
+        services.Configure<SePayWebhookOptions>(
+            configuration.GetSection(SePayWebhookOptions.SectionName));
+        services.AddSingleton<SePayWebhookAuthenticator>();
 
         return services;
     }
@@ -61,6 +68,7 @@ public static class StorefrontServiceCollectionExtensions
         services.AddSingleton<IHeaderAccountProvider, MockHeaderAccountProvider>();
         services.AddSingleton<IAccountProfilePageProvider, MockAccountProfilePageProvider>();
         services.AddSingleton<IAccountOrderDetailProvider, MockAccountOrderDetailProvider>();
+        services.AddSingleton<IAccountAddressService, MockAccountAddressService>();
         services.AddSingleton<ICartDemoDataProvider, MockCartDemoDataProvider>();
         services.AddSingleton<ICartPersistenceService, NoOpCartPersistenceService>();
         services.AddSingleton<ICheckoutPaymentMethodProvider, MockCheckoutPaymentMethodProvider>();
@@ -105,10 +113,13 @@ public static class StorefrontServiceCollectionExtensions
         services.AddScoped<IHeaderAccountProvider, DbHeaderAccountProvider>();
         services.AddScoped<IAccountProfilePageProvider, DbAccountProfilePageProvider>();
         services.AddScoped<IAccountOrderDetailProvider, DbAccountOrderDetailProvider>();
+        services.AddScoped<IAccountAddressService, DbAccountAddressService>();
         services.AddScoped<ICartDemoDataProvider, EmptyCartDemoDataProvider>();
         services.AddScoped<ICartPersistenceService, DbCartPersistenceService>();
         services.AddScoped<ICheckoutPaymentMethodProvider, DbCheckoutPaymentMethodProvider>();
         services.AddScoped<IOrderService, DbOrderService>();
+        services.AddScoped<ISePayPaymentService, SePayPaymentService>();
+        services.AddScoped<ISePayWebhookService, SePayWebhookService>();
         services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
         services.AddScoped<IAccountService, DbAccountService>();
         services.AddScoped<ICartItemValidator, DbCartItemValidator>();

@@ -1,0 +1,167 @@
+:root {
+  --sp-blue: #1468e8;
+  --sp-blue-dark: #0b4eb8;
+  --sp-ink: #172033;
+  --sp-muted: #697386;
+  --sp-line: #e5eaf1;
+  --sp-soft: #f5f8fc;
+  --sp-green: #0d9b66;
+}
+
+.sepay-page {
+  min-height: calc(100vh - 7rem);
+  padding: 2rem 1rem 4.5rem;
+  background:
+    radial-gradient(circle at 8% 10%, rgba(20, 104, 232, 0.08), transparent 25rem),
+    linear-gradient(180deg, #f8faff 0, #f4f7fb 100%);
+  color: var(--sp-ink);
+}
+
+.sepay-shell { width: min(100%, 68rem); margin: 0 auto; }
+
+.sepay-steps {
+  display: flex;
+  width: min(100%, 34rem);
+  align-items: center;
+  justify-content: center;
+  gap: 0.65rem;
+  margin: 0 auto 1.5rem;
+  color: #8b94a6;
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
+.sepay-steps span { display: flex; align-items: center; gap: 0.4rem; white-space: nowrap; }
+.sepay-steps i { display: grid; width: 1.45rem; height: 1.45rem; place-items: center; border: 1px solid #ccd4df; border-radius: 50%; font-size: 0.7rem; font-style: normal; }
+.sepay-steps b { width: 2.6rem; height: 1px; background: #d9e0e9; }
+.sepay-steps .is-done { color: var(--sp-green); }
+.sepay-steps .is-done i { color: #fff; border-color: var(--sp-green); background: var(--sp-green); }
+.sepay-steps .is-current { color: var(--sp-blue); }
+.sepay-steps .is-current i { color: #fff; border-color: var(--sp-blue); background: var(--sp-blue); }
+
+.sepay-payment {
+  overflow: hidden;
+  border: 1px solid #e0e6ef;
+  border-radius: 1.25rem;
+  background: #fff;
+  box-shadow: 0 1.25rem 4rem rgba(26, 44, 73, 0.1);
+}
+
+.sepay-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1.5rem 1.75rem;
+  border-bottom: 1px solid var(--sp-line);
+}
+
+.sepay-eyebrow { color: var(--sp-blue); font-size: 0.72rem; font-weight: 800; letter-spacing: 0; text-transform: uppercase; }
+.sepay-titlebar h1 { margin: 0.25rem 0 0.2rem; font-size: clamp(1.35rem, 3vw, 1.8rem); line-height: 1.2; }
+.sepay-titlebar p { margin: 0; color: var(--sp-muted); font-size: 0.88rem; }
+.sepay-live { display: flex; align-items: center; gap: 0.5rem; padding: 0.55rem 0.8rem; border: 1px solid #ccebdd; border-radius: 999px; color: #08744c; background: #f0fdf7; font-size: 0.76rem; font-weight: 700; white-space: nowrap; }
+.sepay-live i { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: #16a36e; box-shadow: 0 0 0 0.25rem rgba(22, 163, 110, 0.13); animation: sepay-pulse 1.8s infinite; }
+
+.sepay-test-banner { padding: 0.65rem 1.75rem; color: #72520b; background: #fff9e8; font-size: 0.78rem; text-align: center; }
+.sepay-test-banner span { margin-right: 0.5rem; padding: 0.2rem 0.45rem; border-radius: 0.35rem; color: #fff; background: #d99a12; font-size: 0.65rem; font-weight: 850; letter-spacing: 0.05em; }
+
+.sepay-grid { display: grid; grid-template-columns: minmax(20rem, 0.9fr) minmax(24rem, 1.1fr); }
+.sepay-qr-panel, .sepay-info-panel { padding: 1.75rem; }
+.sepay-qr-panel { border-right: 1px solid var(--sp-line); background: linear-gradient(180deg, #fbfdff, #f8fbff); }
+.sepay-info-panel { display: flex; flex-direction: column; }
+.sepay-qr-heading, .sepay-info-heading { display: flex; align-items: flex-start; gap: 0.7rem; }
+.sepay-step-number { display: grid; flex: 0 0 1.65rem; width: 1.65rem; height: 1.65rem; place-items: center; border-radius: 50%; color: #fff; background: var(--sp-blue); font-size: 0.78rem; font-weight: 800; }
+.sepay-qr-heading h2, .sepay-info-heading h2 { margin: 0; font-size: 0.98rem; }
+.sepay-qr-heading p, .sepay-info-heading p { margin: 0.25rem 0 0; color: var(--sp-muted); font-size: 0.76rem; line-height: 1.4; }
+
+.sepay-qr-frame {
+  position: relative;
+  width: min(100%, 18.5rem);
+  margin: 1.5rem auto 1rem;
+  padding: 0.7rem;
+  border-radius: 1rem;
+  background: #fff;
+  box-shadow: 0 0.7rem 2.2rem rgba(20, 104, 232, 0.12);
+}
+.sepay-qr { display: block; width: 100%; height: auto; border-radius: 0.55rem; }
+.sepay-qr-frame .corner { position: absolute; width: 1.25rem; height: 1.25rem; border-color: var(--sp-blue); border-style: solid; }
+.sepay-qr-frame .top-left { top: 0; left: 0; border-width: 3px 0 0 3px; border-radius: 0.55rem 0 0; }
+.sepay-qr-frame .top-right { top: 0; right: 0; border-width: 3px 3px 0 0; border-radius: 0 0.55rem 0 0; }
+.sepay-qr-frame .bottom-left { bottom: 0; left: 0; border-width: 0 0 3px 3px; border-radius: 0 0 0 0.55rem; }
+.sepay-qr-frame .bottom-right { right: 0; bottom: 0; border-width: 0 3px 3px 0; border-radius: 0 0 0.55rem; }
+
+.sepay-bank-apps { color: var(--sp-muted); text-align: center; font-size: 0.72rem; }
+.sepay-bank-apps div { display: flex; justify-content: center; gap: 0.4rem; margin-top: 0.6rem; }
+.sepay-bank-apps i { display: grid; width: 2rem; height: 2rem; place-items: center; border: 1px solid #dfe5ee; border-radius: 0.5rem; color: #4d5b70; background: #fff; font-size: 0.58rem; font-style: normal; font-weight: 800; }
+
+.sepay-amount-card { margin-bottom: 1.35rem; padding: 1rem 1.1rem; border: 1px solid #dbe9ff; border-radius: 0.85rem; background: #f4f8ff; }
+.sepay-amount-card span { display: block; color: var(--sp-muted); font-size: 0.75rem; }
+.sepay-amount-card strong { display: block; margin-top: 0.15rem; color: var(--sp-blue-dark); font-size: 1.7rem; letter-spacing: 0; }
+.sepay-details { margin: 1rem 0; border: 1px solid var(--sp-line); border-radius: 0.85rem; overflow: hidden; }
+.sepay-details > div { display: grid; grid-template-columns: 8.5rem 1fr; align-items: center; gap: 0.8rem; min-height: 3.25rem; padding: 0.65rem 0.85rem; border-bottom: 1px solid var(--sp-line); }
+.sepay-details > div:last-child { border-bottom: 0; }
+.sepay-details > .is-important { background: #fffaf0; }
+.sepay-details dt { color: var(--sp-muted); font-size: 0.76rem; }
+.sepay-details dd { display: flex; align-items: center; justify-content: flex-end; gap: 0.55rem; margin: 0; text-align: right; font-size: 0.82rem; }
+.sepay-details dd strong { overflow-wrap: anywhere; }
+.sepay-bank-mark { display: grid; min-width: 2.25rem; height: 1.7rem; place-items: center; padding: 0 0.35rem; border-radius: 0.4rem; color: #fff; background: #168552; font-size: 0.55rem; font-weight: 850; }
+.sepay-details button { flex: none; border: 0; padding: 0.35rem 0.55rem; border-radius: 0.4rem; color: var(--sp-blue); background: #edf5ff; cursor: pointer; font-size: 0.67rem; font-weight: 750; }
+.sepay-details button:hover { background: #deecff; }
+
+.sepay-status { display: flex; align-items: center; gap: 0.8rem; margin-top: auto; padding: 0.85rem 1rem; border-radius: 0.8rem; }
+.sepay-status-icon { position: relative; display: grid; flex: 0 0 2rem; width: 2rem; height: 2rem; place-items: center; border-radius: 50%; }
+.sepay-status strong, .sepay-status small { display: block; }
+.sepay-status strong { font-size: 0.86rem; }
+.sepay-status small { margin-top: 0.12rem; font-size: 0.72rem; opacity: 0.8; }
+.sepay-status[data-state="waiting"] { color: #8a5a08; background: #fff7df; }
+.sepay-status[data-state="waiting"] .sepay-status-icon { border: 2px solid #f0c45a; border-top-color: transparent; animation: sepay-spin 1s linear infinite; }
+.sepay-status[data-state="paid"] { color: #08724b; background: #e9fbf3; }
+.sepay-status[data-state="paid"] .sepay-status-icon { color: #fff; background: var(--sp-green); }
+.sepay-status[data-state="paid"] .sepay-status-icon::after { content: "✓"; font-weight: 900; }
+.sepay-status[data-state="delayed"] { color: #80500a; background: #fff7df; }
+.sepay-status[data-state="delayed"] .sepay-status-icon::after { content: "↻"; font-size: 1.25rem; font-weight: 800; }
+.sepay-status[data-state="error"] { color: #9f2727; background: #fff0f0; }
+.sepay-status[data-state="error"] .sepay-status-icon::after { content: "!"; font-weight: 900; }
+
+.sepay-actions { display: grid; grid-template-columns: 1fr 1.35fr; gap: 0.7rem; margin-top: 0.85rem; }
+.sepay-actions a, .sepay-actions button { display: flex; min-height: 2.75rem; align-items: center; justify-content: center; border-radius: 0.65rem; font-size: 0.8rem; font-weight: 750; text-decoration: none; cursor: pointer; }
+.sepay-secondary-action { border: 1px solid #dbe1e9; color: #536075; background: #fff; }
+.sepay-primary-action { border: 1px solid var(--sp-blue); color: #fff; background: var(--sp-blue); }
+.sepay-primary-action:hover { background: var(--sp-blue-dark); }
+.sepay-primary-action:disabled { cursor: wait; opacity: 0.7; }
+.sepay-footer { display: flex; justify-content: center; gap: 2rem; padding: 0.85rem 1.5rem; border-top: 1px solid var(--sp-line); color: #788397; background: #fbfcfe; font-size: 0.7rem; }
+.sepay-help { display: flex; justify-content: center; gap: 0.5rem; margin-top: 1.1rem; color: #798397; font-size: 0.76rem; text-align: center; }
+.sepay-help strong { color: #566176; }
+.sepay-alert { margin: 1.5rem 0; padding: 1rem; border-radius: 0.75rem; color: #85500b; background: #fff5d8; }
+.sepay-alert.is-error { color: #9b2424; background: #fff0f0; }
+
+.sepay-success-overlay { position: fixed; z-index: 9999; inset: 0; display: grid; place-items: center; padding: 1rem; background: rgba(10, 20, 38, 0.65); backdrop-filter: blur(5px); }
+.sepay-success-overlay[hidden] { display: none; }
+.sepay-success-dialog { width: min(100%, 25rem); padding: 2rem; border-radius: 1.25rem; background: #fff; text-align: center; box-shadow: 0 2rem 6rem rgba(0,0,0,0.25); animation: sepay-pop 240ms ease-out; }
+.sepay-success-check { display: grid; width: 4rem; height: 4rem; place-items: center; margin: 0 auto 1rem; border-radius: 50%; color: #fff; background: var(--sp-green); font-size: 2rem; font-weight: 900; }
+.sepay-success-dialog h2 { margin: 0; color: #08724b; }
+.sepay-success-dialog p { margin: 0.65rem 0; color: #354158; }
+.sepay-success-dialog > span:last-child { color: #7a8496; font-size: 0.8rem; }
+
+@keyframes sepay-spin { to { transform: rotate(360deg); } }
+@keyframes sepay-pulse { 50% { opacity: 0.45; } }
+@keyframes sepay-pop { from { opacity: 0; transform: translateY(0.75rem) scale(0.96); } }
+
+@media (max-width: 50rem) {
+  .sepay-grid { grid-template-columns: 1fr; }
+  .sepay-qr-panel { border-right: 0; border-bottom: 1px solid var(--sp-line); }
+  .sepay-titlebar { align-items: flex-start; }
+  .sepay-live { display: none; }
+}
+
+@media (max-width: 35rem) {
+  .sepay-page { padding: 1rem 0.55rem 3rem; }
+  .sepay-titlebar, .sepay-qr-panel, .sepay-info-panel { padding: 1.15rem; }
+  .sepay-steps { gap: 0.35rem; font-size: 0.68rem; }
+  .sepay-steps b { width: 1rem; }
+  .sepay-details > div { grid-template-columns: 1fr; gap: 0.25rem; }
+  .sepay-details dd { justify-content: space-between; text-align: left; }
+  .sepay-actions { grid-template-columns: 1fr; }
+  .sepay-footer { flex-direction: column; gap: 0.25rem; text-align: center; }
+  .sepay-help { flex-direction: column; }
+}

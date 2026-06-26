@@ -5,6 +5,7 @@
     ViewData["Title"] = "Đặt hàng thành công";
     ViewData["MetaDescription"] = "Đơn hàng của bạn đã được TechStore tiếp nhận. Xem thông tin giao hàng, sản phẩm và tổng thanh toán.";
     var hasDiscount = !string.Equals(Model.DiscountText, "0đ", StringComparison.OrdinalIgnoreCase);
+    var orderDetailUrl = "/account/orders/" + Uri.EscapeDataString(Model.OrderCode.TrimStart('#'));
 }
 
 @section Styles {
@@ -193,7 +194,7 @@
                 </svg>
                 Tiếp tục mua sắm
             </a>
-            <a href="/orders/track" class="success-btn success-btn-secondary">
+            <a href="@orderDetailUrl" class="success-btn success-btn-secondary">
                 <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
                     <path d="M3 6.5h11v10H3v-10ZM14 10h4l3 3v3.5h-7V10Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" />
                     <circle cx="7" cy="18" r="1.8" stroke="currentColor" stroke-width="1.8" />

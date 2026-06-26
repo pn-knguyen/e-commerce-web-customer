@@ -4,6 +4,8 @@ using e_commerce_web_customer.Application.Account;
 using e_commerce_web_customer.Application.Services;
 using e_commerce_web_customer.ViewModels.Account;
 using Microsoft.AspNetCore.Mvc;
+using FirebaseAdmin.Auth;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace e_commerce_web_customer.Controllers;
 
@@ -11,68 +13,16 @@ public sealed class AccountController(
     IAccountService accountService,
     IAccountProfilePageProvider accountProfilePageProvider,
     IAccountOrderDetailProvider accountOrderDetailProvider,
+    IAccountAddressService accountAddressService,
     CartSessionService cartSession) : Controller
 {
+    private static readonly MemoryCache MagicLinkSessions = new MemoryCache(new MemoryCacheOptions());
+
     [HttpGet]
     public IActionResult Login(string? returnUrl = null)
     {
         ViewData["ReturnUrl"] = returnUrl;
         return View(new LoginViewModel());
-    }
-
-    [HttpPost]
-    [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Login(
-        LoginViewModel model,
-        string? returnUrl = null,
-        CancellationToken cancellationToken = default)
-    {
-        if (!ModelState.IsValid)
-        {
-            ViewData["ReturnUrl"] = returnUrl;
-            return View(model);
-        }
-
-        var success = await accountService.LoginAsync(
-            model.Email,
-            model.Password,
-            model.RememberMe,
-            cancellationToken);
-        if (success)
-        {
-            var profile = await accountService.GetProfileAsync(
-                model.Email,
-                cancellationToken);
-
-            HttpContext.Session.SetString(SessionKeys.IsLoggedIn, "true");
-            HttpContext.Session.SetString(SessionKeys.UserEmail, profile?.Email ?? model.Email);
-            HttpContext.Session.SetString(
-                SessionKeys.UserDisplayName,
-                profile?.DisplayName ?? ResolveDisplayName(model.Email));
-            if (!string.IsNullOrWhiteSpace(profile?.PhoneNumber))
-            {
-                HttpContext.Session.SetString(SessionKeys.UserPhoneNumber, profile.PhoneNumber.Trim());
-            }
-            else
-            {
-                HttpContext.Session.Remove(SessionKeys.UserPhoneNumber);
-            }
-
-            TempData["AuthSuccess"] = "Đăng nhập thành công! Chào mừng bạn quay lại TechStore.";
-
-            if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl))
-            {
-                return Redirect(returnUrl);
-            }
-            return RedirectToAction("Index", "Home");
-        }
-
-        ModelState.AddModelError(
-            string.Empty,
-            "Email hoặc mật khẩu không chính xác, hoặc tài khoản chưa tồn tại.");
-
-        ViewData["ReturnUrl"] = returnUrl;
-        return View(model);
     }
 
     [HttpPost]
@@ -146,47 +96,56 @@ public sealed class AccountController(
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public async Task<IActionResult> Register(
-        RegisterViewModel model,
-        CancellationToken cancellationToken)
+    public async Task<IActionResult> AddAddress(
+        AccountAddressFormViewModel model,
+        CancellationToken cancellationToken = default)
     {
+        if (!IsLoggedIn())
+        {
+            var returnUrl = Url.Action(nameof(Profile), "Account", new { tab = AccountProfileTabs.Info });
+            return RedirectToAction(nameof(Login), new { returnUrl });
+        }
+
         if (!ModelState.IsValid)
         {
-            return View(model);
+            TempData["ProfileError"] = "Vui lòng kiểm tra lại thông tin địa chỉ.";
+            return RedirectToProfileInfo();
         }
 
-        var exists = await accountService.UserExistsAsync(
-            model.Email,
+        var result = await accountAddressService.AddAddressAsync(
+            HttpContext.Session.GetString(SessionKeys.UserEmail),
+            ToAddressInput(model),
             cancellationToken);
-        if (exists)
+
+        TempData[result.Success ? "ProfileSuccess" : "ProfileError"] = result.Message;
+        return RedirectToProfileInfo();
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SetDefaultAddress(
+        long addressId,
+        CancellationToken cancellationToken = default)
+    {
+        if (!IsLoggedIn())
         {
-            ModelState.AddModelError(nameof(model.Email), "Email này đã được đăng ký sử dụng.");
-            return View(model);
+            var returnUrl = Url.Action(nameof(Profile), "Account", new { tab = AccountProfileTabs.Info });
+            return RedirectToAction(nameof(Login), new { returnUrl });
         }
 
-        var success = await accountService.RegisterAsync(
-            model,
+        var result = await accountAddressService.SetDefaultAddressAsync(
+            HttpContext.Session.GetString(SessionKeys.UserEmail),
+            addressId,
             cancellationToken);
-        if (success)
-        {
-            TempData["AuthSuccess"] = "Đăng ký thành công! Vui lòng đăng nhập.";
-            return RedirectToAction(nameof(Login));
-        }
 
-        ModelState.AddModelError(
-            string.Empty,
-            "Đăng ký thất bại. Đã xảy ra lỗi, vui lòng thử lại.");
-
-        return View(model);
+        TempData[result.Success ? "ProfileSuccess" : "ProfileError"] = result.Message;
+        return RedirectToProfileInfo();
     }
 
     [HttpGet]
     public IActionResult ForgotPassword()
     {
-        TempData["AuthNotice"] =
-            "Khôi phục mật khẩu cần được kết nối với dịch vụ gửi email trước khi sử dụng.";
-
-        return RedirectToAction(nameof(Login));
+        return View();
     }
 
     [HttpGet]
@@ -212,6 +171,120 @@ public sealed class AccountController(
             : RedirectToAction(nameof(Login));
     }
 
+    [HttpPost]
+    public async Task<IActionResult> FirebaseSync([FromBody] FirebaseSyncRequest request, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.IdToken))
+        {
+            return BadRequest(new { success = false, message = "Token is required." });
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.SessionId))
+        {
+            MagicLinkSessions.Set(request.SessionId, request.IdToken, TimeSpan.FromMinutes(15));
+        }
+
+        return await ProcessFirebaseLoginAsync(request.IdToken, request.ReturnUrl, request.DisplayName, request.PhoneNumber, cancellationToken);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> PollMagicLinkSession(string sessionId, string? returnUrl, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(sessionId) || !MagicLinkSessions.TryGetValue(sessionId, out string? idToken) || idToken == null)
+        {
+            return Json(new { success = false, message = "Đang chờ xác thực..." });
+        }
+
+        // Token found, process login
+        MagicLinkSessions.Remove(sessionId);
+
+        return await ProcessFirebaseLoginAsync(idToken, returnUrl, null, null, cancellationToken);
+    }
+
+    private async Task<IActionResult> ProcessFirebaseLoginAsync(string idToken, string? returnUrl, string? fallbackDisplayName, string? fallbackPhoneNumber, CancellationToken cancellationToken)
+    {
+        FirebaseToken decodedToken;
+        try
+        {
+            decodedToken = await FirebaseAuth.DefaultInstance.VerifyIdTokenAsync(idToken, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            return Json(new { success = false, message = "Invalid Token: " + ex.Message });
+        }
+
+        var uid = decodedToken.Uid;
+        UserRecord userRecord = await FirebaseAuth.DefaultInstance.GetUserAsync(uid, cancellationToken);
+        
+        var tokenName = userRecord.DisplayName;
+        var tokenPhone = userRecord.PhoneNumber;
+
+        var finalDisplayName = tokenName ?? fallbackDisplayName;
+        var finalPhoneNumber = tokenPhone ?? fallbackPhoneNumber;
+
+        string email;
+        if (!string.IsNullOrWhiteSpace(userRecord.Email))
+        {
+            email = userRecord.Email;
+        }
+        else
+        {
+            // Nếu người dùng không có email từ Firebase (VD: Đăng nhập bằng số điện thoại),
+            // ta kiểm tra xem số điện thoại này đã được gắn với tài khoản nào chưa.
+            string? existingEmail = null;
+            if (!string.IsNullOrWhiteSpace(finalPhoneNumber))
+            {
+                existingEmail = await accountService.FindEmailByPhoneNumberAsync(finalPhoneNumber, cancellationToken);
+            }
+
+            email = existingEmail ?? $"{uid}@techstore.local";
+        }
+
+        var exists = await accountService.UserExistsAsync(email, cancellationToken);
+        if (!exists)
+        {
+            var registerModel = new RegisterViewModel
+            {
+                Email = email,
+                FullName = string.IsNullOrWhiteSpace(finalDisplayName) 
+                    ? (string.IsNullOrWhiteSpace(finalPhoneNumber) ? ResolveDisplayName(email) : finalPhoneNumber) 
+                    : finalDisplayName,
+                PhoneNumber = finalPhoneNumber,
+                Password = Guid.NewGuid().ToString() + "A1!",
+                ConfirmPassword = string.Empty,
+                AgreeToTerms = true
+            };
+            registerModel.ConfirmPassword = registerModel.Password;
+            var success = await accountService.RegisterAsync(registerModel, cancellationToken);
+            if (!success)
+            {
+                return Json(new { success = false, message = "Lỗi hệ thống: Không thể tạo hồ sơ người dùng." });
+            }
+        }
+
+        var profile = await accountService.GetProfileAsync(email, cancellationToken);
+        if (profile == null)
+        {
+             return Json(new { success = false, message = "Lỗi hệ thống: Hồ sơ người dùng không tồn tại." });
+        }
+
+        HttpContext.Session.SetString(SessionKeys.IsLoggedIn, "true");
+        HttpContext.Session.SetString(SessionKeys.UserEmail, profile?.Email ?? email);
+        HttpContext.Session.SetString(
+            SessionKeys.UserDisplayName,
+            profile?.DisplayName ?? finalDisplayName ?? finalPhoneNumber ?? ResolveDisplayName(email));
+        
+        if (!string.IsNullOrWhiteSpace(profile?.PhoneNumber ?? finalPhoneNumber))
+        {
+            HttpContext.Session.SetString(SessionKeys.UserPhoneNumber, profile?.PhoneNumber ?? finalPhoneNumber!);
+        }
+
+        return Json(new { 
+            success = true, 
+            returnUrl = Url.IsLocalUrl(returnUrl) ? returnUrl : Url.Action("Index", "Home")
+        });
+    }
+
     private static string ResolveDisplayName(string email)
     {
         return email.Split('@', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? email;
@@ -220,5 +293,24 @@ public sealed class AccountController(
     private bool IsLoggedIn()
     {
         return HttpContext.Session.GetString(SessionKeys.IsLoggedIn) == "true";
+    }
+
+    private static AccountAddressInput ToAddressInput(AccountAddressFormViewModel model) => new(
+        model.ContactName,
+        model.Phone,
+        model.ProvinceCode,
+        model.ProvinceName,
+        model.DistrictCode,
+        model.DistrictName,
+        model.WardCode,
+        model.WardName,
+        model.DetailAddress,
+        model.IsDefault);
+
+    private IActionResult RedirectToProfileInfo()
+    {
+        var url = Url.Action(nameof(Profile), "Account", new { tab = AccountProfileTabs.Info })
+            ?? "/Account/Profile?tab=info";
+        return Redirect(url + "#profile-address-title");
     }
 }

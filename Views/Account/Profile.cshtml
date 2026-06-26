@@ -10,6 +10,15 @@
     <div class="account-profile-shell">
         <partial name="_AccountProfileHeader" model="Model.Summary" />
 
+        @if (TempData["ProfileSuccess"] is string profileSuccess)
+        {
+            <div class="ap-flash ap-flash--success" role="status">@profileSuccess</div>
+        }
+        @if (TempData["ProfileError"] is string profileError)
+        {
+            <div class="ap-flash ap-flash--error" role="alert">@profileError</div>
+        }
+
         <div class="ap-layout">
             <partial name="_AccountProfileSidebar" model="Model.ActiveTab" />
 
@@ -61,7 +70,7 @@
                                     <svg aria-hidden="true"><use href="#profile-icon-info"></use></svg>
                                 </span>
                                 <strong>Thêm địa chỉ để đặt đơn hàng nhanh hơn.</strong>
-                                <button type="button">Thêm địa chỉ</button>
+                                <button type="button" data-address-form-open>Thêm địa chỉ</button>
                             </div>
                         }
 
@@ -105,10 +114,60 @@
                         <section class="ap-panel ap-address-card" aria-labelledby="profile-address-title">
                             <div class="ap-card-title-row">
                                 <h2 id="profile-address-title">Sổ địa chỉ</h2>
-                                <button class="ap-red-action" type="button">
+                                <button class="ap-red-action" type="button" data-address-form-open>
                                     <svg aria-hidden="true"><use href="#profile-icon-plus"></use></svg>
                                     Thêm địa chỉ
                                 </button>
+                            </div>
+
+                            <div class="ap-address-form-panel" id="ap-address-form-panel" hidden>
+                                <form asp-controller="Account" asp-action="AddAddress" method="post" class="ap-address-form" id="ap-address-form">
+                                    @Html.AntiForgeryToken()
+                                    <div class="ap-address-form-grid">
+                                        <label>
+                                            <span>Người nhận</span>
+                                            <input name="ContactName" maxlength="255" required autocomplete="name" value="@Model.Summary.FullName" />
+                                        </label>
+                                        <label>
+                                            <span>Số điện thoại</span>
+                                            <input name="Phone" maxlength="30" required type="tel" autocomplete="tel" value="@Model.Summary.PhoneNumber" />
+                                        </label>
+                                        <label>
+                                            <span>Tỉnh / Thành phố</span>
+                                            <select name="ProvinceCode" id="ap-province" required>
+                                                <option value="">Đang tải...</option>
+                                            </select>
+                                            <input type="hidden" name="ProvinceName" id="ap-province-name" />
+                                        </label>
+                                        <label>
+                                            <span>Quận / Huyện</span>
+                                            <select name="DistrictCode" id="ap-district" required disabled>
+                                                <option value="">-- Chọn Quận / Huyện --</option>
+                                            </select>
+                                            <input type="hidden" name="DistrictName" id="ap-district-name" />
+                                        </label>
+                                        <label>
+                                            <span>Phường / Xã</span>
+                                            <select name="WardCode" id="ap-ward" required disabled>
+                                                <option value="">-- Chọn Phường / Xã --</option>
+                                            </select>
+                                            <input type="hidden" name="WardName" id="ap-ward-name" />
+                                        </label>
+                                        <label class="ap-address-form-wide">
+                                            <span>Địa chỉ cụ thể</span>
+                                            <input name="DetailAddress" maxlength="500" required autocomplete="street-address" placeholder="Số nhà, tên đường, tòa nhà..." />
+                                        </label>
+                                    </div>
+                                    <label class="ap-default-check">
+                                        <input type="hidden" name="IsDefault" value="false" />
+                                        <input type="checkbox" name="IsDefault" value="true" checked />
+                                        <span>Đặt làm địa chỉ mặc định</span>
+                                    </label>
+                                    <div class="ap-address-form-actions">
+                                        <button class="ap-address-submit" type="submit">Lưu địa chỉ</button>
+                                        <button class="ap-address-cancel" type="button" data-address-form-close>Hủy</button>
+                                    </div>
+                                </form>
                             </div>
 
                             @if (Model.HasAddresses)
@@ -125,6 +184,14 @@
                                             @if (address.IsDefault)
                                             {
                                                 <span>Mặc định</span>
+                                            }
+                                            @if (!address.IsDefault)
+                                            {
+                                                <form asp-controller="Account" asp-action="SetDefaultAddress" method="post" class="ap-address-default-form">
+                                                    @Html.AntiForgeryToken()
+                                                    <input type="hidden" name="addressId" value="@address.Id" />
+                                                    <button type="submit">Đặt mặc định</button>
+                                                </form>
                                             }
                                         </article>
                                     }
@@ -228,4 +295,8 @@
 
 @section Styles {
     <link rel="stylesheet" href="~/css/pages/account-profile.css" asp-append-version="true" />
+}
+
+@section Scripts {
+    <script src="~/js/account-profile.js" asp-append-version="true"></script>
 }

@@ -1,5 +1,4 @@
-using System.Globalization;
-using System.Text;
+using e_commerce_web_customer.Application.Constants;
 using e_commerce_web_customer.Application.Contracts;
 using e_commerce_web_customer.Data;
 using e_commerce_web_customer.ViewModels.Checkout;
@@ -26,94 +25,25 @@ public sealed class DbCheckoutPaymentMethodProvider(EcommerceDbContext dbContext
             .ToListAsync(cancellationToken);
 
         return methods
-            .Select(method =>
+            .Select(method => new CheckoutPaymentMethodViewModel
             {
-                var iconKey = DetectIconKey(method.Name, method.Description);
-
-                return new CheckoutPaymentMethodViewModel
-                {
-                    Id = method.Id,
-                    Name = method.Name.Trim(),
-                    Description = GetDescription(method.Description, iconKey),
-                    IconKey = iconKey
-                };
+                Id = method.Id,
+                Name = method.Name.Trim(),
+                Description = method.Description?.Trim() ?? string.Empty,
+                IconKey = GetIconKey(method.Name)
             })
             .ToList();
     }
 
-    private static string GetDescription(string? description, string iconKey)
+    private static string GetIconKey(string name)
     {
-        if (!string.IsNullOrWhiteSpace(description))
-        {
-            return description.Trim();
-        }
-
-        return iconKey switch
-        {
-            "cod" => "Thanh toán khi nhận hàng",
-            "banktransfer" => "Ngân hàng nội địa",
-            "momo" => "Ví điện tử",
-            "vnpay" => "Cổng thanh toán",
-            "zalopay" => "Ví điện tử",
-            _ => "Phương thức thanh toán"
-        };
-    }
-
-    private static string DetectIconKey(string name, string? description)
-    {
-        var normalized = NormalizeText($"{name} {description}");
-
-        if (normalized.Contains("momo", StringComparison.Ordinal))
-        {
-            return "momo";
-        }
-
-        if (normalized.Contains("vnpay", StringComparison.Ordinal))
-        {
-            return "vnpay";
-        }
-
-        if (normalized.Contains("zalopay", StringComparison.Ordinal))
-        {
-            return "zalopay";
-        }
-
-        if (normalized.Contains("cod", StringComparison.Ordinal)
-            || normalized.Contains("nhanhang", StringComparison.Ordinal)
-            || normalized.Contains("tienmat", StringComparison.Ordinal))
-        {
-            return "cod";
-        }
-
-        if (normalized.Contains("chuyenkhoan", StringComparison.Ordinal)
-            || normalized.Contains("nganhang", StringComparison.Ordinal)
-            || normalized.Contains("napas", StringComparison.Ordinal))
-        {
-            return "banktransfer";
-        }
-
+        var lowerName = name.ToLowerInvariant();
+        if (lowerName.Contains("sepay")) return "banktransfer";
+        if (lowerName.Contains("momo")) return "momo";
+        if (lowerName.Contains("vnpay")) return "vnpay";
+        if (lowerName.Contains("zalopay")) return "zalopay";
+        if (lowerName.Contains("cod") || lowerName.Contains("nhận hàng")) return "cod";
+        if (lowerName.Contains("chuyển khoản") || lowerName.Contains("ngân hàng")) return "banktransfer";
         return "generic";
-    }
-
-    private static string NormalizeText(string value)
-    {
-        var normalized = value.Normalize(NormalizationForm.FormD);
-        var builder = new StringBuilder(normalized.Length);
-
-        foreach (var character in normalized)
-        {
-            if (CharUnicodeInfo.GetUnicodeCategory(character) != UnicodeCategory.NonSpacingMark)
-            {
-                builder.Append(character);
-            }
-        }
-
-        return builder
-            .ToString()
-            .Normalize(NormalizationForm.FormC)
-            .Replace('đ', 'd')
-            .Replace('Đ', 'D')
-            .Replace(" ", string.Empty)
-            .ToLowerInvariant();
     }
 }

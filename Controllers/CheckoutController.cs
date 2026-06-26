@@ -1,4 +1,5 @@
 using System.Text.Json;
+using e_commerce_web_customer.Application.Account;
 using e_commerce_web_customer.Application.Constants;
 using e_commerce_web_customer.Application.Contracts;
 using e_commerce_web_customer.Application.Orders;
@@ -15,7 +16,9 @@ public sealed class CheckoutController(
     ICartDemoDataProvider demoDataProvider,
     ICheckoutPaymentMethodProvider paymentMethodProvider,
     IOrderService orderService,
-    IMoMoIntegration momoIntegration) : Controller
+    IAccountAddressService accountAddressService,
+    IMoMoIntegration momoIntegration,
+    IVnPayIntegration vnPayIntegration) : Controller
 {
     private const string SuccessSessionKey = "checkout_success_order";
 
@@ -71,8 +74,14 @@ public sealed class CheckoutController(
 
         try
         {
+            var paymentProvider = ResolvePaymentProvider(
+                model.PaymentMethodId,
+                orderSnapshot.PaymentMethods);
+            var isOnlinePayment = paymentProvider.Contains("momo") || paymentProvider.Contains("vnpay") || paymentProvider.Contains("sepay");
+
             var placedOrder = await orderService.PlaceOrderAsync(
                 BuildOrderRequest(model, orderSnapshot),
+                clearCart: !isOnlinePayment,
                 cancellationToken);
             var successModel = BuildSuccessModel(
                 model,
@@ -82,36 +91,17 @@ public sealed class CheckoutController(
             HttpContext.Session.SetString(
                 SuccessSessionKey,
                 JsonSerializer.Serialize(successModel));
-            await ClearCompletedCartAsync(mode, cancellationToken);
-
-            // MoMo payment — mirrors Flutter: MoMoService.createMoMoPayment() → launchUrl(payUrl)
-            if (IsMoMoPayment(model.PaymentMethodId))
+            
+            if (!isOnlinePayment)
             {
-                var redirectUrl = Url.ActionLink("MoMoReturn", "Payment");
-                var ipnUrl = Url.ActionLink("MoMoIpn", "Payment");
-                var momoReq = new MoMoCreateRequest(
-                    OrderId: placedOrder.OrderCode,
-                    Amount: (long)orderSnapshot.Total,
-                    OrderInfo: $"Thanh toan don hang {placedOrder.OrderCode}",
-                    RedirectUrl: redirectUrl ?? string.Empty,
-                    IpnUrl: ipnUrl ?? string.Empty);
-
-                var momoResult = await momoIntegration.CreatePaymentAsync(momoReq, cancellationToken);
-
-                if (momoResult.Success && !string.IsNullOrEmpty(momoResult.PayUrl))
-                {
-                    // Redirect sang MoMo sandbox — equivalent to launchUrl(uri) in Flutter
-                    return Redirect(momoResult.PayUrl);
-                }
-
-                ModelState.AddModelError(string.Empty,
-                    momoResult.ErrorMessage ?? "Không thể khởi tạo giao dịch MoMo.");
-                RestoreOrderSummary(model, orderSnapshot);
-                ViewData["Mode"] = mode;
-                return View(model);
+                await ClearCompletedCartAsync(mode, cancellationToken);
             }
 
-            return RedirectToAction(nameof(Success));
+            return await ProcessPaymentRedirectAsync(
+                paymentProvider,
+                placedOrder.OrderCode,
+                (long)orderSnapshot.Total,
+                cancellationToken);
         }
         catch (OrderPlacementException ex)
         {
@@ -126,9 +116,79 @@ public sealed class CheckoutController(
     public IActionResult Success()
     {
         var successModel = ReadSuccessModel();
+        if (successModel is not null)
+        {
+            cartSession.Clear();
+            cartSession.ClearBuyNow();
+        }
+
         return successModel is null
             ? RedirectToAction("Index", "Cart")
             : View(successModel);
+    }
+
+    private async Task<IActionResult> ProcessPaymentRedirectAsync(
+        string paymentProvider,
+        string orderCode,
+        long totalAmount,
+        CancellationToken cancellationToken)
+    {
+        if (paymentProvider.Contains("momo"))
+        {
+            var redirectUrl = Url.ActionLink("MoMoReturn", "Payment");
+            var ipnUrl = Url.ActionLink("MoMoIpn", "Payment");
+            var momoReq = new MoMoCreateRequest(
+                OrderId: orderCode,
+                Amount: totalAmount,
+                OrderInfo: $"Thanh toan don hang {orderCode}",
+                RedirectUrl: redirectUrl ?? string.Empty,
+                IpnUrl: ipnUrl ?? string.Empty);
+
+            var momoResult = await momoIntegration.CreatePaymentAsync(momoReq, cancellationToken);
+
+            if (momoResult.Success && !string.IsNullOrEmpty(momoResult.PayUrl))
+            {
+                return Redirect(momoResult.PayUrl);
+            }
+
+            TempData["PaymentError"] = momoResult.ErrorMessage ?? "Không thể khởi tạo giao dịch MoMo. Vui lòng thử thanh toán lại.";
+            return RedirectToAction("OrderDetail", "Account", new { code = orderCode });
+        }
+
+        if (paymentProvider.Contains("vnpay"))
+        {
+            var returnUrl = Url.ActionLink("VnPayReturn", "Payment");
+            var ipnUrl = Url.ActionLink("VnPayIpn", "Payment");
+            
+            var vnpayReq = new VnPayCreateRequest(
+                OrderId: orderCode,
+                Amount: totalAmount,
+                OrderInfo: $"Thanh toan don hang {orderCode}",
+                ReturnUrl: returnUrl ?? string.Empty,
+                IpnUrl: ipnUrl ?? string.Empty,
+                IpAddress: GetClientIpAddress()
+            );
+
+            var vnpayResult = await vnPayIntegration.CreatePaymentUrlAsync(vnpayReq, cancellationToken);
+
+            if (vnpayResult.Success && !string.IsNullOrEmpty(vnpayResult.PayUrl))
+            {
+                return Redirect(vnpayResult.PayUrl);
+            }
+
+            TempData["PaymentError"] = vnpayResult.ErrorMessage ?? "Không thể khởi tạo giao dịch VNPay. Vui lòng thử thanh toán lại.";
+            return RedirectToAction("OrderDetail", "Account", new { code = orderCode });
+        }
+
+        if (paymentProvider.Contains("sepay"))
+        {
+            return RedirectToAction(
+                "Index",
+                "SePayPayment",
+                new { orderCode = orderCode });
+        }
+
+        return RedirectToAction(nameof(Success));
     }
 
     private async Task<CheckoutViewModel> BuildModelAsync(
@@ -218,14 +278,30 @@ public sealed class CheckoutController(
         var paymentMethods = await paymentMethodProvider.GetActivePaymentMethodsAsync(
             cancellationToken);
 
-        return new CheckoutViewModel
+        var model = new CheckoutViewModel
         {
             Items = items,
             PaymentMethods = paymentMethods,
             PaymentMethodId = paymentMethods.FirstOrDefault()?.Id ?? 0,
             ShippingFee = 30_000m,
-            Discount = 0m
+            Discount = 0m,
+            Email = GetLoggedInUserEmail() ?? string.Empty,
+            FullName = HttpContext.Session.GetString(SessionKeys.UserDisplayName) ?? string.Empty,
+            Phone = HttpContext.Session.GetString(SessionKeys.UserPhoneNumber) ?? string.Empty
         };
+
+        if (GetLoggedInUserEmail() is { } defaultAddressEmail)
+        {
+            var defaultAddress = await accountAddressService.GetDefaultAddressAsync(
+                defaultAddressEmail,
+                cancellationToken);
+            if (defaultAddress is not null)
+            {
+                ApplyDefaultAddress(model, defaultAddress);
+            }
+        }
+
+        return model;
     }
 
     private PlaceOrderRequest BuildOrderRequest(
@@ -237,8 +313,9 @@ public sealed class CheckoutController(
             submittedModel.FullName.Trim(),
             submittedModel.Phone.Trim(),
             submittedModel.Email.Trim(),
-            submittedModel.Province.Trim(),
-            submittedModel.Ward.Trim(),
+            submittedModel.ShippingAddressId,
+            ResolveLocationName(submittedModel.ProvinceName, submittedModel.Province),
+            ResolveLocationName(submittedModel.WardName, submittedModel.Ward),
             BuildShippingDetail(submittedModel),
             submittedModel.PaymentMethodId,
             submittedModel.Note?.Trim(),
@@ -250,6 +327,22 @@ public sealed class CheckoutController(
                 item.Variant,
                 item.UnitPrice,
                 item.Quantity)).ToList());
+    }
+
+    private static void ApplyDefaultAddress(
+        CheckoutViewModel model,
+        AccountAddressSnapshot address)
+    {
+        model.ShippingAddressId = address.Id;
+        model.FullName = address.ContactName;
+        model.Phone = address.Phone;
+        model.Province = address.ProvinceCode;
+        model.ProvinceName = address.ProvinceName;
+        model.District = address.DistrictCode ?? string.Empty;
+        model.DistrictName = address.DistrictName ?? string.Empty;
+        model.Ward = address.WardCode;
+        model.WardName = address.WardName;
+        model.AddressDetail = address.DetailAddress;
     }
 
     private CheckoutSuccessViewModel? ReadSuccessModel()
@@ -349,6 +442,27 @@ public sealed class CheckoutController(
         return HttpContext.Session.GetString(SessionKeys.IsLoggedIn) == "true";
     }
 
+    private string GetClientIpAddress()
+    {
+        var ip = HttpContext.Request.Headers["X-Forwarded-For"].FirstOrDefault();
+        if (!string.IsNullOrEmpty(ip))
+        {
+            ip = ip.Split(',')[0].Trim();
+        }
+        
+        if (string.IsNullOrEmpty(ip))
+        {
+            ip = HttpContext.Connection.RemoteIpAddress?.ToString();
+        }
+
+        if (string.IsNullOrEmpty(ip) || ip == "::1")
+        {
+            ip = "127.0.0.1";
+        }
+
+        return ip;
+    }
+
     private string? GetLoggedInUserEmail()
     {
         if (!IsLoggedIn())
@@ -382,9 +496,9 @@ public sealed class CheckoutController(
         var addressParts = new[]
         {
             model.AddressDetail,
-            model.Ward,
-            model.District,
-            model.Province
+            ResolveLocationName(model.WardName, model.Ward),
+            ResolveLocationName(model.DistrictName, model.District),
+            ResolveLocationName(model.ProvinceName, model.Province)
         };
 
         var address = string.Join(
@@ -403,15 +517,20 @@ public sealed class CheckoutController(
         var parts = new[]
         {
             model.AddressDetail,
-            model.District
+            ResolveLocationName(model.DistrictName, model.District)
         };
 
         return string.Join(
             ", ",
             parts
                 .Where(part => !string.IsNullOrWhiteSpace(part))
-                .Select(part => part.Trim()));
+            .Select(part => part.Trim()));
     }
+
+    private static string ResolveLocationName(string? displayName, string fallback) =>
+        string.IsNullOrWhiteSpace(displayName)
+            ? fallback.Trim()
+            : displayName.Trim();
 
     private static string FormatItemCount(
         IReadOnlyCollection<CheckoutItemViewModel> items)
@@ -439,12 +558,11 @@ public sealed class CheckoutController(
             ?? "Phương thức thanh toán";
     }
 
-    /// <summary>
-    /// Returns true if the selected payment method is MoMo.
-    /// DB: payment_methods — Id=1 COD, Id=2 Momo, Id=3 Vnpay, Id=4 ZaloPay
-    /// </summary>
-    private static bool IsMoMoPayment(long paymentMethodId)
+    private static string ResolvePaymentProvider(
+        long paymentMethodId,
+        IReadOnlyCollection<CheckoutPaymentMethodViewModel> paymentMethods)
     {
-        return paymentMethodId == 2; // Id=2 → Momo (verified from DB)
+        var method = paymentMethods.FirstOrDefault(m => m.Id == paymentMethodId);
+        return method?.Name.ToLowerInvariant() ?? "";
     }
 }

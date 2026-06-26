@@ -103,4 +103,29 @@ public sealed class MockAccountService : IAccountService
             return Task.FromResult(exists);
         }
     }
+
+    public Task<string?> FindEmailByPhoneNumberAsync(string phoneNumber, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (string.IsNullOrWhiteSpace(phoneNumber)) return Task.FromResult<string?>(null);
+
+        var phone1 = phoneNumber.Trim();
+        var phone2 = phone1;
+
+        if (phone1.StartsWith("+84"))
+        {
+            phone2 = "0" + phone1[3..];
+        }
+        else if (phone1.StartsWith("0"))
+        {
+            phone2 = "+84" + phone1[1..];
+        }
+
+        lock (Lock)
+        {
+            var user = Users.FirstOrDefault(u => u.PhoneNumber == phone1 || u.PhoneNumber == phone2);
+            return Task.FromResult(user?.Email);
+        }
+    }
 }
