@@ -1,0 +1,191 @@
+@model e_commerce_web_customer.Application.Contracts.SePayPaymentDetails
+@using e_commerce_web_customer.ViewModels.Checkout
+
+@{
+    ViewData["Title"] = "Thanh toán chuyển khoản";
+    ViewData["MetaDescription"] = "Quét mã QR để hoàn tất thanh toán đơn hàng TechStore.";
+    var isPaid = string.Equals(Model.PaymentStatus, "paid", StringComparison.OrdinalIgnoreCase);
+    var isUnavailable =
+        string.Equals(Model.PaymentStatus, "failed", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(Model.PaymentStatus, "refunded", StringComparison.OrdinalIgnoreCase);
+    var initialState = isPaid ? "paid" : isUnavailable ? "error" : "waiting";
+    var initialTitle = isPaid
+        ? "Thanh toán thành công"
+        : isUnavailable
+            ? "Không thể tiếp tục thanh toán"
+            : "Đang chờ thanh toán";
+    var initialDetail = isPaid
+        ? "Hệ thống đã xác nhận giao dịch."
+        : isUnavailable
+            ? "Trạng thái đơn hàng không còn cho phép nhận thanh toán."
+            : "Thời gian dự kiến còn lại: --:--";
+    var statusUrl = Url.Action("Status", "SePayPayment", new { orderCode = Model.OrderCode }) ?? string.Empty;
+    var successUrl = Url.Action("Success", "Checkout") ?? "/Checkout/Success";
+}
+
+@section Styles {
+    <link rel="stylesheet" href="~/css/pages/sepay-payment.css" asp-append-version="true" />
+}
+
+<main class="sepay-page">
+    <div class="sepay-shell">
+        <nav class="sepay-steps" aria-label="Tiến trình đặt hàng">
+            <span class="is-done"><i>✓</i> Thông tin</span>
+            <b></b>
+            <span class="is-done"><i>✓</i> Đặt hàng</span>
+            <b></b>
+            <span class="is-current"><i>3</i> Thanh toán</span>
+        </nav>
+
+        <section class="sepay-payment"
+                 id="sepay-payment"
+                 data-status-url="@statusUrl"
+                 data-success-url="@successUrl"
+                 data-expires-at="@Model.ExpiresAt.ToUnixTimeMilliseconds()"
+                 data-initial-status="@Model.PaymentStatus">
+            <header class="sepay-titlebar">
+                <div>
+                    <span class="sepay-eyebrow">Thanh toán an toàn</span>
+                    <h1>Quét mã QR để thanh toán</h1>
+                    <p>Đơn hàng <strong>#@Model.OrderCode</strong></p>
+                </div>
+                <div class="sepay-live" aria-label="Trạng thái kết nối">
+                    <i></i>
+                    Đang tự động kiểm tra
+                </div>
+            </header>
+
+            @if (Model.IsTestMode)
+            {
+                <div class="sepay-test-banner">
+                    <span>TEST MODE</span>
+                    Đây là giao dịch mô phỏng, không phát sinh tiền thật.
+                </div>
+            }
+
+            <div class="sepay-grid">
+                <section class="sepay-qr-panel" aria-labelledby="sepay-qr-title">
+                    <div class="sepay-qr-heading">
+                        <span class="sepay-step-number">1</span>
+                        <div>
+                            <h2 id="sepay-qr-title">Quét QR bằng ứng dụng ngân hàng</h2>
+                            <p>QR đã bao gồm số tiền và nội dung chuyển khoản</p>
+                        </div>
+                    </div>
+
+                    @if (isUnavailable)
+                    {
+                        <div class="sepay-alert is-error">
+                            Đơn hàng không còn ở trạng thái chờ thanh toán.
+                        </div>
+                    }
+                    else if (string.IsNullOrWhiteSpace(Model.QrUrl))
+                    {
+                        <div class="sepay-alert is-error">
+                            Chưa cấu hình ngân hàng hoặc số tài khoản nhận thanh toán.
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="sepay-qr-frame">
+                            <span class="corner top-left"></span>
+                            <span class="corner top-right"></span>
+                            <span class="corner bottom-left"></span>
+                            <span class="corner bottom-right"></span>
+                            <img src="@Model.QrUrl"
+                                 alt="Mã QR thanh toán đơn @Model.OrderCode"
+                                 class="sepay-qr"
+                                 width="320"
+                                 height="320" />
+                        </div>
+                    }
+
+                    <div class="sepay-bank-apps" aria-hidden="true">
+                        <span>Hỗ trợ mọi ứng dụng ngân hàng</span>
+                        <div><i>VCB</i><i>MB</i><i>TCB</i><i>ACB</i><i>＋</i></div>
+                    </div>
+                </section>
+
+                <section class="sepay-info-panel" aria-labelledby="sepay-info-title">
+                    <div class="sepay-amount-card">
+                        <span>Số tiền cần thanh toán</span>
+                        <strong>@CheckoutViewModel.FormatPrice(Model.Amount)</strong>
+                    </div>
+
+                    <div class="sepay-info-heading">
+                        <span class="sepay-step-number">2</span>
+                        <div>
+                            <h2 id="sepay-info-title">Kiểm tra thông tin chuyển khoản</h2>
+                            <p>Vui lòng giữ nguyên nội dung để hệ thống nhận diện đơn</p>
+                        </div>
+                    </div>
+
+                    <dl class="sepay-details">
+                        <div>
+                            <dt>Ngân hàng</dt>
+                            <dd><span class="sepay-bank-mark">@Model.BankCode</span><strong>@Model.BankName</strong></dd>
+                        </div>
+                        <div>
+                            <dt>Số tài khoản</dt>
+                            <dd><strong>@Model.AccountNumber</strong><button type="button" data-copy="@Model.AccountNumber" aria-label="Sao chép số tài khoản">Sao chép</button></dd>
+                        </div>
+                        <div>
+                            <dt>Chủ tài khoản</dt>
+                            <dd><strong>@Model.AccountName</strong></dd>
+                        </div>
+                        <div class="is-important">
+                            <dt>Nội dung chuyển khoản</dt>
+                            <dd><strong>@Model.OrderCode</strong><button type="button" data-copy="@Model.OrderCode" aria-label="Sao chép nội dung chuyển khoản">Sao chép</button></dd>
+                        </div>
+                    </dl>
+
+                    <div id="sepay-status"
+                         class="sepay-status"
+                         data-state="@initialState"
+                         role="status"
+                         aria-live="polite">
+                        <span class="sepay-status-icon" aria-hidden="true"></span>
+                        <div>
+                            <strong id="sepay-status-title">@initialTitle</strong>
+                            <small id="sepay-status-detail">@initialDetail</small>
+                        </div>
+                    </div>
+
+                    <div class="sepay-actions">
+                        <form method="post" asp-controller="SePayPayment" asp-action="Cancel" style="flex: 1;">
+                            <input type="hidden" name="orderCode" value="@Model.OrderCode" />
+                            <button type="submit" class="sepay-secondary-action" style="width: 100%; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center;" disabled="@isUnavailable">Hủy thanh toán</button>
+                        </form>
+                        <button type="button"
+                                id="sepay-check-now"
+                                class="sepay-primary-action"
+                                disabled="@isUnavailable">Tôi đã chuyển khoản</button>
+                    </div>
+                </section>
+            </div>
+
+            <footer class="sepay-footer">
+                <span>🔒 Kết nối được mã hóa và bảo mật</span>
+                <span>Trạng thái tự cập nhật, không cần tải lại trang</span>
+            </footer>
+        </section>
+
+        <aside class="sepay-help">
+            <strong>Cần hỗ trợ thanh toán?</strong>
+            <span>Giữ nguyên trang này và kiểm tra lịch sử giao dịch trong ứng dụng ngân hàng.</span>
+        </aside>
+    </div>
+</main>
+
+<div id="sepay-success-overlay" class="sepay-success-overlay" hidden>
+    <div class="sepay-success-dialog" role="alertdialog" aria-modal="true" aria-labelledby="sepay-success-title">
+        <span class="sepay-success-check">✓</span>
+        <h2 id="sepay-success-title">Thanh toán thành công!</h2>
+        <p>Đơn hàng <strong>#@Model.OrderCode</strong> đã được xác nhận.</p>
+        <span>Đang chuyển đến thông tin đơn hàng...</span>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="~/js/sepay-payment.js" asp-append-version="true"></script>
+}

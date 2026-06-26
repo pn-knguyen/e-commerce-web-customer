@@ -5,6 +5,7 @@ public sealed record PlaceOrderRequest(
     string CustomerName,
     string Phone,
     string Email,
+    long? ShippingAddressId,
     string ShippingProvince,
     string ShippingWard,
     string ShippingDetail,
@@ -25,3 +26,7 @@ public sealed record PlacedOrder(
     string OrderCode,
     DateTimeOffset PlacedAt,
     DateTimeOffset EstimatedDeliveryAt);
+
+public sealed record OrderForPayment(
+    string OrderCode,
+    decimal TotalAmount);

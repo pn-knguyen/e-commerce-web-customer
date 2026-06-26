@@ -13,6 +13,7 @@ public sealed class DbOrderService(EcommerceDbContext dbContext) : IOrderService
 {
     public async Task<PlacedOrder> PlaceOrderAsync(
         PlaceOrderRequest request,
+        bool clearCart = true,
         CancellationToken cancellationToken = default)
     {
         ValidateRequest(request);
@@ -24,6 +25,10 @@ public sealed class DbOrderService(EcommerceDbContext dbContext) : IOrderService
         try
         {
             var user = await ResolveUserAsync(request.UserEmail, cancellationToken);
+            var shippingAddress = await ResolveShippingAddressAsync(
+                user.Id,
+                request.ShippingAddressId,
+                cancellationToken);
             var paymentMethod = await ResolvePaymentMethodAsync(
                 request.PaymentMethodId,
                 cancellationToken);
@@ -45,11 +50,14 @@ public sealed class DbOrderService(EcommerceDbContext dbContext) : IOrderService
                 UserId = user.Id,
                 PaymentMethodId = paymentMethod.Id,
                 OrderCode = orderCode,
-                ShippingContactName = request.CustomerName.Trim(),
-                ShippingPhone = request.Phone.Trim(),
-                ShippingProvince = request.ShippingProvince.Trim(),
-                ShippingWard = request.ShippingWard.Trim(),
-                ShippingDetail = request.ShippingDetail.Trim(),
+                ShippingAddressId = shippingAddress?.Id,
+                ShippingContactName = shippingAddress?.ContactName.Trim() ?? request.CustomerName.Trim(),
+                ShippingPhone = shippingAddress?.Phone.Trim() ?? request.Phone.Trim(),
+                ShippingProvince = shippingAddress?.ProvinceName.Trim() ?? request.ShippingProvince.Trim(),
+                ShippingWard = shippingAddress?.WardName.Trim() ?? request.ShippingWard.Trim(),
+                ShippingDetail = shippingAddress is null
+                    ? request.ShippingDetail.Trim()
+                    : BuildShippingDetail(shippingAddress),
                 SubtotalAmount = subtotal,
                 ShippingFee = shippingFee,
                 VoucherDiscount = discount,
@@ -88,7 +96,7 @@ public sealed class DbOrderService(EcommerceDbContext dbContext) : IOrderService
                     && orderedVariantIds.Contains(item.ProductVariantId))
                 .ToListAsync(cancellationToken);
 
-            if (completedCartItems.Count > 0)
+            if (clearCart && completedCartItems.Count > 0)
             {
                 dbContext.CartItems.RemoveRange(completedCartItems);
             }
@@ -138,6 +146,87 @@ public sealed class DbOrderService(EcommerceDbContext dbContext) : IOrderService
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task CancelFailedOrderAsync(
+        string orderCode,
+        CancellationToken cancellationToken = default)
+    {
+        var order = await dbContext.Orders
+            .Include(o => o.OrderItems)
+            .ThenInclude(oi => oi.ProductVariant)
+            .ThenInclude(pv => pv!.Product)
+            .FirstOrDefaultAsync(o => o.OrderCode == orderCode, cancellationToken);
+
+        if (order is null || order.OrderStatus == OrderStatus.Cancelled) return;
+
+        order.OrderStatus = OrderStatus.Cancelled;
+        order.PaymentStatus = PaymentStatus.Failed;
+        order.UpdatedAt = DateTime.UtcNow;
+
+        // Restore stock
+        foreach (var line in order.OrderItems)
+        {
+            if (line.ProductVariant is not null)
+            {
+                line.ProductVariant.Quantity += line.Quantity;
+                line.ProductVariant.SoldCount = Math.Max(0, line.ProductVariant.SoldCount - line.Quantity);
+
+                if (line.ProductVariant.Product is not null)
+                {
+                    line.ProductVariant.Product.TotalSoldCount = Math.Max(0, line.ProductVariant.Product.TotalSoldCount - line.Quantity);
+                }
+            }
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task ConfirmOnlinePaymentAsync(
+        string orderCode,
+        CancellationToken cancellationToken = default)
+    {
+        var order = await dbContext.Orders
+            .Include(o => o.OrderItems)
+            .FirstOrDefaultAsync(o => o.OrderCode == orderCode, cancellationToken);
+
+        if (order is null) return;
+
+        order.PaymentStatus = PaymentStatus.Paid;
+        order.UpdatedAt = DateTime.UtcNow;
+
+        // Clear the cart items corresponding to this order
+        var orderedVariantIds = order.OrderItems.Select(oi => oi.ProductVariantId).ToHashSet();
+        var completedCartItems = await dbContext.CartItems
+            .Where(item => item.UserId == order.UserId && orderedVariantIds.Contains(item.ProductVariantId))
+            .ToListAsync(cancellationToken);
+
+        if (completedCartItems.Count > 0)
+        {
+            dbContext.CartItems.RemoveRange(completedCartItems);
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task<OrderForPayment?> GetOrderForPaymentAsync(
+        string orderCode,
+        string userEmail,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedEmail = userEmail.Trim().ToLowerInvariant();
+        var order = await dbContext.Orders
+            .Include(o => o.User)
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                o => o.OrderCode == orderCode 
+                  && o.User != null 
+                  && o.User.Email.ToLower() == normalizedEmail,
+                cancellationToken);
+
+        if (order is null) return null;
+
+        return new OrderForPayment(order.OrderCode, order.TotalAmount);
+    }
+
 
 
     private static void ValidateRequest(PlaceOrderRequest request)
@@ -175,6 +264,28 @@ public sealed class DbOrderService(EcommerceDbContext dbContext) : IOrderService
             ?? throw new OrderPlacementException("Tài khoản đặt hàng không còn hoạt động.");
     }
 
+    private async Task<UserAddress?> ResolveShippingAddressAsync(
+        long userId,
+        long? shippingAddressId,
+        CancellationToken cancellationToken)
+    {
+        if (shippingAddressId is null)
+        {
+            return null;
+        }
+
+        var address = await dbContext.UserAddresses
+            .FirstOrDefaultAsync(
+                item =>
+                    item.Id == shippingAddressId.Value
+                    && item.UserId == userId
+                    && !item.IsDeleted,
+                cancellationToken);
+
+        return address
+            ?? throw new OrderPlacementException("Địa chỉ giao hàng không còn khả dụng. Vui lòng chọn lại địa chỉ.");
+    }
+
     private async Task<PaymentMethod> ResolvePaymentMethodAsync(
         long paymentMethodId,
         CancellationToken cancellationToken)
@@ -187,6 +298,19 @@ public sealed class DbOrderService(EcommerceDbContext dbContext) : IOrderService
         return method
             ?? throw new OrderPlacementException(
                 "Phương thức thanh toán hiện không khả dụng.");
+    }
+
+    private static string BuildShippingDetail(UserAddress address)
+    {
+        var parts = new[]
+        {
+            address.DetailAddress,
+            address.DistrictName
+        }
+            .Where(part => !string.IsNullOrWhiteSpace(part))
+            .Select(part => part!.Trim());
+
+        return string.Join(", ", parts);
     }
 
     private async Task<IReadOnlyList<ResolvedOrderLine>> ResolveOrderLinesAsync(

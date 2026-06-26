@@ -143,19 +143,8 @@ public sealed class MoMoIntegration : IMoMoIntegration
         var computed = HmacSha256(_opts.SecretKey, rawSignature);
         var signatureValid = string.Equals(computed, signature, StringComparison.OrdinalIgnoreCase);
 
-        // If signature fails, still allow resultCode=0 in sandbox (MoMo sandbox sometimes
-        // returns mismatched signatures due to test environment quirks).
-        // In production, always reject invalid signatures.
         if (!signatureValid)
         {
-            // Sandbox fallback: trust resultCode=0 even without valid signature
-            // Remove this block in production
-            if (resultCode == "0" && !string.IsNullOrEmpty(transId))
-            {
-                return new MoMoCallbackResult(true, orderId, transId, resultCode,
-                    "Thanh toán MoMo thành công (sandbox).");
-            }
-
             return new MoMoCallbackResult(false, orderId, transId, resultCode,
                 "Chữ ký MoMo không hợp lệ.");
         }
@@ -166,6 +155,45 @@ public sealed class MoMoIntegration : IMoMoIntegration
             : $"Giao dịch MoMo thất bại (mã {resultCode}): {message}";
 
         return new MoMoCallbackResult(success, orderId, transId, resultCode, msg);
+    }
+
+    public MoMoCallbackResult ProcessIpn(MoMoIpnRequest request)
+    {
+        // MoMo IPN signature — same exact format as callback
+        var rawSignature =
+            $"accessKey={_opts.AccessKey}" +
+            $"&amount={request.amount}" +
+            $"&extraData={request.extraData ?? string.Empty}" +
+            $"&message={request.message ?? string.Empty}" +
+            $"&orderId={request.orderId ?? string.Empty}" +
+            $"&orderInfo={request.orderInfo ?? string.Empty}" +
+            $"&orderType={request.orderType ?? string.Empty}" +
+            $"&partnerCode={request.partnerCode ?? string.Empty}" +
+            $"&payType={request.payType ?? string.Empty}" +
+            $"&requestId={request.requestId ?? string.Empty}" +
+            $"&responseTime={request.responseTime}" +
+            $"&resultCode={request.resultCode}" +
+            $"&transId={request.transId}";
+
+        var computed = HmacSha256(_opts.SecretKey, rawSignature);
+        var signatureValid = string.Equals(computed, request.signature, StringComparison.OrdinalIgnoreCase);
+
+        var orderId = request.orderId ?? string.Empty;
+        var transId = request.transId.ToString();
+        var resultCodeStr = request.resultCode.ToString();
+
+        if (!signatureValid)
+        {
+            return new MoMoCallbackResult(false, orderId, transId, resultCodeStr,
+                "Chữ ký MoMo IPN không hợp lệ.");
+        }
+
+        var success = request.resultCode == 0;
+        var msg = success
+            ? "Thanh toán MoMo IPN thành công."
+            : $"Giao dịch MoMo IPN thất bại (mã {request.resultCode}): {request.message}";
+
+        return new MoMoCallbackResult(success, orderId, transId, resultCodeStr, msg);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────

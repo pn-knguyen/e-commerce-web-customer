@@ -9,9 +9,12 @@ public sealed class AccountOrderDetailViewModel
     public string StatusTone { get; init; } = "success";
     public IReadOnlyList<AccountOrderDetailItemViewModel> Items { get; init; } = [];
     public IReadOnlyList<AccountOrderStepViewModel> Steps { get; init; } = [];
+    public required AccountOrderShipmentViewModel Shipment { get; init; }
     public required AccountOrderCustomerViewModel Customer { get; init; }
     public required AccountOrderSupportViewModel Support { get; init; }
     public required AccountOrderPaymentViewModel Payment { get; init; }
+    public bool CanRetryPayment { get; init; }
+    public string PaymentProviderKey { get; init; } = string.Empty;
 }
 
 public sealed class AccountOrderDetailItemViewModel
@@ -21,14 +24,37 @@ public sealed class AccountOrderDetailItemViewModel
     public string ProductImageAlt { get; init; } = string.Empty;
     public string UnitPriceText { get; init; } = string.Empty;
     public string ColorText { get; init; } = string.Empty;
+    public string VariantText { get; init; } = string.Empty;
     public int Quantity { get; init; }
-    public string WarrantyText { get; init; } = string.Empty;
+    public string LineTotalText { get; init; } = string.Empty;
 }
 
 public sealed class AccountOrderStepViewModel
 {
     public string Label { get; init; } = string.Empty;
     public bool IsDone { get; init; }
+}
+
+public sealed class AccountOrderShipmentViewModel
+{
+    public bool HasShipment { get; init; }
+    public string ProviderName { get; init; } = "Giao Hàng Nhanh";
+    public string TrackingCode { get; init; } = string.Empty;
+    public string StatusText { get; init; } = "Cửa hàng đang chuẩn bị hàng";
+    public string StatusTone { get; init; } = "pending";
+    public string UpdatedAtText { get; init; } = string.Empty;
+    public string? TrackingUrl { get; init; }
+    public string? FailureReason { get; init; }
+    public IReadOnlyList<AccountOrderShipmentEventViewModel> Events { get; init; } = [];
+}
+
+public sealed class AccountOrderShipmentEventViewModel
+{
+    public string StatusText { get; init; } = string.Empty;
+    public string StatusTone { get; init; } = "pending";
+    public string OccurredAtText { get; init; } = string.Empty;
+    public string? Message { get; init; }
+    public string? DriverText { get; init; }
 }
 
 public sealed class AccountOrderCustomerViewModel

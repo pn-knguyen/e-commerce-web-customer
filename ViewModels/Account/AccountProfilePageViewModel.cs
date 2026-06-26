@@ -73,6 +73,7 @@ public sealed class AccountProfileOrderViewModel
 {
     public string OrderCode { get; init; } = string.Empty;
     public string OrderedDateText { get; init; } = string.Empty;
+    public IReadOnlyList<AccountProfileOrderItemViewModel> Items { get; init; } = [];
     public string ProductName { get; init; } = string.Empty;
     public string ProductImageUrl { get; init; } = "/images/logo-techstore-icon.svg";
     public string ProductImageAlt { get; init; } = string.Empty;
@@ -82,4 +83,14 @@ public sealed class AccountProfileOrderViewModel
     public string StatusText { get; init; } = string.Empty;
     public string StatusTone { get; init; } = "success";
     public string DetailUrl { get; init; } = "#";
+}
+
+public sealed class AccountProfileOrderItemViewModel
+{
+    public string ProductName { get; init; } = string.Empty;
+    public string ProductImageUrl { get; init; } = "/images/logo-techstore-icon.svg";
+    public string ProductImageAlt { get; init; } = string.Empty;
+    public string VariantText { get; init; } = string.Empty;
+    public int Quantity { get; init; } = 1;
+    public string LineTotalText { get; init; } = string.Empty;
 }

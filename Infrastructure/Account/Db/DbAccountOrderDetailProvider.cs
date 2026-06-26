@@ -4,6 +4,7 @@ using e_commerce_web_customer.Data;
 using e_commerce_web_customer.Models.Entities;
 using e_commerce_web_customer.Models.Enums;
 using e_commerce_web_customer.ViewModels.Account;
+using e_commerce_web_customer.Infrastructure.Shipping;
 using Microsoft.EntityFrameworkCore;
 
 namespace e_commerce_web_customer.Infrastructure.Account.Db;
@@ -31,6 +32,7 @@ public sealed class DbAccountOrderDetailProvider(EcommerceDbContext dbContext) :
             .AsNoTracking()
             .AsSplitQuery()
             .Include(item => item.User)
+            .Include(item => item.PaymentMethod)
             .Include(item => item.OrderItems)
                 .ThenInclude(item => item.ProductVariant)
                     .ThenInclude(variant => variant!.Product)
@@ -46,6 +48,18 @@ public sealed class DbAccountOrderDetailProvider(EcommerceDbContext dbContext) :
         {
             return null;
         }
+
+        var shipment = await dbContext.Shipments
+            .AsNoTracking()
+            .Include(item => item.ShipmentEvents
+                .OrderByDescending(shipmentEvent => shipmentEvent.OccurredAt)
+                .ThenByDescending(shipmentEvent => shipmentEvent.Id)
+                .Take(20))
+            .Where(item => item.OrderId == order.Id)
+            .OrderBy(item => item.Status == "Cancelled" ? 1 : 0)
+            .ThenByDescending(item => item.CreatedAt)
+            .ThenByDescending(item => item.Id)
+            .FirstOrDefaultAsync(cancellationToken);
 
         var summaryData = await dbContext.Orders
             .AsNoTracking()
@@ -73,9 +87,17 @@ public sealed class DbAccountOrderDetailProvider(EcommerceDbContext dbContext) :
         var remainingAmount = Math.Max(0m, order.TotalAmount - paidAmount);
         var discount = Math.Max(0m, order.VoucherDiscount);
         var itemQuantity = order.OrderItems.Sum(item => Math.Max(1, item.Quantity));
+        var isUnpaid = order.PaymentStatus is PaymentStatus.Unpaid or PaymentStatus.Failed;
+        var isActiveOrder = order.OrderStatus is not OrderStatus.Cancelled and not OrderStatus.Returned;
+        var providerKey = ResolveProviderKey(order.PaymentMethod?.Name);
+
+        var canRetryPayment = isUnpaid && isActiveOrder
+            && (providerKey == "momo" || providerKey == "vnpay");
 
         return new AccountOrderDetailViewModel
         {
+            CanRetryPayment = canRetryPayment,
+            PaymentProviderKey = providerKey,
             Summary = new AccountProfileSummaryViewModel
             {
                 FullName = string.IsNullOrWhiteSpace(user?.FullName)
@@ -95,7 +117,8 @@ public sealed class DbAccountOrderDetailProvider(EcommerceDbContext dbContext) :
             StatusText = GetStatusText(order.OrderStatus),
             StatusTone = GetStatusTone(order.OrderStatus),
             Items = order.OrderItems.Select(item => ToItemViewModel(item, order.CreatedAt)).ToList(),
-            Steps = CreateSteps(order.OrderStatus),
+            Steps = CreateSteps(order.OrderStatus, shipment),
+            Shipment = CreateShipmentViewModel(shipment),
             Customer = new AccountOrderCustomerViewModel
             {
                 FullName = customerName,
@@ -134,24 +157,106 @@ public sealed class DbAccountOrderDetailProvider(EcommerceDbContext dbContext) :
             ProductImageAlt = image?.AltText ?? product?.Name ?? "Sản phẩm TechStore",
             UnitPriceText = FormatCurrency(item.UnitPrice),
             ColorText = variant?.ColorName ?? string.Empty,
-            Quantity = Math.Max(1, item.Quantity),
-            WarrantyText = "Thời hạn bảo hành đến: " + orderedAt.ToLocalTime().AddYears(5).AddDays(-1).ToString("dd/MM/yyyy", ViCulture)
+            Quantity = Math.Max(1, item.Quantity)
         };
     }
 
-    private static IReadOnlyList<AccountOrderStepViewModel> CreateSteps(OrderStatus status)
+    private static IReadOnlyList<AccountOrderStepViewModel> CreateSteps(
+        OrderStatus orderStatus,
+        Shipment? shipment)
     {
-        var firstDone = status != OrderStatus.Cancelled && status != OrderStatus.Returned;
-        var readyDone = status is OrderStatus.Confirmed or OrderStatus.Processing or OrderStatus.Shipping or OrderStatus.Completed;
-        var receivedDone = status == OrderStatus.Completed;
+        var isOrderStopped = orderStatus is OrderStatus.Cancelled or OrderStatus.Returned;
+        var shipmentStage = shipment is null
+            ? 0
+            : ShipmentTrackingPresentation.GetProgressStage(shipment.Status);
+        var placedDone = !isOrderStopped;
+        var preparedDone = !isOrderStopped
+            && (orderStatus is OrderStatus.Confirmed
+                or OrderStatus.Processing
+                or OrderStatus.Shipping
+                or OrderStatus.Completed
+                || shipmentStage >= 1);
+        var shippingDone = !isOrderStopped
+            && (orderStatus is OrderStatus.Shipping or OrderStatus.Completed
+                || shipmentStage >= 2);
+        var deliveredDone = orderStatus == OrderStatus.Completed || shipmentStage >= 4;
 
         return
         [
-            new() { Label = "Đặt hàng thành công", IsDone = firstDone },
-            new() { Label = "Sẵn hàng", IsDone = readyDone },
-            new() { Label = "Đã nhận hàng", IsDone = receivedDone }
+            new() { Label = "Đặt hàng thành công", IsDone = placedDone },
+            new() { Label = "Đã chuẩn bị hàng", IsDone = preparedDone },
+            new() { Label = "Đang vận chuyển", IsDone = shippingDone },
+            new() { Label = "Đã nhận hàng", IsDone = deliveredDone }
         ];
     }
+
+    private static AccountOrderShipmentViewModel CreateShipmentViewModel(Shipment? shipment)
+    {
+        if (shipment is null)
+        {
+            return new AccountOrderShipmentViewModel
+            {
+                HasShipment = false,
+                UpdatedAtText = "Thông tin vận chuyển sẽ xuất hiện sau khi cửa hàng tạo vận đơn."
+            };
+        }
+
+        var events = shipment.ShipmentEvents
+            .OrderByDescending(item => item.OccurredAt)
+            .ThenByDescending(item => item.Id)
+            .Select(item => new AccountOrderShipmentEventViewModel
+            {
+                StatusText = ShipmentTrackingPresentation.GetStatusText(item.Status),
+                StatusTone = ShipmentTrackingPresentation.GetStatusTone(item.Status),
+                OccurredAtText = FormatDateTime(item.OccurredAt),
+                Message = NormalizeOptional(item.Message),
+                DriverText = BuildDriverText(item)
+            })
+            .ToList();
+
+        var latestEventAt = shipment.ShipmentEvents.Count > 0
+            ? shipment.ShipmentEvents.Max(item => item.OccurredAt)
+            : shipment.CreatedAt;
+        var lastUpdatedAt = shipment.LastSyncedAt
+            ?? shipment.UpdatedAt
+            ?? latestEventAt;
+
+        return new AccountOrderShipmentViewModel
+        {
+            HasShipment = true,
+            ProviderName = GetProviderName(shipment.Provider),
+            TrackingCode = shipment.ProviderDeliveryId?.Trim() ?? string.Empty,
+            StatusText = ShipmentTrackingPresentation.GetStatusText(shipment.Status),
+            StatusTone = ShipmentTrackingPresentation.GetStatusTone(shipment.Status),
+            UpdatedAtText = FormatDateTime(lastUpdatedAt),
+            TrackingUrl = ShipmentTrackingPresentation.GetSafeTrackingUrl(shipment.TrackingUrl),
+            FailureReason = NormalizeOptional(shipment.FailureReason),
+            Events = events
+        };
+    }
+
+    private static string GetProviderName(string provider) =>
+        provider.Equals("GiaoHangNhanh", StringComparison.OrdinalIgnoreCase)
+            ? "Giao Hàng Nhanh (GHN)"
+            : provider.Trim();
+
+    private static string? BuildDriverText(ShipmentEvent shipmentEvent)
+    {
+        var parts = new[]
+        {
+            shipmentEvent.DriverName,
+            shipmentEvent.DriverPhone,
+            shipmentEvent.VehiclePlate
+        }
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value!.Trim());
+
+        var text = string.Join(" · ", parts);
+        return string.IsNullOrWhiteSpace(text) ? null : text;
+    }
+
+    private static string? NormalizeOptional(string? value) =>
+        string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 
     private static decimal ResolvePaidAmount(Order order)
     {
@@ -239,5 +344,16 @@ public sealed class DbAccountOrderDetailProvider(EcommerceDbContext dbContext) :
         }
 
         return "/" + imagePath.TrimStart('/');
+    }
+
+    private static string ResolveProviderKey(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return string.Empty;
+        var lowerName = name.Trim().ToLowerInvariant();
+        if (lowerName.Contains("sepay")) return "sepay";
+        if (lowerName.Contains("momo")) return "momo";
+        if (lowerName.Contains("vnpay")) return "vnpay";
+        if (lowerName.Contains("cod") || lowerName.Contains("nhận hàng")) return "cod";
+        return "generic";
     }
 }

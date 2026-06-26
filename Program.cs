@@ -2,15 +2,31 @@ using e_commerce_web_customer.Application.Services;
 using e_commerce_web_customer.Application.Contracts;
 using e_commerce_web_customer.Infrastructure.DependencyInjection;
 using e_commerce_web_customer.Infrastructure.Web;
+using FirebaseAdmin;
+using Google.Apis.Auth.OAuth2;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.Configuration.AddJsonFile(
-    "appsettings.GoogleMaps.json",
-    optional: true,
-    reloadOnChange: true);
-
 // Add services to the container.
 builder.Services.AddControllersWithViews();
+
+var projectId = builder.Configuration["Firebase:ProjectId"];
+if (!string.IsNullOrEmpty(projectId))
+{
+    // Kiểm tra xem file key có tồn tại không để tránh lỗi crash lúc khởi động
+    var keyPath = Path.Combine(builder.Environment.ContentRootPath, "firebase-admin-key.json");
+    if (File.Exists(keyPath))
+    {
+        FirebaseApp.Create(new AppOptions
+        {
+            Credential = GoogleCredential.FromFile(keyPath),
+            ProjectId = projectId
+        });
+    }
+    else
+    {
+        Console.WriteLine("\n[WARNING] Khong tim thay file firebase-admin-key.json. FirebaseAdmin chua duoc khoi tao!\n");
+    }
+}
 
 // Session support — used to pass cart data from Cart → Checkout
 builder.Services.AddDistributedMemoryCache();

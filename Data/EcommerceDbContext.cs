@@ -43,6 +43,18 @@ public class EcommerceDbContext : DbContext
     public DbSet<Supplier> Suppliers => Set<Supplier>();
     public DbSet<GoodsReceipt> GoodsReceipts => Set<GoodsReceipt>();
     public DbSet<GoodReceiptItem> GoodReceiptItems => Set<GoodReceiptItem>();
+    public DbSet<Staff> Staff => Set<Staff>();
+    public DbSet<StaffClaim> StaffClaims => Set<StaffClaim>();
+    public DbSet<StaffLogin> StaffLogins => Set<StaffLogin>();
+    public DbSet<StaffRole> StaffRoles => Set<StaffRole>();
+    public DbSet<StaffRoleClaim> StaffRoleClaims => Set<StaffRoleClaim>();
+    public DbSet<StaffToken> StaffTokens => Set<StaffToken>();
+    public DbSet<StaffUserRole> StaffUserRoles => Set<StaffUserRole>();
+    public DbSet<FulfillmentLocation> FulfillmentLocations => Set<FulfillmentLocation>();
+    public DbSet<Shipment> Shipments => Set<Shipment>();
+    public DbSet<ShipmentEvent> ShipmentEvents => Set<ShipmentEvent>();
+    public DbSet<ShipmentPackage> ShipmentPackages => Set<ShipmentPackage>();
+    public DbSet<SePayWebhookEvent> SePayWebhookEvents => Set<SePayWebhookEvent>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -52,7 +64,10 @@ public class EcommerceDbContext : DbContext
         ConfigureCatalog(modelBuilder);
         ConfigureOrders(modelBuilder);
         ConfigureMarketing(modelBuilder);
+        ConfigureStaff(modelBuilder);
         ConfigureInventory(modelBuilder);
+        ConfigureShipping(modelBuilder);
+        ConfigureSePay(modelBuilder);
 
         foreach (var foreignKey in modelBuilder.Model.GetEntityTypes().SelectMany(entity => entity.GetForeignKeys()))
         {
@@ -86,9 +101,15 @@ public class EcommerceDbContext : DbContext
             entity.Property(address => address.Phone).HasMaxLength(30).IsRequired();
             entity.Property(address => address.ProvinceCode).HasMaxLength(30).IsRequired();
             entity.Property(address => address.ProvinceName).HasMaxLength(120).IsRequired();
+            entity.Property(address => address.DistrictCode).HasMaxLength(30);
+            entity.Property(address => address.DistrictName).HasMaxLength(120);
             entity.Property(address => address.WardCode).HasMaxLength(30).IsRequired();
             entity.Property(address => address.WardName).HasMaxLength(120).IsRequired();
             entity.Property(address => address.DetailAddress).HasMaxLength(500).IsRequired();
+            entity.Property(address => address.FormattedAddress).HasMaxLength(700);
+            entity.Property(address => address.Latitude).HasPrecision(10, 7);
+            entity.Property(address => address.Longitude).HasPrecision(10, 7);
+            entity.Property(address => address.PlaceId).HasMaxLength(160);
             entity.Property(address => address.Type).HasConversion<string>().HasMaxLength(30);
             entity.Property(address => address.IsDeleted).HasDefaultValue(false);
             entity.HasOne(address => address.User)
@@ -440,6 +461,81 @@ public class EcommerceDbContext : DbContext
         });
     }
 
+    private static void ConfigureStaff(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<Staff>(entity =>
+        {
+            entity.ToTable("staff");
+            entity.HasIndex(staff => staff.NormalizedEmail).HasDatabaseName("EmailIndex");
+            entity.HasIndex(staff => staff.NormalizedUserName).IsUnique().HasDatabaseName("UserNameIndex");
+            entity.Property(staff => staff.FullName).HasMaxLength(255).IsRequired();
+            entity.Property(staff => staff.AvatarImage).HasMaxLength(500);
+            entity.Property(staff => staff.UserName).HasMaxLength(100).IsRequired();
+            entity.Property(staff => staff.NormalizedUserName).HasMaxLength(100);
+            entity.Property(staff => staff.Email).HasMaxLength(255).IsRequired();
+            entity.Property(staff => staff.NormalizedEmail).HasMaxLength(255);
+            entity.Property(staff => staff.PhoneNumber).HasMaxLength(30);
+        });
+
+        modelBuilder.Entity<StaffClaim>(entity =>
+        {
+            entity.ToTable("staff_claims");
+            entity.HasOne(claim => claim.User)
+                .WithMany(staff => staff.Claims)
+                .HasForeignKey(claim => claim.UserId);
+        });
+
+        modelBuilder.Entity<StaffLogin>(entity =>
+        {
+            entity.ToTable("staff_logins");
+            entity.HasKey(login => new { login.LoginProvider, login.ProviderKey });
+            entity.Property(login => login.LoginProvider).HasMaxLength(450);
+            entity.Property(login => login.ProviderKey).HasMaxLength(450);
+            entity.HasOne(login => login.User)
+                .WithMany(staff => staff.Logins)
+                .HasForeignKey(login => login.UserId);
+        });
+
+        modelBuilder.Entity<StaffRole>(entity =>
+        {
+            entity.ToTable("staff_roles");
+            entity.HasIndex(role => role.NormalizedName).IsUnique().HasDatabaseName("RoleNameIndex");
+            entity.Property(role => role.Name).HasMaxLength(100);
+            entity.Property(role => role.NormalizedName).HasMaxLength(100);
+        });
+
+        modelBuilder.Entity<StaffRoleClaim>(entity =>
+        {
+            entity.ToTable("staff_role_claims");
+            entity.HasOne(claim => claim.Role)
+                .WithMany(role => role.RoleClaims)
+                .HasForeignKey(claim => claim.RoleId);
+        });
+
+        modelBuilder.Entity<StaffToken>(entity =>
+        {
+            entity.ToTable("staff_tokens");
+            entity.HasKey(token => new { token.UserId, token.LoginProvider, token.Name });
+            entity.Property(token => token.LoginProvider).HasMaxLength(450);
+            entity.Property(token => token.Name).HasMaxLength(450);
+            entity.HasOne(token => token.User)
+                .WithMany(staff => staff.Tokens)
+                .HasForeignKey(token => token.UserId);
+        });
+
+        modelBuilder.Entity<StaffUserRole>(entity =>
+        {
+            entity.ToTable("staff_user_roles");
+            entity.HasKey(userRole => new { userRole.UserId, userRole.RoleId });
+            entity.HasOne(userRole => userRole.User)
+                .WithMany(staff => staff.UserRoles)
+                .HasForeignKey(userRole => userRole.UserId);
+            entity.HasOne(userRole => userRole.Role)
+                .WithMany(role => role.UserRoles)
+                .HasForeignKey(userRole => userRole.RoleId);
+        });
+    }
+
     private static void ConfigureInventory(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<Supplier>(entity =>
@@ -461,11 +557,11 @@ public class EcommerceDbContext : DbContext
             entity.HasOne(receipt => receipt.Supplier)
                 .WithMany(supplier => supplier.GoodsReceipts)
                 .HasForeignKey(receipt => receipt.SupplierId);
-            entity.HasOne(receipt => receipt.CreatedByUser)
-                .WithMany(user => user.CreatedGoodsReceipts)
+            entity.HasOne(receipt => receipt.CreatedByStaff)
+                .WithMany(staff => staff.CreatedGoodsReceipts)
                 .HasForeignKey(receipt => receipt.CreatedBy);
-            entity.HasOne(receipt => receipt.ApprovedByUser)
-                .WithMany(user => user.ApprovedGoodsReceipts)
+            entity.HasOne(receipt => receipt.ApprovedByStaff)
+                .WithMany(staff => staff.ApprovedGoodsReceipts)
                 .HasForeignKey(receipt => receipt.ApprovedBy);
         });
 
@@ -479,6 +575,134 @@ public class EcommerceDbContext : DbContext
             entity.HasOne(item => item.ProductVariant)
                 .WithMany(variant => variant.GoodReceiptItems)
                 .HasForeignKey(item => item.ProductVariantId);
+        });
+    }
+
+    private static void ConfigureShipping(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<FulfillmentLocation>(entity =>
+        {
+            entity.ToTable("fulfillment_locations");
+            entity.HasIndex(location => location.IsActive);
+            entity.HasIndex(location => location.IsDefault);
+            entity.Property(location => location.Name).HasMaxLength(255).IsRequired();
+            entity.Property(location => location.ContactName).HasMaxLength(255).IsRequired();
+            entity.Property(location => location.Phone).HasMaxLength(30).IsRequired();
+            entity.Property(location => location.ProvinceCode).HasMaxLength(30);
+            entity.Property(location => location.ProvinceName).HasMaxLength(120).IsRequired();
+            entity.Property(location => location.DistrictCode).HasMaxLength(30);
+            entity.Property(location => location.DistrictName).HasMaxLength(120);
+            entity.Property(location => location.WardCode).HasMaxLength(30);
+            entity.Property(location => location.WardName).HasMaxLength(120).IsRequired();
+            entity.Property(location => location.DetailAddress).HasMaxLength(500).IsRequired();
+            entity.Property(location => location.FormattedAddress).HasMaxLength(700);
+            entity.Property(location => location.Latitude).HasPrecision(10, 7);
+            entity.Property(location => location.Longitude).HasPrecision(10, 7);
+        });
+
+        modelBuilder.Entity<Shipment>(entity =>
+        {
+            entity.ToTable("shipments");
+            entity.HasIndex(shipment => shipment.Status);
+            entity.HasIndex(shipment => new { shipment.Provider, shipment.ProviderDeliveryId }).IsUnique();
+            entity.Property(shipment => shipment.Provider).HasMaxLength(30).IsRequired();
+            entity.Property(shipment => shipment.Status).HasMaxLength(30).IsRequired();
+            entity.Property(shipment => shipment.ProviderDeliveryId).HasMaxLength(160);
+            entity.Property(shipment => shipment.ProviderQuoteId).HasMaxLength(160);
+            entity.Property(shipment => shipment.ProviderStatus).HasMaxLength(80);
+            entity.Property(shipment => shipment.TrackingUrl).HasMaxLength(1000);
+            entity.Property(shipment => shipment.PickupContactName).HasMaxLength(255).IsRequired();
+            entity.Property(shipment => shipment.PickupPhone).HasMaxLength(30).IsRequired();
+            entity.Property(shipment => shipment.PickupAddress).HasMaxLength(700).IsRequired();
+            entity.Property(shipment => shipment.PickupLatitude).HasPrecision(10, 7);
+            entity.Property(shipment => shipment.PickupLongitude).HasPrecision(10, 7);
+            entity.Property(shipment => shipment.ProviderPickupProvinceCode).HasMaxLength(50);
+            entity.Property(shipment => shipment.ProviderPickupProvinceName).HasMaxLength(120);
+            entity.Property(shipment => shipment.ProviderPickupDistrictCode).HasMaxLength(50);
+            entity.Property(shipment => shipment.ProviderPickupDistrictName).HasMaxLength(120);
+            entity.Property(shipment => shipment.ProviderPickupWardCode).HasMaxLength(50);
+            entity.Property(shipment => shipment.ProviderPickupWardName).HasMaxLength(120);
+            entity.Property(shipment => shipment.DropoffContactName).HasMaxLength(255).IsRequired();
+            entity.Property(shipment => shipment.DropoffPhone).HasMaxLength(30).IsRequired();
+            entity.Property(shipment => shipment.DropoffAddress).HasMaxLength(700).IsRequired();
+            entity.Property(shipment => shipment.DropoffLatitude).HasPrecision(10, 7);
+            entity.Property(shipment => shipment.DropoffLongitude).HasPrecision(10, 7);
+            entity.Property(shipment => shipment.ProviderDropoffProvinceCode).HasMaxLength(50);
+            entity.Property(shipment => shipment.ProviderDropoffProvinceName).HasMaxLength(120);
+            entity.Property(shipment => shipment.ProviderDropoffDistrictCode).HasMaxLength(50);
+            entity.Property(shipment => shipment.ProviderDropoffDistrictName).HasMaxLength(120);
+            entity.Property(shipment => shipment.ProviderDropoffWardCode).HasMaxLength(50);
+            entity.Property(shipment => shipment.ProviderDropoffWardName).HasMaxLength(120);
+            entity.Property(shipment => shipment.QuotedFee).HasPrecision(18, 2);
+            entity.Property(shipment => shipment.ActualFee).HasPrecision(18, 2);
+            entity.Property(shipment => shipment.Currency).HasMaxLength(3).IsRequired();
+            entity.Property(shipment => shipment.FailureReason).HasMaxLength(1000);
+            entity.HasOne(shipment => shipment.Order)
+                .WithMany(order => order.Shipments)
+                .HasForeignKey(shipment => shipment.OrderId);
+            entity.HasOne(shipment => shipment.FulfillmentLocation)
+                .WithMany(location => location.Shipments)
+                .HasForeignKey(shipment => shipment.FulfillmentLocationId);
+            entity.HasOne(shipment => shipment.RequestedByStaff)
+                .WithMany(staff => staff.RequestedShipments)
+                .HasForeignKey(shipment => shipment.RequestedByStaffId);
+        });
+
+        modelBuilder.Entity<ShipmentEvent>(entity =>
+        {
+            entity.ToTable("shipment_events");
+            entity.HasIndex(item => item.ProviderEventId).IsUnique();
+            entity.Property(item => item.ProviderEventId).HasMaxLength(160);
+            entity.Property(item => item.ProviderStatus).HasMaxLength(80);
+            entity.Property(item => item.Status).HasMaxLength(30).IsRequired();
+            entity.Property(item => item.Message).HasMaxLength(1000);
+            entity.Property(item => item.DriverName).HasMaxLength(255);
+            entity.Property(item => item.DriverPhone).HasMaxLength(30);
+            entity.Property(item => item.VehiclePlate).HasMaxLength(50);
+            entity.HasOne(item => item.Shipment)
+                .WithMany(shipment => shipment.ShipmentEvents)
+                .HasForeignKey(item => item.ShipmentId);
+        });
+
+        modelBuilder.Entity<ShipmentPackage>(entity =>
+        {
+            entity.ToTable("shipment_packages");
+            entity.HasIndex(item => new { item.ShipmentId, item.Sequence }).IsUnique();
+            entity.Property(item => item.Description).HasMaxLength(500).IsRequired();
+            entity.Property(item => item.LengthCm).HasPrecision(8, 2);
+            entity.Property(item => item.WidthCm).HasPrecision(8, 2);
+            entity.Property(item => item.HeightCm).HasPrecision(8, 2);
+            entity.Property(item => item.DeclaredValue).HasPrecision(18, 2);
+            entity.Property(item => item.Notes).HasMaxLength(1000);
+            entity.HasOne(item => item.Shipment)
+                .WithMany(shipment => shipment.ShipmentPackages)
+                .HasForeignKey(item => item.ShipmentId);
+        });
+
+    }
+
+    private static void ConfigureSePay(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<SePayWebhookEvent>(entity =>
+        {
+            entity.ToTable("sepay_webhook_events");
+            entity.HasIndex(item => item.SePayTransactionId).IsUnique();
+            entity.Property(item => item.Gateway).HasMaxLength(120).IsRequired();
+            entity.Property(item => item.TransactionDate).HasMaxLength(60).IsRequired();
+            entity.Property(item => item.AccountNumber).HasMaxLength(80).IsRequired();
+            entity.Property(item => item.SubAccount).HasMaxLength(80);
+            entity.Property(item => item.Code).HasMaxLength(120);
+            entity.Property(item => item.Content).HasMaxLength(1000).IsRequired();
+            entity.Property(item => item.TransferType).HasMaxLength(20).IsRequired();
+            entity.Property(item => item.Description).HasMaxLength(1000);
+            entity.Property(item => item.TransferAmount).HasPrecision(18, 2);
+            entity.Property(item => item.Accumulated).HasPrecision(18, 2);
+            entity.Property(item => item.ReferenceCode).HasMaxLength(120);
+            entity.Property(item => item.ProcessingStatus).HasMaxLength(40).IsRequired();
+            entity.Property(item => item.ProcessingMessage).HasMaxLength(1000);
+            entity.HasOne(item => item.MatchedOrder)
+                .WithMany()
+                .HasForeignKey(item => item.MatchedOrderId);
         });
     }
 }

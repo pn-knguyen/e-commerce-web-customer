@@ -39,8 +39,9 @@ public sealed class MockAccountOrderDetailProvider : IAccountOrderDetailProvider
                     ProductImageAlt = "USB Kingston DataTraveler Exodia 128GB",
                     UnitPriceText = "349.000đ",
                     ColorText = "Đen",
+                    VariantText = "128GB - Đen",
                     Quantity = 1,
-                    WarrantyText = "Thời hạn bảo hành đến: 19/12/2030"
+                    LineTotalText = "349.000đ"
                 },
                 new()
                 {
@@ -49,16 +50,49 @@ public sealed class MockAccountOrderDetailProvider : IAccountOrderDetailProvider
                     ProductImageAlt = "USB Kingston DataTraveler Exodia 64GB",
                     UnitPriceText = "219.000đ",
                     ColorText = "Đen",
+                    VariantText = "64GB - Đen",
                     Quantity = 1,
-                    WarrantyText = "Thời hạn bảo hành đến: 19/12/2030"
+                    LineTotalText = "219.000đ"
                 }
             ],
             Steps =
             [
                 new() { Label = "Đặt hàng thành công", IsDone = true },
-                new() { Label = "Sẵn hàng", IsDone = true },
+                new() { Label = "Đã chuẩn bị hàng", IsDone = true },
+                new() { Label = "Đang vận chuyển", IsDone = true },
                 new() { Label = "Đã nhận hàng", IsDone = true }
             ],
+            Shipment = new AccountOrderShipmentViewModel
+            {
+                HasShipment = true,
+                ProviderName = "Giao Hàng Nhanh (GHN)",
+                TrackingCode = "LXRU49",
+                StatusText = "Giao hàng thành công",
+                StatusTone = "success",
+                UpdatedAtText = "20/12/2025 15:42",
+                TrackingUrl = "https://tracking.ghn.dev/?order_code=LXRU49",
+                Events =
+                [
+                    new()
+                    {
+                        StatusText = "Giao hàng thành công",
+                        StatusTone = "success",
+                        OccurredAtText = "20/12/2025 15:42"
+                    },
+                    new()
+                    {
+                        StatusText = "Đang giao đến bạn",
+                        StatusTone = "shipping",
+                        OccurredAtText = "20/12/2025 13:15"
+                    },
+                    new()
+                    {
+                        StatusText = "Đã tạo vận đơn, chờ lấy hàng",
+                        StatusTone = "pending",
+                        OccurredAtText = "20/12/2025 09:10"
+                    }
+                ]
+            },
             Customer = new AccountOrderCustomerViewModel
             {
                 FullName = "Phạm Ngọc Khôi Nguyên",
@@ -96,16 +130,23 @@ public sealed class MockAccountOrderDetailProvider : IAccountOrderDetailProvider
                     ProductImageAlt = "USB Kingston DataTraveler Exodia màu đen",
                     UnitPriceText = "349.000đ",
                     ColorText = "Đen",
+                    VariantText = "128GB - Đen",
                     Quantity = 1,
-                    WarrantyText = "Thời hạn bảo hành đến: 19/12/2030"
+                    LineTotalText = "349.000đ"
                 }
             ],
             Steps =
             [
                 new() { Label = "Đặt hàng thành công", IsDone = true },
-                new() { Label = "Sẵn hàng", IsDone = false },
+                new() { Label = "Đã chuẩn bị hàng", IsDone = false },
+                new() { Label = "Đang vận chuyển", IsDone = false },
                 new() { Label = "Đã nhận hàng", IsDone = false }
             ],
+            Shipment = new AccountOrderShipmentViewModel
+            {
+                HasShipment = false,
+                UpdatedAtText = "Thông tin vận chuyển sẽ xuất hiện sau khi cửa hàng tạo vận đơn."
+            },
             Customer = new AccountOrderCustomerViewModel
             {
                 FullName = "Phạm Ngọc Khôi Nguyên",

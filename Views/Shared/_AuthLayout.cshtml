@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="vi">
+@inject Microsoft.Extensions.Configuration.IConfiguration Configuration
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -25,6 +26,22 @@
 
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/js/account-auth.js" asp-append-version="true"></script>
+
+    <!-- Firebase Auth Integration -->
+    <script>
+        window.firebaseConfig = {
+            apiKey: '@Configuration["Firebase:ApiKey"]',
+            authDomain: '@Configuration["Firebase:AuthDomain"]',
+            projectId: '@Configuration["Firebase:ProjectId"]',
+            storageBucket: '@Configuration["Firebase:StorageBucket"]',
+            messagingSenderId: '@Configuration["Firebase:MessagingSenderId"]',
+            appId: '@Configuration["Firebase:AppId"]',
+            measurementId: '@Configuration["Firebase:MeasurementId"]'
+        };
+    </script>
+    <script type="module" src="~/js/firebase-init.js" asp-append-version="true"></script>
+    <script type="module" src="~/js/auth.js" asp-append-version="true"></script>
+
     @await RenderSectionAsync("Scripts", required: false)
 </body>
 </html>

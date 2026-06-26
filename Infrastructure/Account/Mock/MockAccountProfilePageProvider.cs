@@ -61,10 +61,39 @@ public sealed class MockAccountProfilePageProvider : IAccountProfilePageProvider
         decimal total,
         string status,
         string tone,
-        string otherItemsText) => new()
+        string otherItemsText)
+    {
+        var items = new List<AccountProfileOrderItemViewModel>
+        {
+            new()
+            {
+                ProductName = name,
+                ProductImageUrl = imageUrl,
+                ProductImageAlt = imageAlt,
+                VariantText = "",
+                Quantity = 1,
+                LineTotalText = FormatCurrency(price)
+            }
+        };
+
+        if (!string.IsNullOrWhiteSpace(otherItemsText))
+        {
+            items.Add(new AccountProfileOrderItemViewModel
+            {
+                ProductName = "Phụ kiện đi kèm",
+                ProductImageUrl = "/images/categories/accessories/memory-usb.webp",
+                ProductImageAlt = "Phụ kiện TechStore",
+                VariantText = "Gói mua thêm",
+                Quantity = 1,
+                LineTotalText = FormatCurrency(Math.Max(0m, total - price))
+            });
+        }
+
+        return new AccountProfileOrderViewModel
         {
             OrderCode = code,
             OrderedDateText = date,
+            Items = items,
             ProductName = name,
             ProductImageUrl = imageUrl,
             ProductImageAlt = imageAlt,
@@ -75,6 +104,7 @@ public sealed class MockAccountProfilePageProvider : IAccountProfilePageProvider
             OtherItemsText = otherItemsText,
             DetailUrl = "/account/orders/" + Uri.EscapeDataString(code.TrimStart('#'))
         };
+    }
 
     private static string FormatCurrency(decimal value) =>
         value.ToString("N0", ViCulture) + "đ";

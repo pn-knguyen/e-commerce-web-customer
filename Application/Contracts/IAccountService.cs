@@ -9,14 +9,7 @@ namespace e_commerce_web_customer.Application.Contracts;
 /// </summary>
 public interface IAccountService
 {
-    /// <summary>
-    /// Authenticates a user with email and password.
-    /// </summary>
-    Task<bool> LoginAsync(
-        string email,
-        string password,
-        bool rememberMe,
-        CancellationToken cancellationToken = default);
+
 
     /// <summary>
     /// Gets the lightweight profile needed by shared UI after a successful login.
@@ -37,6 +30,13 @@ public interface IAccountService
     /// </summary>
     Task<bool> UserExistsAsync(
         string email,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Finds the email associated with a phone number. 
+    /// </summary>
+    Task<string?> FindEmailByPhoneNumberAsync(
+        string phoneNumber,
         CancellationToken cancellationToken = default);
 }
 
