@@ -1,4 +1,5 @@
 using e_commerce_web_customer.Models.Entities;
+using e_commerce_web_customer.Models.Enums;
 using Microsoft.EntityFrameworkCore;
 using AttributeEntity = e_commerce_web_customer.Models.Entities.Attribute;
 
@@ -55,6 +56,8 @@ public class EcommerceDbContext : DbContext
     public DbSet<ShipmentEvent> ShipmentEvents => Set<ShipmentEvent>();
     public DbSet<ShipmentPackage> ShipmentPackages => Set<ShipmentPackage>();
     public DbSet<SePayWebhookEvent> SePayWebhookEvents => Set<SePayWebhookEvent>();
+    public DbSet<CustomerConversation> CustomerConversations => Set<CustomerConversation>();
+    public DbSet<CustomerMessage> CustomerMessages => Set<CustomerMessage>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -68,6 +71,7 @@ public class EcommerceDbContext : DbContext
         ConfigureInventory(modelBuilder);
         ConfigureShipping(modelBuilder);
         ConfigureSePay(modelBuilder);
+        ConfigureCustomerMessages(modelBuilder);
 
         foreach (var foreignKey in modelBuilder.Model.GetEntityTypes().SelectMany(entity => entity.GetForeignKeys()))
         {
@@ -703,6 +707,64 @@ public class EcommerceDbContext : DbContext
             entity.HasOne(item => item.MatchedOrder)
                 .WithMany()
                 .HasForeignKey(item => item.MatchedOrderId);
+        });
+    }
+
+    private static void ConfigureCustomerMessages(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<CustomerConversation>(entity =>
+        {
+            entity.ToTable("customer_conversations");
+            entity.HasIndex(item => new { item.UserId, item.Status });
+            entity.HasIndex(item => new { item.UserId, item.Channel, item.LastMessageAt });
+            entity.HasIndex(item => item.AssignedStaffId);
+            entity.HasIndex(item => item.LastMessageAt);
+            entity.Property(item => item.Subject).HasMaxLength(255);
+            entity.Property(item => item.Channel)
+                .HasConversion<string>()
+                .HasMaxLength(30)
+                .HasDefaultValue(CustomerConversationChannel.Support);
+            entity.Property(item => item.Status).HasConversion<string>().HasMaxLength(30);
+            entity.HasOne(item => item.User)
+                .WithMany(user => user.CustomerConversations)
+                .HasForeignKey(item => item.UserId);
+            entity.HasOne(item => item.AssignedStaff)
+                .WithMany(staff => staff.AssignedCustomerConversations)
+                .HasForeignKey(item => item.AssignedStaffId);
+        });
+
+        modelBuilder.Entity<CustomerMessage>(entity =>
+        {
+            entity.ToTable("customer_messages");
+            entity.HasIndex(item => new { item.ConversationId, item.CreatedAt });
+            entity.HasIndex(item => new { item.ConversationId, item.Sender, item.IsReadByAdmin });
+            entity.HasIndex(item => new { item.UserId, item.Sender, item.ClientMessageId })
+                .IsUnique()
+                .HasFilter("[ClientMessageId] IS NOT NULL AND [UserId] IS NOT NULL");
+            entity.HasIndex(item => new { item.StaffId, item.Sender, item.ClientMessageId })
+                .IsUnique()
+                .HasFilter("[ClientMessageId] IS NOT NULL AND [StaffId] IS NOT NULL");
+            entity.HasIndex(item => item.Sender);
+            entity.HasIndex(item => item.AiResponseId)
+                .IsUnique()
+                .HasFilter("[AiResponseId] IS NOT NULL");
+            entity.HasIndex(item => item.UserId);
+            entity.HasIndex(item => item.StaffId);
+            entity.Property(item => item.Sender).HasConversion<string>().HasMaxLength(30);
+            entity.Property(item => item.ClientMessageId).HasMaxLength(64).IsUnicode(false);
+            entity.Property(item => item.Body).IsRequired();
+            entity.Property(item => item.AiProvider).HasMaxLength(80);
+            entity.Property(item => item.AiModel).HasMaxLength(120);
+            entity.Property(item => item.AiResponseId).HasMaxLength(160);
+            entity.HasOne(item => item.Conversation)
+                .WithMany(conversation => conversation.Messages)
+                .HasForeignKey(item => item.ConversationId);
+            entity.HasOne(item => item.User)
+                .WithMany(user => user.CustomerMessages)
+                .HasForeignKey(item => item.UserId);
+            entity.HasOne(item => item.Staff)
+                .WithMany(staff => staff.CustomerMessages)
+                .HasForeignKey(item => item.StaffId);
         });
     }
 }
