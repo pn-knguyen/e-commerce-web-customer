@@ -25,8 +25,11 @@ public sealed class VnPayIntegration : IVnPayIntegration
         // Amount needs to be multiplied by 100 per VNPay docs
         // Must be formatted as an integer string without decimals to prevent signature mismatch
         var amount = (request.Amount * 100).ToString("0", CultureInfo.InvariantCulture);
-        var createDate = DateTime.Now.ToString("yyyyMMddHHmmss");
-        var expireDate = DateTime.Now.AddMinutes(15).ToString("yyyyMMddHHmmss");
+        
+        // Đảm bảo luôn lấy giờ Việt Nam (UTC+7) trên mọi server (để tránh lỗi quá hạn trên Linux/Railway)
+        var vnTime = DateTime.UtcNow.AddHours(7);
+        var createDate = vnTime.ToString("yyyyMMddHHmmss");
+        var expireDate = vnTime.AddMinutes(15).ToString("yyyyMMddHHmmss");
 
         var ipAddr = request.IpAddress;
         if (string.IsNullOrEmpty(ipAddr) || ipAddr == "::1")
