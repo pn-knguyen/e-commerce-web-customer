@@ -1,6 +1,7 @@
 using e_commerce_web_customer.Application.Account;
 using e_commerce_web_customer.Application.Catalog;
 using e_commerce_web_customer.Application.Contracts;
+using e_commerce_web_customer.Application.CustomerMessages;
 using e_commerce_web_customer.Application.Home;
 using e_commerce_web_customer.Application.Navigation;
 using e_commerce_web_customer.Application.Product;
@@ -12,6 +13,7 @@ using e_commerce_web_customer.Infrastructure.Cart.Db;
 using e_commerce_web_customer.Infrastructure.Cart.Mock;
 using e_commerce_web_customer.Infrastructure.Catalog.Db;
 using e_commerce_web_customer.Infrastructure.Catalog.Mock;
+using e_commerce_web_customer.Infrastructure.CustomerMessages;
 using e_commerce_web_customer.Infrastructure.Home.Db;
 using e_commerce_web_customer.Infrastructure.Home.Mock;
 using e_commerce_web_customer.Infrastructure.Integrations.MoMo;
@@ -75,6 +77,7 @@ public static class StorefrontServiceCollectionExtensions
         services.AddSingleton<IOrderService, MockOrderService>();
         services.AddScoped<IAccountService, MockAccountService>();
         services.AddScoped<ICartItemValidator, MockCartItemValidator>();
+        services.AddScoped<ICustomerMessageCustomerService, MockCustomerMessageCustomerService>();
 
         return services;
     }
@@ -123,6 +126,7 @@ public static class StorefrontServiceCollectionExtensions
         services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();
         services.AddScoped<IAccountService, DbAccountService>();
         services.AddScoped<ICartItemValidator, DbCartItemValidator>();
+        services.AddScoped<ICustomerMessageCustomerService, DbCustomerMessageCustomerService>();
 
         return services;
     }

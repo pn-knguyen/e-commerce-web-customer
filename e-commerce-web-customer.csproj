@@ -9,11 +9,13 @@
     <NpmExecutable Condition="'$(OS)' != 'Windows_NT'">npm</NpmExecutable>
     <FrontendBuildStampDir>$(BaseIntermediateOutputPath)frontend\</FrontendBuildStampDir>
     <SwiperAssetsStamp>$(FrontendBuildStampDir)swiper-assets.stamp</SwiperAssetsStamp>
+    <SignalRAssetsStamp>$(FrontendBuildStampDir)signalr-assets.stamp</SignalRAssetsStamp>
     <TailwindCssStamp>$(FrontendBuildStampDir)tailwind-css.stamp</TailwindCssStamp>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="FirebaseAdmin" Version="3.5.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.9" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.9">
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
       <PrivateAssets>all</PrivateAssets>
@@ -51,6 +53,10 @@
     <Delete Files="$(SwiperAssetsStamp)" />
   </Target>
 
+  <Target Name="InvalidateSignalRAssetsStampWhenOutputsMissing" BeforeTargets="CopySignalRAssets" Condition="!Exists('wwwroot/lib/signalr/signalr.min.js')">
+    <Delete Files="$(SignalRAssetsStamp)" />
+  </Target>
+
   <Target Name="CopyVendorAssets" BeforeTargets="BuildTailwindCss" DependsOnTargets="RestoreFrontendDependencies" Inputs="node_modules/swiper/swiper-bundle.min.css;node_modules/swiper/swiper-bundle.min.js" Outputs="$(SwiperAssetsStamp)">
     <ItemGroup>
       <SwiperCss Include="node_modules/swiper/swiper-bundle.min.css" />
@@ -63,11 +69,21 @@
     <Touch Files="$(SwiperAssetsStamp)" AlwaysCreate="true" />
   </Target>
 
+  <Target Name="CopySignalRAssets" BeforeTargets="BuildTailwindCss" DependsOnTargets="RestoreFrontendDependencies" Inputs="node_modules/@microsoft/signalr/dist/browser/signalr.min.js" Outputs="$(SignalRAssetsStamp)">
+    <ItemGroup>
+      <SignalRJs Include="node_modules/@microsoft/signalr/dist/browser/signalr.min.js" />
+    </ItemGroup>
+    <MakeDir Directories="$(FrontendBuildStampDir)" />
+    <Message Importance="high" Text="Copying SignalR browser asset from node_modules..." />
+    <Copy SourceFiles="@(SignalRJs)" DestinationFolder="wwwroot/lib/signalr" SkipUnchangedFiles="true" />
+    <Touch Files="$(SignalRAssetsStamp)" AlwaysCreate="true" />
+  </Target>
+
   <Target Name="InvalidateTailwindCssStampWhenOutputMissing" BeforeTargets="BuildTailwindCss" Condition="!Exists('wwwroot/css/tailwind.css')">
     <Delete Files="$(TailwindCssStamp)" />
   </Target>
 
-  <Target Name="BuildTailwindCss" BeforeTargets="PrepareForBuild" DependsOnTargets="RestoreFrontendDependencies;CopyVendorAssets" Inputs="@(TailwindBuildInput)" Outputs="$(TailwindCssStamp)">
+  <Target Name="BuildTailwindCss" BeforeTargets="PrepareForBuild" DependsOnTargets="RestoreFrontendDependencies;CopyVendorAssets;CopySignalRAssets" Inputs="@(TailwindBuildInput)" Outputs="$(TailwindCssStamp)">
     <MakeDir Directories="$(FrontendBuildStampDir)" />
     <Exec Command="$(NpmExecutable) run css:build" />
     <Touch Files="$(TailwindCssStamp)" AlwaysCreate="true" />

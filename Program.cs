@@ -1,13 +1,28 @@
+using System.Text;
+using e_commerce_web_customer.Application.CustomerMessages;
 using e_commerce_web_customer.Application.Services;
 using e_commerce_web_customer.Application.Contracts;
 using e_commerce_web_customer.Infrastructure.DependencyInjection;
 using e_commerce_web_customer.Infrastructure.Web;
 using FirebaseAdmin;
 using Google.Apis.Auth.OAuth2;
+using Microsoft.AspNetCore.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddControllersWithViews();
+
+builder.Services.AddRateLimiter(options =>
+{
+    options.AddFixedWindowLimiter("AiChatLimiter", limiterOptions =>
+    {
+        limiterOptions.PermitLimit = 5;
+        limiterOptions.Window = TimeSpan.FromMinutes(1);
+        limiterOptions.QueueProcessingOrder = System.Threading.RateLimiting.QueueProcessingOrder.OldestFirst;
+        limiterOptions.QueueLimit = 2;
+    });
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+});
 
 var projectId = builder.Configuration["Firebase:ProjectId"];
 if (!string.IsNullOrEmpty(projectId))
@@ -39,6 +54,19 @@ builder.Services.AddSession(options =>
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ISessionStorage, WebSessionStorage>();
 builder.Services.AddScoped<CartSessionService>();
+builder.Services
+    .AddOptions<CustomerMessageJwtOptions>()
+    .Bind(builder.Configuration.GetSection(CustomerMessageJwtOptions.SectionName))
+    .Validate(options => !string.IsNullOrWhiteSpace(options.Issuer),
+        "CustomerMessages:Jwt:Issuer is required.")
+    .Validate(options => !string.IsNullOrWhiteSpace(options.AccessAudience),
+        "CustomerMessages:Jwt:AccessAudience is required.")
+    .Validate(options => !string.IsNullOrWhiteSpace(options.AiReceiptAudience),
+        "CustomerMessages:Jwt:AiReceiptAudience is required.")
+    .Validate(options => Encoding.UTF8.GetByteCount(options.SigningKey ?? string.Empty) >= 32,
+        "CustomerMessages:Jwt:SigningKey must be at least 32 bytes.")
+    .ValidateOnStart();
+builder.Services.AddSingleton<ICustomerMessageTokenService, CustomerMessageTokenService>();
 builder.Services.AddStorefrontIntegrations(builder.Configuration);
 
 var useMockData = builder.Configuration.GetValue<bool>("DatabaseSettings:UseMockData", true);
@@ -62,6 +90,7 @@ if (!app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseRouting();
+app.UseRateLimiter();
 app.UseSession();
 
 app.UseAuthorization();
