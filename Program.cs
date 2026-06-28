@@ -27,19 +27,30 @@ builder.Services.AddRateLimiter(options =>
 var projectId = builder.Configuration["Firebase:ProjectId"];
 if (!string.IsNullOrEmpty(projectId))
 {
-    // Kiểm tra xem file key có tồn tại không để tránh lỗi crash lúc khởi động
     var keyPath = Path.Combine(builder.Environment.ContentRootPath, "firebase-admin-key.json");
-    if (File.Exists(keyPath))
+    var firebaseJsonVar = Environment.GetEnvironmentVariable("FIREBASE_ADMIN_KEY");
+
+    if (!string.IsNullOrWhiteSpace(firebaseJsonVar))
+    {
+        FirebaseApp.Create(new AppOptions
+        {
+            Credential = GoogleCredential.FromJson(firebaseJsonVar),
+            ProjectId = projectId
+        });
+        Console.WriteLine("\n[INFO] Da khoi tao FirebaseAdmin tu Environment Variable.\n");
+    }
+    else if (File.Exists(keyPath))
     {
         FirebaseApp.Create(new AppOptions
         {
             Credential = GoogleCredential.FromFile(keyPath),
             ProjectId = projectId
         });
+        Console.WriteLine("\n[INFO] Da khoi tao FirebaseAdmin tu file firebase-admin-key.json.\n");
     }
     else
     {
-        Console.WriteLine("\n[WARNING] Khong tim thay file firebase-admin-key.json. FirebaseAdmin chua duoc khoi tao!\n");
+        Console.WriteLine("\n[WARNING] Khong tim thay FIREBASE_ADMIN_KEY hoac file firebase-admin-key.json. FirebaseAdmin chua duoc khoi tao!\n");
     }
 }
 
