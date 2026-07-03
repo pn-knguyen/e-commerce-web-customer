@@ -2,6 +2,9 @@
 @using e_commerce_web_customer.ViewModels.Checkout
 
 @{
+    var selectedVoucher = Model.SelectedVoucherId.HasValue
+        ? Model.Vouchers.FirstOrDefault(voucher => voucher.Id == Model.SelectedVoucherId.Value)
+        : null;
     ViewData["Title"] = "Thanh toán";
     ViewData["MetaDescription"] = "Hoàn tất đơn hàng của bạn tại TechStore — điền thông tin giao hàng và chọn phương thức thanh toán.";
 }
@@ -17,6 +20,7 @@
         <input asp-for="ProvinceName" type="hidden" id="co-province-name" />
         <input asp-for="DistrictName" type="hidden" id="co-district-name" />
         <input asp-for="WardName" type="hidden" id="co-ward-name" />
+        <input asp-for="SelectedVoucherId" type="hidden" id="co-selected-voucher-id" />
 
         <div class="checkout-layout">
 
@@ -305,28 +309,52 @@
                     </ul>
 
                     @* Price breakdown *@
-                    <dl class="co-price-list">
+                    <dl class="co-price-list"
+                        data-subtotal="@Model.Subtotal.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                        data-shipping-fee="@Model.ShippingFee.ToString(System.Globalization.CultureInfo.InvariantCulture)">
                         <div class="co-price-row">
                             <dt>Tạm tính</dt>
-                            <dd>@CheckoutViewModel.FormatPrice(Model.Subtotal)</dd>
+                            <dd data-checkout-subtotal>@CheckoutViewModel.FormatPrice(Model.Subtotal)</dd>
                         </div>
                         <div class="co-price-row">
                             <dt>Phí vận chuyển</dt>
-                            <dd>@CheckoutViewModel.FormatPrice(Model.ShippingFee)</dd>
+                            <dd data-checkout-shipping>@CheckoutViewModel.FormatPrice(Model.ShippingFee)</dd>
                         </div>
-                        @if (Model.Discount > 0)
-                        {
-                            <div class="co-price-row is-discount">
-                                <dt>Giảm giá</dt>
-                                <dd>−@CheckoutViewModel.FormatPrice(Model.Discount)</dd>
+                        <div class="co-voucher-summary" data-voucher-summary>
+                            <div class="co-voucher-summary-head">
+                                <dt>Voucher</dt>
+                                <button type="button"
+                                        class="co-voucher-change-btn"
+                                        id="co-voucher-open"
+                                        data-voucher-options-url="@Url.Action("VoucherOptions", "Checkout", new { mode = ViewData["Mode"]?.ToString() ?? "" })"
+                                        data-voucher-change-url="@Url.Action("ChangeVoucher", "Checkout")"
+                                        data-checkout-mode="@(ViewData["Mode"]?.ToString() ?? "")">
+                                    Đổi voucher
+                                </button>
                             </div>
-                        }
+                            <dd class="co-voucher-current" data-voucher-current>
+                                @if (selectedVoucher is not null)
+                                {
+                                    <span class="co-voucher-current-code">✓ @selectedVoucher.Code</span>
+                                    <span class="co-voucher-current-discount">Giảm @CheckoutViewModel.FormatPrice(Model.Discount)</span>
+                                }
+                                else
+                                {
+                                    <span class="co-voucher-current-code">Không sử dụng voucher</span>
+                                    <span class="co-voucher-current-discount">Bạn có thể chọn voucher khác nếu có</span>
+                                }
+                            </dd>
+                        </div>
+                        <div class="co-price-row is-discount @(Model.Discount > 0 ? null : "is-hidden")" data-checkout-discount-row>
+                            <dt>Giảm giá</dt>
+                            <dd data-checkout-discount>−@CheckoutViewModel.FormatPrice(Model.Discount)</dd>
+                        </div>
                     </dl>
 
                     @* Total *@
                     <div class="co-price-total">
                         <span class="label">Tổng cộng</span>
-                        <strong class="amount">@CheckoutViewModel.FormatPrice(Model.Total)</strong>
+                        <strong class="amount" data-checkout-total>@CheckoutViewModel.FormatPrice(Model.Total)</strong>
                     </div>
 
                     @* Submit *@
@@ -349,6 +377,25 @@
 
         </div>@* /checkout-layout *@
     </form>
+
+    <div id="co-voucher-modal" class="co-voucher-modal" role="dialog" aria-modal="true" aria-labelledby="co-voucher-modal-title" hidden>
+        <div class="co-voucher-modal-backdrop" data-voucher-close></div>
+        <div class="co-voucher-modal-panel">
+            <div class="co-voucher-modal-header">
+                <div>
+                    <p class="co-voucher-modal-eyebrow">Ưu đãi đơn hàng</p>
+                    <h2 id="co-voucher-modal-title">Chọn voucher</h2>
+                </div>
+                <button type="button" class="co-voucher-modal-close" data-voucher-close aria-label="Đóng chọn voucher">×</button>
+            </div>
+
+            <div class="co-voucher-modal-body">
+                <p class="co-voucher-modal-status" data-voucher-status role="status" aria-live="polite"></p>
+                <div class="co-voucher-modal-list" data-voucher-list></div>
+                <button type="button" class="co-voucher-show-more" data-voucher-show-more hidden>Hiển thị tất cả</button>
+            </div>
+        </div>
+    </div>
 </section>
 
 @* ════ Mapbox Modal ════════════

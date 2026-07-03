@@ -76,9 +76,28 @@ public sealed class DbAccountProfilePageProvider(EcommerceDbContext dbContext) :
             .OrderByDescending(address => address.IsDefault)
             .ThenByDescending(address => address.UpdatedAt ?? address.CreatedAt)
             .ToListAsync(cancellationToken);
+        var favoriteProducts = await dbContext.Wishlists
+            .AsNoTracking()
+            .AsSplitQuery()
+            .Include(item => item.ProductVariant)
+                .ThenInclude(variant => variant!.Product)
+            .Include(item => item.ProductVariant)
+                .ThenInclude(variant => variant!.ProductVariantImages)
+            .Include(item => item.ProductVariant)
+                .ThenInclude(variant => variant!.VariantAttributes)
+                    .ThenInclude(attribute => attribute.AttributeOption)
+                        .ThenInclude(option => option!.Attribute)
+            .Where(item => item.UserId == user.Id)
+            .OrderByDescending(item => item.CreatedAt)
+            .ToListAsync(cancellationToken);
 
         var orderItems = orders.Select(ToOrderViewModel).ToList();
         var addressItems = addresses.Select(ToAddressViewModel).ToList();
+        var favoriteItems = favoriteProducts
+            .Select(ToFavoriteProductViewModel)
+            .Where(item => item is not null)
+            .Select(item => item!)
+            .ToList();
         var defaultAddress = addressItems.FirstOrDefault(address => address.IsDefault)
             ?? addressItems.FirstOrDefault();
         var resolvedPhone = string.IsNullOrWhiteSpace(user.Phone)
@@ -107,7 +126,8 @@ public sealed class DbAccountProfilePageProvider(EcommerceDbContext dbContext) :
             Summary = summary,
             RecentOrders = orderItems.Take(3).ToList(),
             Orders = orderItems,
-            Addresses = addressItems
+            Addresses = addressItems,
+            FavoriteProducts = favoriteItems
         };
     }
 
@@ -140,6 +160,37 @@ public sealed class DbAccountProfilePageProvider(EcommerceDbContext dbContext) :
         AddressText = FormatAddress(address),
         IsDefault = address.IsDefault
     };
+
+    private static AccountFavoriteProductViewModel? ToFavoriteProductViewModel(Models.Entities.Wishlist wishlist)
+    {
+        var variant = wishlist.ProductVariant;
+        var product = variant?.Product;
+        if (variant is null || product is null)
+        {
+            return null;
+        }
+
+        var image = variant.ProductVariantImages
+            .OrderBy(item => item.Position)
+            .ThenBy(item => item.Id)
+            .FirstOrDefault();
+        var variantKey = GetVariantKey(variant);
+        var name = BuildFavoriteProductName(product, variant);
+
+        return new AccountFavoriteProductViewModel
+        {
+            ProductVariantKey = variantKey,
+            Name = name,
+            ImageUrl = NormalizeImageUrl(image?.ImagePath),
+            ImageAlt = image?.AltText ?? name,
+            PriceText = FormatCurrency(variant.Price),
+            IsAvailable = variant.IsActive && product.IsActive && variant.Quantity > 0,
+            AvailabilityText = variant.IsActive && product.IsActive && variant.Quantity > 0
+                ? "Còn hàng"
+                : "Tạm hết hàng",
+            DetailUrl = $"/product/{Uri.EscapeDataString(product.Slug)}?variant={Uri.EscapeDataString(variantKey)}"
+        };
+    }
 
     private static AccountProfileOrderViewModel ToOrderViewModel(Order order)
     {
@@ -213,6 +264,21 @@ public sealed class DbAccountProfilePageProvider(EcommerceDbContext dbContext) :
         }
 
         return string.Join(" - ", parts);
+    }
+
+    private static string BuildFavoriteProductName(Product product, ProductVariant variant)
+    {
+        var variantText = BuildVariantText(variant);
+        return string.IsNullOrWhiteSpace(variantText)
+            ? product.Name
+            : $"{product.Name} {variantText}";
+    }
+
+    private static string GetVariantKey(ProductVariant variant)
+    {
+        return string.IsNullOrWhiteSpace(variant.Code)
+            ? variant.Id.ToString(ViCulture)
+            : variant.Code;
     }
 
     private static string GetStatusText(OrderStatus status) => status switch

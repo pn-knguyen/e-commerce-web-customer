@@ -1,10 +1,46 @@
+@using e_commerce_web_customer.Application.Constants
+@using e_commerce_web_customer.Data
+@using Microsoft.AspNetCore.Http
+@using Microsoft.EntityFrameworkCore
+@inject EcommerceDbContext WishlistDbContext
 @model ProductCardViewModel
 
 @{
-    var wishlistLabel = Model.IsWishlisted ? "Đã thích" : "Yêu thích";
-    var wishlistAriaLabel = Model.IsWishlisted
+    var isWishlisted = Model.IsWishlisted;
+
+    if (!isWishlisted && Model.ShowWishlistAction)
+    {
+        var isLoggedIn = Context.Session.GetString(SessionKeys.IsLoggedIn) == "true";
+        var userEmail = Context.Session.GetString(SessionKeys.UserEmail)?.Trim().ToLowerInvariant();
+
+        if (isLoggedIn && !string.IsNullOrWhiteSpace(userEmail) && !string.IsNullOrWhiteSpace(Model.Id))
+        {
+            var variantKey = Model.Id.Trim();
+            var hasNumericVariantId = long.TryParse(
+                variantKey,
+                System.Globalization.NumberStyles.Integer,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out var variantId);
+
+            isWishlisted = await WishlistDbContext.Wishlists
+                .AsNoTracking()
+                .AnyAsync(item =>
+                    item.User != null
+                    && item.User.Email.ToLower() == userEmail
+                    && item.ProductVariant != null
+                    && (hasNumericVariantId
+                        ? item.ProductVariantId == variantId
+                        : item.ProductVariant.Code == variantKey));
+        }
+    }
+
+    var wishlistLabel = isWishlisted ? "Đã thích" : "Yêu thích";
+    var wishlistAriaLabel = isWishlisted
         ? $"Xóa {Model.Name} khỏi danh sách yêu thích"
         : $"Thêm {Model.Name} vào danh sách yêu thích";
+    var wishlistIcon = isWishlisted
+        ? "#product-card-icon-heart-filled"
+        : "#product-card-icon-heart";
     var hasMeta = !string.IsNullOrWhiteSpace(Model.DeliveryLabel)
         || !string.IsNullOrWhiteSpace(Model.Location);
     var hasOffers = !string.IsNullOrWhiteSpace(Model.MemberOffer)
@@ -121,16 +157,18 @@
             }
             @if (Model.ShowWishlistAction)
             {
-                <button class="product-card__wishlist @(Model.IsWishlisted ? "is-active" : null)"
+                <button class="product-card__wishlist @(isWishlisted ? "is-active" : null)"
                         type="button"
-                        aria-pressed="@Model.IsWishlisted.ToString().ToLowerInvariant()"
+                        aria-pressed="@isWishlisted.ToString().ToLowerInvariant()"
                         aria-label="@wishlistAriaLabel"
                         data-product-wishlist
                         data-product-id="@Model.Id"
                         data-product-name="@Model.Name"
                         data-active-label="Đã thích"
-                        data-inactive-label="Yêu thích">
-                    <svg aria-hidden="true"><use href="#product-card-icon-heart"></use></svg>
+                        data-inactive-label="Yêu thích"
+                        data-filled-icon="#product-card-icon-heart-filled"
+                        data-outline-icon="#product-card-icon-heart">
+                    <svg aria-hidden="true"><use href="@wishlistIcon"></use></svg>
                     <span>@wishlistLabel</span>
                 </button>
             }

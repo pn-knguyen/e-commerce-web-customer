@@ -10,6 +10,7 @@ public sealed record PlaceOrderRequest(
     string ShippingWard,
     string ShippingDetail,
     long PaymentMethodId,
+    long? VoucherId,
     string? Note,
     decimal ShippingFee,
     decimal Discount,

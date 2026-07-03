@@ -53,9 +53,12 @@ public sealed class CheckoutViewModel
     [Range(1, long.MaxValue, ErrorMessage = "Vui lòng chọn phương thức thanh toán.")]
     public long PaymentMethodId { get; set; }
 
+    public long? SelectedVoucherId { get; set; }
+
     // ── Order summary (read-only, passed in from session/cart) ─────
     public IReadOnlyList<CheckoutItemViewModel> Items { get; set; } = [];
     public IReadOnlyList<CheckoutPaymentMethodViewModel> PaymentMethods { get; set; } = [];
+    public IReadOnlyList<CheckoutVoucherViewModel> Vouchers { get; set; } = [];
     public decimal ShippingFee { get; set; } = 30_000m;
     public decimal Discount { get; set; }
 
@@ -83,4 +86,27 @@ public sealed class CheckoutPaymentMethodViewModel
     public string Name { get; init; } = string.Empty;
     public string Description { get; init; } = string.Empty;
     public string IconKey { get; init; } = "generic";
+}
+
+public sealed class CheckoutVoucherViewModel
+{
+    public long Id { get; init; }
+    public string Code { get; init; } = string.Empty;
+    public string? Description { get; init; }
+    public string DiscountType { get; init; } = string.Empty;
+    public decimal DiscountValue { get; init; }
+    public decimal MinOrderValue { get; init; }
+    public decimal? MaxDiscountValue { get; init; }
+    public DateTime EndDate { get; init; }
+    public int Priority { get; init; }
+    public bool IsAvailable { get; init; }
+    public string? UnavailableReason { get; init; }
+    public decimal DiscountAmount { get; init; }
+
+    public string DiscountText => string.Equals(
+            DiscountType,
+            "Percentage",
+            StringComparison.OrdinalIgnoreCase)
+        ? $"{DiscountValue:N0}%"
+        : CheckoutViewModel.FormatPrice(DiscountValue);
 }

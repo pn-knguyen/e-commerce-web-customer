@@ -44,6 +44,10 @@
     <TailwindBuildInput Include="wwwroot/js/**/*.js" />
   </ItemGroup>
 
+  <Target Name="InvalidateFrontendDependencyStampWhenPackagesMissing" BeforeTargets="RestoreFrontendDependencies" Condition="!Exists('node_modules/.bin/tailwindcss') Or !Exists('node_modules/swiper/swiper-bundle.min.css') Or !Exists('node_modules/@microsoft/signalr/dist/browser/signalr.min.js')">
+    <Delete Files="node_modules/.package-lock.json" />
+  </Target>
+
   <Target Name="RestoreFrontendDependencies" Inputs="package-lock.json" Outputs="node_modules/.package-lock.json">
     <Message Importance="high" Text="Restoring frontend dependencies with npm ci..." />
     <Exec Command="$(NpmExecutable) ci" />

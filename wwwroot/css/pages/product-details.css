@@ -1379,6 +1379,14 @@
   height: 19px;
 }
 
+.pd-related-foot button.is-active {
+  color: #e60012;
+}
+
+.pd-related-foot button.is-active svg {
+  fill: currentColor;
+}
+
 .boxReview {
   max-width: 1200px;
   padding: 12px;

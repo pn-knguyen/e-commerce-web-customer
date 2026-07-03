@@ -20,6 +20,7 @@ using e_commerce_web_customer.Infrastructure.Integrations.MoMo;
 using e_commerce_web_customer.Infrastructure.Integrations.Gemini;
 using e_commerce_web_customer.Infrastructure.Integrations.VnPay;
 using e_commerce_web_customer.Infrastructure.Integrations.SePay;
+using e_commerce_web_customer.Infrastructure.Marketing;
 using e_commerce_web_customer.Infrastructure.Navigation.Db;
 using e_commerce_web_customer.Infrastructure.Navigation.Mock;
 using e_commerce_web_customer.Infrastructure.Orders.Db;
@@ -28,6 +29,7 @@ using e_commerce_web_customer.Infrastructure.Products.Db;
 using e_commerce_web_customer.Infrastructure.Products.Mock;
 using e_commerce_web_customer.Infrastructure.Search.Db;
 using e_commerce_web_customer.Infrastructure.Search.Mock;
+using e_commerce_web_customer.Infrastructure.Wishlist;
 using e_commerce_web_customer.Models.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -74,10 +76,12 @@ public static class StorefrontServiceCollectionExtensions
         services.AddSingleton<ICartDemoDataProvider, MockCartDemoDataProvider>();
         services.AddSingleton<ICartPersistenceService, NoOpCartPersistenceService>();
         services.AddSingleton<ICheckoutPaymentMethodProvider, MockCheckoutPaymentMethodProvider>();
+        services.AddSingleton<ICheckoutVoucherService, NoOpCheckoutVoucherService>();
         services.AddSingleton<IOrderService, MockOrderService>();
         services.AddScoped<IAccountService, MockAccountService>();
         services.AddScoped<ICartItemValidator, MockCartItemValidator>();
         services.AddScoped<ICustomerMessageCustomerService, MockCustomerMessageCustomerService>();
+        services.AddScoped<IWishlistService, NoOpWishlistService>();
 
         return services;
     }
@@ -120,6 +124,7 @@ public static class StorefrontServiceCollectionExtensions
         services.AddScoped<ICartDemoDataProvider, EmptyCartDemoDataProvider>();
         services.AddScoped<ICartPersistenceService, DbCartPersistenceService>();
         services.AddScoped<ICheckoutPaymentMethodProvider, DbCheckoutPaymentMethodProvider>();
+        services.AddScoped<ICheckoutVoucherService, DbCheckoutVoucherService>();
         services.AddScoped<IOrderService, DbOrderService>();
         services.AddScoped<ISePayPaymentService, SePayPaymentService>();
         services.AddScoped<ISePayWebhookService, SePayWebhookService>();
@@ -127,6 +132,7 @@ public static class StorefrontServiceCollectionExtensions
         services.AddScoped<IAccountService, DbAccountService>();
         services.AddScoped<ICartItemValidator, DbCartItemValidator>();
         services.AddScoped<ICustomerMessageCustomerService, DbCustomerMessageCustomerService>();
+        services.AddScoped<IWishlistService, DbWishlistService>();
 
         return services;
     }

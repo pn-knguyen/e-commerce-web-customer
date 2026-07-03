@@ -490,6 +490,7 @@ public sealed class MockProductDetailViewModelFactory(
     {
         return new ProductRelatedProductViewModel
         {
+            ProductVariantKey = SlugifyProductName(name),
             Url = url ?? $"/product/{SlugifyProductName(name)}",
             Name = name,
             ImageUrl = imageUrl,

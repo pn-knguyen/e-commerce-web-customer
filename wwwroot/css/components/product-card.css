@@ -303,12 +303,16 @@
   font-size: 10px;
   transition:
     color var(--transition-fast),
-    transform var(--transition-fast);
+    transform var(--transition-fast),
+    opacity var(--transition-fast);
 }
 
 .product-card__wishlist svg {
   width: 19px;
   height: 19px;
+  transition:
+    fill var(--transition-fast),
+    transform var(--transition-fast);
 }
 
 .product-card__wishlist:hover,
@@ -318,10 +322,16 @@
 
 .product-card__wishlist.is-active svg {
   fill: currentColor;
+  transform: scale(1.06);
 }
 
 .product-card__wishlist:active {
   transform: scale(0.96);
+}
+
+.product-card__wishlist.is-loading {
+  opacity: 0.72;
+  cursor: wait;
 }
 
 .product-card-icon-sprite {

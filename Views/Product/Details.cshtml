@@ -423,9 +423,18 @@
                                             </span>
                                         }
 
-                                        <button type="button">
+                                        <button type="button"
+                                                data-product-wishlist
+                                                data-product-id="@product.ProductVariantKey"
+                                                data-product-name="@product.Name"
+                                                data-active-label="Đã thích"
+                                                data-inactive-label="Yêu thích"
+                                                data-filled-icon="#product-card-icon-heart-filled"
+                                                data-outline-icon="#product-card-icon-heart"
+                                                aria-pressed="false"
+                                                aria-label="Thêm @product.Name vào danh sách yêu thích">
                                             <svg aria-hidden="true"><use href="#product-card-icon-heart"></use></svg>
-                                            Yêu thích
+                                            <span>Yêu thích</span>
                                         </button>
                                     </div>
                                 </article>

@@ -171,3 +171,94 @@
 
   loadProvinces();
 })();
+
+(function () {
+  'use strict';
+
+  const list = document.querySelector('[data-profile-favorite-list]');
+  if (!list) return;
+
+  function getAntiForgeryToken() {
+    return document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+  }
+
+  function showMessage(message, type = 'default') {
+    if (!message) return;
+    if (typeof window.showToast === 'function') {
+      window.showToast(message, type);
+      return;
+    }
+    window.alert(message);
+  }
+
+  function renderEmptyState() {
+    const empty = document.createElement('div');
+    empty.className = 'ap-favorite-empty';
+    empty.innerHTML = [
+      '<div class="ap-empty-illustration ap-empty-illustration--small">',
+      '<span class="ap-empty-bag">S</span>',
+      '</div>',
+      '<p>Bạn chưa có sản phẩm nào yêu thích? Hãy bắt đầu mua sắm ngay nào! <a href="/catalog">Mua sắm ngay</a></p>'
+    ].join('');
+    list.replaceWith(empty);
+  }
+
+  async function removeFavorite(button) {
+    const productId = button.dataset.productId;
+    if (!productId) {
+      showMessage('Sản phẩm không hợp lệ.', 'error');
+      return;
+    }
+
+    button.disabled = true;
+    button.classList.add('is-loading');
+
+    try {
+      const response = await fetch('/wishlist/remove', {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          RequestVerificationToken: getAntiForgeryToken()
+        },
+        body: JSON.stringify({ productId })
+      });
+
+      let data = {};
+      try {
+        data = await response.json();
+      } catch {
+        data = {};
+      }
+
+      if (response.status === 401) {
+        window.location.href = data.loginUrl || '/Account/Login';
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error(data.message || 'Không thể bỏ yêu thích sản phẩm.');
+      }
+
+      button.closest('[data-profile-favorite-item]')?.remove();
+      showMessage(data.message || 'Đã bỏ sản phẩm khỏi danh sách yêu thích.', 'success');
+
+      if (!list.querySelector('[data-profile-favorite-item]')) {
+        renderEmptyState();
+      }
+    } catch (error) {
+      showMessage(error.message, 'error');
+      button.disabled = false;
+      button.classList.remove('is-loading');
+    }
+  }
+
+  list.addEventListener('click', (event) => {
+    const button = event.target.closest('[data-profile-wishlist-remove]');
+    if (!button || button.disabled || button.classList.contains('is-loading')) {
+      return;
+    }
+
+    removeFavorite(button);
+  });
+})();
