@@ -7,6 +7,7 @@ public sealed class AccountProfilePageViewModel
     public IReadOnlyList<AccountProfileOrderViewModel> RecentOrders { get; init; } = [];
     public IReadOnlyList<AccountProfileOrderViewModel> Orders { get; init; } = [];
     public IReadOnlyList<AccountProfileAddressViewModel> Addresses { get; init; } = [];
+    public IReadOnlyList<AccountFavoriteProductViewModel> FavoriteProducts { get; init; } = [];
     public IReadOnlyList<AccountProfileLinkedAccountViewModel> LinkedAccounts { get; init; } =
     [
         new() { ProviderName = "Google", LogoText = "G", LogoClass = "google" },
@@ -17,6 +18,7 @@ public sealed class AccountProfilePageViewModel
     public bool IsHistory => string.Equals(ActiveTab, AccountProfileTabs.History, StringComparison.OrdinalIgnoreCase);
     public bool IsInfo => string.Equals(ActiveTab, AccountProfileTabs.Info, StringComparison.OrdinalIgnoreCase);
     public bool HasAddresses => Addresses.Count > 0;
+    public bool HasFavoriteProducts => FavoriteProducts.Count > 0;
 }
 
 public static class AccountProfileTabs
@@ -67,6 +69,18 @@ public sealed class AccountProfileLinkedAccountViewModel
     public string ProviderName { get; init; } = string.Empty;
     public string LogoText { get; init; } = string.Empty;
     public string LogoClass { get; init; } = string.Empty;
+}
+
+public sealed class AccountFavoriteProductViewModel
+{
+    public string ProductVariantKey { get; init; } = string.Empty;
+    public string Name { get; init; } = string.Empty;
+    public string ImageUrl { get; init; } = "/images/logo-techstore-icon.svg";
+    public string ImageAlt { get; init; } = string.Empty;
+    public string PriceText { get; init; } = string.Empty;
+    public string AvailabilityText { get; init; } = string.Empty;
+    public bool IsAvailable { get; init; }
+    public string DetailUrl { get; init; } = "#";
 }
 
 public sealed class AccountProfileOrderViewModel

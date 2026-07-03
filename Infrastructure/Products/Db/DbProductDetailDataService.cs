@@ -540,6 +540,7 @@ public sealed class DbProductDetailDataService(EcommerceDbContext dbContext) : I
 
                 return new ProductRelatedProductViewModel
                 {
+                    ProductVariantKey = GetVariantKey(variant),
                     Url = BuildVariantDetailUrl(group.Product, variant),
                     Name = name,
                     ImageUrl = NormalizeImageUrl(image?.ImagePath),

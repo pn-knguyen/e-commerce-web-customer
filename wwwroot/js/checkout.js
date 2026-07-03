@@ -558,4 +558,242 @@
 
   paymentRadios.forEach((radio) => radio.addEventListener('change', syncPaymentInfo));
   syncPaymentInfo();
+
+  /* ── Voucher modal + server validation ─────────────────────────── */
+  const priceList = document.querySelector('.co-price-list');
+  const selectedVoucherInput = document.getElementById('co-selected-voucher-id');
+  const voucherOpenBtn = document.getElementById('co-voucher-open');
+  const voucherModal = document.getElementById('co-voucher-modal');
+  const voucherList = document.querySelector('[data-voucher-list]');
+  const voucherStatus = document.querySelector('[data-voucher-status]');
+  const voucherShowMore = document.querySelector('[data-voucher-show-more]');
+  const voucherCurrent = document.querySelector('[data-voucher-current]');
+  const discountRow = document.querySelector('[data-checkout-discount-row]');
+  const discountAmount = document.querySelector('[data-checkout-discount]');
+  const totalAmount = document.querySelector('[data-checkout-total]');
+  let voucherPayload = null;
+  let showAllVouchers = false;
+
+  function parseMoney(value) {
+    const parsed = Number.parseFloat(String(value || '0').replace(',', '.'));
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  function formatVnd(value) {
+    return `${Math.max(0, value).toLocaleString('vi-VN')}đ`;
+  }
+
+  function getAntiForgeryToken() {
+    return document.querySelector('input[name="__RequestVerificationToken"]')?.value || '';
+  }
+
+  function setVoucherStatus(message, isError) {
+    if (!voucherStatus) return;
+    voucherStatus.textContent = message || '';
+    voucherStatus.classList.toggle('is-error', Boolean(isError));
+  }
+
+  function updateTotals(discount, finalTotalText) {
+    if (!priceList || !discountAmount || !discountRow || !totalAmount) return;
+
+    const subtotal = parseMoney(priceList.dataset.subtotal);
+    const shippingFee = parseMoney(priceList.dataset.shippingFee);
+    const safeDiscount = Math.min(Math.max(0, discount), subtotal);
+    const total = subtotal + shippingFee - safeDiscount;
+
+    discountRow.classList.toggle('is-hidden', safeDiscount <= 0);
+    discountAmount.textContent = `−${formatVnd(safeDiscount)}`;
+    totalAmount.textContent = finalTotalText || formatVnd(total);
+  }
+
+  function updateVoucherSummary(payload) {
+    if (!payload || !voucherCurrent) return;
+
+    const selectedVoucher = payload.selectedVoucher;
+    if (selectedVoucherInput) {
+      selectedVoucherInput.value = selectedVoucher?.id || '';
+    }
+
+    voucherCurrent.replaceChildren();
+    const code = document.createElement('span');
+    code.className = 'co-voucher-current-code';
+    const discount = document.createElement('span');
+    discount.className = 'co-voucher-current-discount';
+
+    if (selectedVoucher) {
+      code.textContent = `✓ ${selectedVoucher.code}`;
+      discount.textContent = `Giảm ${payload.discountText}`;
+    } else {
+      code.textContent = 'Không sử dụng voucher';
+      discount.textContent = 'Bạn có thể chọn voucher khác nếu có';
+    }
+
+    voucherCurrent.append(code, discount);
+    updateTotals(payload.discountAmount || 0, payload.finalTotalText);
+  }
+
+  function createVoucherOption(voucher, selectedId) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'co-voucher-modal-option';
+    button.classList.toggle('is-selected', voucher.id === selectedId);
+    button.classList.toggle('is-disabled', !voucher.isAvailable);
+    button.disabled = !voucher.isAvailable;
+
+    const icon = document.createElement('span');
+    icon.className = 'co-voucher-modal-icon';
+    icon.textContent = '🎟';
+
+    const body = document.createElement('span');
+    body.className = 'co-voucher-modal-option-body';
+
+    const top = document.createElement('span');
+    top.className = 'co-voucher-modal-option-top';
+
+    const code = document.createElement('strong');
+    code.textContent = voucher.code;
+    const badge = document.createElement('span');
+    badge.className = 'co-voucher-modal-badge';
+    badge.textContent = voucher.discountText;
+    top.append(code, badge);
+
+    const desc = document.createElement('span');
+    desc.className = 'co-voucher-modal-desc';
+    desc.textContent = voucher.description || 'Ưu đãi cho đơn hàng của bạn';
+
+    const meta = document.createElement('span');
+    meta.className = 'co-voucher-modal-meta';
+    meta.textContent = `Đơn tối thiểu ${voucher.minOrderValueText} · HSD ${voucher.endDateText}`;
+
+    body.append(top, desc, meta);
+    if (!voucher.isAvailable && voucher.unavailableReason) {
+      const reason = document.createElement('span');
+      reason.className = 'co-voucher-modal-reason';
+      reason.textContent = voucher.unavailableReason;
+      body.append(reason);
+    }
+
+    button.append(icon, body);
+    button.addEventListener('click', () => applyVoucher(voucher.id));
+    return button;
+  }
+
+  function renderVoucherModal() {
+    if (!voucherPayload || !voucherList || !voucherShowMore) return;
+
+    voucherList.replaceChildren();
+    const selectedId = voucherPayload.selectedVoucher?.id || null;
+
+    const clearButton = document.createElement('button');
+    clearButton.type = 'button';
+    clearButton.className = 'co-voucher-modal-option is-clear';
+    clearButton.classList.toggle('is-selected', !selectedId);
+    clearButton.textContent = 'Không dùng voucher';
+    clearButton.addEventListener('click', () => applyVoucher(null));
+    voucherList.appendChild(clearButton);
+
+    const vouchers = voucherPayload.vouchers || [];
+    const visibleVouchers = showAllVouchers ? vouchers : vouchers.slice(0, 3);
+    visibleVouchers.forEach((voucher) => {
+      voucherList.appendChild(createVoucherOption(voucher, selectedId));
+    });
+
+    voucherShowMore.hidden = vouchers.length <= 3 || showAllVouchers;
+  }
+
+  async function loadVoucherOptions() {
+    if (!voucherOpenBtn) return;
+    setVoucherStatus('Đang tải voucher...', false);
+    const response = await fetch(voucherOpenBtn.dataset.voucherOptionsUrl || '/Checkout/VoucherOptions', {
+      headers: { Accept: 'application/json' }
+    });
+
+    if (!response.ok) {
+      throw new Error('load-vouchers-failed');
+    }
+
+    voucherPayload = await response.json();
+    const currentVoucherId = selectedVoucherInput?.value
+      ? Number.parseInt(selectedVoucherInput.value, 10)
+      : null;
+    voucherPayload.selectedVoucher = currentVoucherId
+      ? (voucherPayload.vouchers || []).find((voucher) => voucher.id === currentVoucherId) || null
+      : null;
+    renderVoucherModal();
+    setVoucherStatus('', false);
+  }
+
+  async function applyVoucher(voucherId) {
+    if (!voucherOpenBtn) return;
+    setVoucherStatus('Đang áp dụng voucher...', false);
+    voucherList?.classList.add('is-loading');
+
+    try {
+      const response = await fetch(voucherOpenBtn.dataset.voucherChangeUrl || '/Checkout/ChangeVoucher', {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/json',
+          RequestVerificationToken: getAntiForgeryToken()
+        },
+        body: JSON.stringify({
+          voucherId,
+          mode: voucherOpenBtn.dataset.checkoutMode || ''
+        })
+      });
+
+      const payload = await response.json().catch(() => null);
+      if (!response.ok || !payload) {
+        throw new Error(payload?.message || 'Không thể áp dụng voucher.');
+      }
+
+      voucherPayload = payload;
+      updateVoucherSummary(payload);
+      renderVoucherModal();
+      setVoucherStatus('Đã cập nhật voucher.', false);
+      window.setTimeout(closeVoucherModal, 220);
+    } catch (error) {
+      setVoucherStatus(error.message || 'Không thể áp dụng voucher.', true);
+    } finally {
+      voucherList?.classList.remove('is-loading');
+    }
+  }
+
+  function openVoucherModal() {
+    if (!voucherModal) return;
+    voucherModal.hidden = false;
+    requestAnimationFrame(() => voucherModal.classList.add('is-open'));
+    document.body.style.overflow = 'hidden';
+    showAllVouchers = false;
+    loadVoucherOptions().catch(() => {
+      setVoucherStatus('Không thể tải danh sách voucher. Vui lòng thử lại.', true);
+    });
+  }
+
+  function closeVoucherModal() {
+    if (!voucherModal) return;
+    voucherModal.classList.remove('is-open');
+    document.body.style.overflow = '';
+    window.setTimeout(() => {
+      if (!voucherModal.classList.contains('is-open')) {
+        voucherModal.hidden = true;
+      }
+    }, 180);
+    voucherOpenBtn?.focus();
+  }
+
+  voucherOpenBtn?.addEventListener('click', openVoucherModal);
+  voucherModal?.querySelectorAll('[data-voucher-close]').forEach((item) => {
+    item.addEventListener('click', closeVoucherModal);
+  });
+  voucherShowMore?.addEventListener('click', () => {
+    showAllVouchers = true;
+    renderVoucherModal();
+  });
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape' && voucherModal?.classList.contains('is-open')) {
+      closeVoucherModal();
+    }
+  });
+  updateTotals(parseMoney(discountAmount?.textContent?.replace(/[^\d]/g, '')));
 })();

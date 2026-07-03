@@ -15,6 +15,7 @@ public sealed class CheckoutController(
     ICartPersistenceService cartPersistenceService,
     ICartDemoDataProvider demoDataProvider,
     ICheckoutPaymentMethodProvider paymentMethodProvider,
+    ICheckoutVoucherService checkoutVoucherService,
     IOrderService orderService,
     IAccountAddressService accountAddressService,
     IMoMoIntegration momoIntegration,
@@ -74,6 +75,26 @@ public sealed class CheckoutController(
 
         try
         {
+            var voucherValidation = await checkoutVoucherService.ValidateAsync(
+                model.SelectedVoucherId,
+                GetRequiredLoggedInUserEmail(),
+                orderSnapshot.Items,
+                orderSnapshot.Subtotal,
+                cancellationToken);
+
+            if (!voucherValidation.IsValid)
+            {
+                ModelState.AddModelError(
+                    nameof(model.SelectedVoucherId),
+                    voucherValidation.ErrorMessage ?? "Voucher không hợp lệ.");
+                RestoreOrderSummary(model, orderSnapshot);
+                ViewData["Mode"] = mode;
+                return View(model);
+            }
+
+            orderSnapshot.SelectedVoucherId = voucherValidation.VoucherId;
+            orderSnapshot.Discount = voucherValidation.DiscountAmount;
+
             var paymentProvider = ResolvePaymentProvider(
                 model.PaymentMethodId,
                 orderSnapshot.PaymentMethods);
@@ -125,6 +146,92 @@ public sealed class CheckoutController(
         return successModel is null
             ? RedirectToAction("Index", "Cart")
             : View(successModel);
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> SuggestedVoucher(
+        string mode = "",
+        CancellationToken cancellationToken = default)
+    {
+        if (!IsLoggedIn())
+        {
+            return Unauthorized();
+        }
+
+        var model = await BuildModelAsync(false, mode, cancellationToken);
+        return Json(BuildVoucherResponse(model));
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> VoucherOptions(
+        string mode = "",
+        long? selectedVoucherId = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (!IsLoggedIn())
+        {
+            return Unauthorized();
+        }
+
+        var model = await BuildModelAsync(false, mode, cancellationToken);
+        if (selectedVoucherId.HasValue)
+        {
+            var validation = await checkoutVoucherService.ValidateAsync(
+                selectedVoucherId,
+                GetRequiredLoggedInUserEmail(),
+                model.Items,
+                model.Subtotal,
+                cancellationToken);
+
+            if (validation.IsValid)
+            {
+                model.SelectedVoucherId = validation.VoucherId;
+                model.Discount = validation.DiscountAmount;
+            }
+        }
+
+        return Json(BuildVoucherResponse(model));
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> ChangeVoucher(
+        [FromBody] CheckoutVoucherChangeRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (!IsLoggedIn())
+        {
+            return Unauthorized();
+        }
+
+        var model = await BuildModelAsync(false, request.Mode ?? string.Empty, cancellationToken);
+        if (model.Items.Count == 0)
+        {
+            return BadRequest(new
+            {
+                message = "Đơn hàng không có sản phẩm."
+            });
+        }
+
+        var validation = await checkoutVoucherService.ValidateAsync(
+            request.VoucherId,
+            GetRequiredLoggedInUserEmail(),
+            model.Items,
+            model.Subtotal,
+            cancellationToken);
+
+        if (!validation.IsValid)
+        {
+            return BadRequest(new
+            {
+                message = validation.ErrorMessage ?? "Voucher không hợp lệ."
+            });
+        }
+
+        model.SelectedVoucherId = validation.VoucherId;
+        model.Discount = validation.DiscountAmount;
+
+        return Json(BuildVoucherResponse(model));
     }
 
     private async Task<IActionResult> ProcessPaymentRedirectAsync(
@@ -290,6 +397,22 @@ public sealed class CheckoutController(
             Phone = HttpContext.Session.GetString(SessionKeys.UserPhoneNumber) ?? string.Empty
         };
 
+        if (model.Items.Count > 0 && GetLoggedInUserEmail() is { } voucherEmail)
+        {
+            model.Vouchers = await checkoutVoucherService.GetAvailableVouchersAsync(
+                voucherEmail,
+                model.Items,
+                model.Subtotal,
+                cancellationToken);
+            var bestVoucher = await checkoutVoucherService.GetBestVoucherAsync(
+                voucherEmail,
+                model.Items,
+                model.Subtotal,
+                cancellationToken);
+            model.SelectedVoucherId = bestVoucher.VoucherId;
+            model.Discount = bestVoucher.DiscountAmount;
+        }
+
         if (GetLoggedInUserEmail() is { } defaultAddressEmail)
         {
             var defaultAddress = await accountAddressService.GetDefaultAddressAsync(
@@ -318,6 +441,7 @@ public sealed class CheckoutController(
             ResolveLocationName(submittedModel.WardName, submittedModel.Ward),
             BuildShippingDetail(submittedModel),
             submittedModel.PaymentMethodId,
+            order.SelectedVoucherId,
             submittedModel.Note?.Trim(),
             order.ShippingFee,
             order.Discount,
@@ -414,6 +538,8 @@ public sealed class CheckoutController(
     {
         target.Items = source.Items;
         target.PaymentMethods = source.PaymentMethods;
+        target.Vouchers = source.Vouchers;
+        target.SelectedVoucherId = source.SelectedVoucherId;
         target.ShippingFee = source.ShippingFee;
         target.Discount = source.Discount;
     }
@@ -565,4 +691,68 @@ public sealed class CheckoutController(
         var method = paymentMethods.FirstOrDefault(m => m.Id == paymentMethodId);
         return method?.Name.ToLowerInvariant() ?? "";
     }
+
+    private static CheckoutVoucherResponse BuildVoucherResponse(CheckoutViewModel model)
+    {
+        var selectedVoucher = model.SelectedVoucherId.HasValue
+            ? model.Vouchers.FirstOrDefault(voucher => voucher.Id == model.SelectedVoucherId.Value)
+            : null;
+
+        return new CheckoutVoucherResponse(
+            SelectedVoucher: selectedVoucher is null
+                ? null
+                : new CheckoutVoucherDto(
+                    selectedVoucher.Id,
+                    selectedVoucher.Code,
+                    selectedVoucher.Description,
+                    selectedVoucher.DiscountText,
+                    selectedVoucher.DiscountAmount,
+                    CheckoutViewModel.FormatPrice(selectedVoucher.DiscountAmount),
+                    selectedVoucher.MinOrderValue,
+                    CheckoutViewModel.FormatPrice(selectedVoucher.MinOrderValue),
+                    selectedVoucher.EndDate.ToString("dd/MM/yyyy"),
+                    selectedVoucher.IsAvailable,
+                    selectedVoucher.UnavailableReason),
+            DiscountAmount: model.Discount,
+            DiscountText: CheckoutViewModel.FormatPrice(model.Discount),
+            FinalTotal: model.Total,
+            FinalTotalText: CheckoutViewModel.FormatPrice(model.Total),
+            Vouchers: model.Vouchers.Select(voucher => new CheckoutVoucherDto(
+                voucher.Id,
+                voucher.Code,
+                voucher.Description,
+                voucher.DiscountText,
+                voucher.DiscountAmount,
+                CheckoutViewModel.FormatPrice(voucher.DiscountAmount),
+                voucher.MinOrderValue,
+                CheckoutViewModel.FormatPrice(voucher.MinOrderValue),
+                voucher.EndDate.ToString("dd/MM/yyyy"),
+                voucher.IsAvailable,
+                voucher.UnavailableReason)).ToList());
+    }
 }
+
+public sealed record CheckoutVoucherChangeRequest(
+    long? VoucherId,
+    string? Mode);
+
+public sealed record CheckoutVoucherResponse(
+    CheckoutVoucherDto? SelectedVoucher,
+    decimal DiscountAmount,
+    string DiscountText,
+    decimal FinalTotal,
+    string FinalTotalText,
+    IReadOnlyList<CheckoutVoucherDto> Vouchers);
+
+public sealed record CheckoutVoucherDto(
+    long Id,
+    string Code,
+    string? Description,
+    string DiscountText,
+    decimal DiscountAmount,
+    string DiscountAmountText,
+    decimal MinOrderValue,
+    string MinOrderValueText,
+    string EndDateText,
+    bool IsAvailable,
+    string? UnavailableReason);

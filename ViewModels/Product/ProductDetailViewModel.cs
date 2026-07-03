@@ -106,6 +106,7 @@ public sealed class ProductRelatedProductGroupViewModel
 
 public sealed class ProductRelatedProductViewModel
 {
+    public required string ProductVariantKey { get; init; }
     public required string Url { get; init; }
     public required string Name { get; init; }
     public required string ImageUrl { get; init; }

@@ -8,7 +8,7 @@ bin/
 obj/
 .agents/
 node_modules/
+node_modules.locked-*/
 .firebaserc
 firebase.json
-firebase-admin-key.json  
- 
+firebase-admin-key.json

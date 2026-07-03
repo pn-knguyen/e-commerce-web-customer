@@ -278,12 +278,43 @@
 
                     <section class="ap-panel ap-favorite-panel" aria-labelledby="profile-favorite-title">
                         <h2 id="profile-favorite-title">Sản phẩm yêu thích</h2>
-                        <div class="ap-favorite-empty">
+                        @if (!Model.HasFavoriteProducts)
+                        {
+                            <div class="ap-favorite-empty">
                             <div class="ap-empty-illustration ap-empty-illustration--small">
                                 <span class="ap-empty-bag">S</span>
                             </div>
                             <p>Bạn chưa có sản phẩm nào yêu thích? Hãy bắt đầu mua sắm ngay nào! <a href="/catalog">Mua sắm ngay</a></p>
-                        </div>
+                            </div>
+                        }
+                        else
+                        {
+                            <div class="ap-favorite-list" data-profile-favorite-list>
+                                @foreach (var product in Model.FavoriteProducts)
+                                {
+                                    <article class="ap-favorite-item" data-profile-favorite-item data-product-id="@product.ProductVariantKey">
+                                        <a class="ap-favorite-thumb" href="@product.DetailUrl" aria-label="Xem @product.Name">
+                                            <img src="@product.ImageUrl" alt="@product.ImageAlt" width="72" height="72" loading="lazy" />
+                                        </a>
+                                        <div class="ap-favorite-info">
+                                            <a class="ap-favorite-name" href="@product.DetailUrl">@product.Name</a>
+                                            <span class="ap-favorite-price">@product.PriceText</span>
+                                            <span class="ap-favorite-stock @(product.IsAvailable ? "is-available" : "is-unavailable")">@product.AvailabilityText</span>
+                                        </div>
+                                        <div class="ap-favorite-actions">
+                                            <a class="ap-favorite-detail" href="@product.DetailUrl">Xem chi tiết</a>
+                                            <button type="button"
+                                                    class="ap-favorite-remove"
+                                                    data-profile-wishlist-remove
+                                                    data-product-id="@product.ProductVariantKey"
+                                                    data-product-name="@product.Name">
+                                                Bỏ yêu thích
+                                            </button>
+                                        </div>
+                                    </article>
+                                }
+                            </div>
+                        }
                     </section>
                 }
             </div>

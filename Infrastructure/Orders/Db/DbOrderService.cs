@@ -38,10 +38,13 @@ public sealed class DbOrderService(EcommerceDbContext dbContext) : IOrderService
 
             var subtotal = orderLines.Sum(line => line.Variant.Price * line.Quantity);
             var shippingFee = Math.Max(0m, request.ShippingFee);
-            var discount = Math.Clamp(
-                request.Discount,
-                0m,
-                subtotal + shippingFee);
+            var resolvedVoucher = await ResolveVoucherAsync(
+                request.VoucherId,
+                user.Id,
+                subtotal,
+                orderLines,
+                cancellationToken);
+            var discount = resolvedVoucher.DiscountAmount;
             var now = DateTime.UtcNow;
             var orderCode = await GenerateOrderCodeAsync(now, cancellationToken);
 
@@ -49,6 +52,7 @@ public sealed class DbOrderService(EcommerceDbContext dbContext) : IOrderService
             {
                 UserId = user.Id,
                 PaymentMethodId = paymentMethod.Id,
+                VoucherId = resolvedVoucher.Voucher?.Id,
                 OrderCode = orderCode,
                 ShippingAddressId = shippingAddress?.Id,
                 ShippingContactName = shippingAddress?.ContactName.Trim() ?? request.CustomerName.Trim(),
@@ -86,6 +90,14 @@ public sealed class DbOrderService(EcommerceDbContext dbContext) : IOrderService
             }
 
             dbContext.Orders.Add(order);
+
+            if (resolvedVoucher.Voucher is not null && discount > 0)
+            {
+                ApplyVoucherUsage(
+                    resolvedVoucher.Voucher,
+                    user.Id,
+                    order);
+            }
 
             var orderedVariantIds = orderLines
                 .Select(line => line.Variant.Id)
@@ -404,6 +416,137 @@ public sealed class DbOrderService(EcommerceDbContext dbContext) : IOrderService
         throw new OrderPlacementException(
             "Không thể tạo mã đơn hàng. Vui lòng thử lại.");
     }
+
+    private async Task<ResolvedVoucher> ResolveVoucherAsync(
+        long? voucherId,
+        long userId,
+        decimal subtotal,
+        IReadOnlyCollection<ResolvedOrderLine> orderLines,
+        CancellationToken cancellationToken)
+    {
+        if (voucherId is null)
+        {
+            return new ResolvedVoucher(null, 0m);
+        }
+
+        var voucher = await dbContext.Vouchers
+            .Include(item => item.VoucherUsers)
+            .Include(item => item.VoucherUsages)
+            .Include(item => item.VoucherTargets)
+            .FirstOrDefaultAsync(item => item.Id == voucherId.Value, cancellationToken);
+
+        if (voucher is null)
+        {
+            throw new OrderPlacementException("Voucher đã chọn không còn tồn tại.");
+        }
+
+        var now = DateTime.UtcNow;
+        if (!voucher.IsActive || voucher.StartDate > now || voucher.EndDate < now)
+        {
+            throw new OrderPlacementException("Voucher đã hết hạn hoặc không còn hoạt động.");
+        }
+
+        if (subtotal < voucher.MinOrderValue)
+        {
+            throw new OrderPlacementException("Đơn hàng chưa đạt giá trị tối thiểu để dùng voucher.");
+        }
+
+        if (voucher.MaxUses.HasValue && voucher.UsedCount >= voucher.MaxUses.Value)
+        {
+            throw new OrderPlacementException("Voucher đã hết lượt sử dụng.");
+        }
+
+        var userUsedCount = voucher.VoucherUsages.Count(item => item.UserId == userId);
+        if (voucher.MaxUsesPerUser.HasValue && userUsedCount >= voucher.MaxUsesPerUser.Value)
+        {
+            throw new OrderPlacementException("Bạn đã dùng hết lượt cho voucher này.");
+        }
+
+        var voucherUser = voucher.VoucherUsers.FirstOrDefault(item => item.UserId == userId);
+        if (voucher.VoucherUsers.Count > 0 && voucherUser is null)
+        {
+            throw new OrderPlacementException("Voucher này không dành cho tài khoản của bạn.");
+        }
+
+        if (voucherUser is not null && voucherUser.UsedCount >= voucherUser.MaxUses)
+        {
+            throw new OrderPlacementException("Bạn đã dùng hết lượt được cấp cho voucher này.");
+        }
+
+        if (voucher.VoucherTargets.Count > 0 && !TargetsOrderLines(voucher.VoucherTargets, orderLines))
+        {
+            throw new OrderPlacementException("Voucher không áp dụng cho sản phẩm trong giỏ hàng.");
+        }
+
+        return new ResolvedVoucher(voucher, CalculateVoucherDiscount(voucher, subtotal));
+    }
+
+    private static bool TargetsOrderLines(
+        IEnumerable<VoucherTarget> voucherTargets,
+        IReadOnlyCollection<ResolvedOrderLine> orderLines)
+    {
+        var variantIds = orderLines.Select(line => line.Variant.Id).ToHashSet();
+        var productIds = orderLines.Select(line => line.Variant.ProductId).ToHashSet();
+        var categoryIds = orderLines
+            .Where(line => line.Variant.Product is not null)
+            .Select(line => line.Variant.Product!.CategoryId)
+            .ToHashSet();
+        var brandIds = orderLines
+            .Where(line => line.Variant.Product is not null)
+            .Select(line => line.Variant.Product!.BrandId)
+            .ToHashSet();
+
+        return voucherTargets.Any(target => target.TargetType switch
+        {
+            TargetType.Product => productIds.Contains(target.TargetId),
+            TargetType.ProductVariant => variantIds.Contains(target.TargetId),
+            TargetType.Category => categoryIds.Contains(target.TargetId),
+            TargetType.Brand => brandIds.Contains(target.TargetId),
+            _ => false
+        });
+    }
+
+    private static decimal CalculateVoucherDiscount(Voucher voucher, decimal subtotal)
+    {
+        var discount = voucher.DiscountType switch
+        {
+            DiscountType.Percentage => subtotal * voucher.DiscountValue / 100m,
+            _ => voucher.DiscountValue
+        };
+
+        if (voucher.MaxDiscountValue.HasValue)
+        {
+            discount = Math.Min(discount, voucher.MaxDiscountValue.Value);
+        }
+
+        return Math.Min(Math.Max(0m, discount), subtotal);
+    }
+
+    private static void ApplyVoucherUsage(
+        Voucher voucher,
+        long userId,
+        Order order)
+    {
+        voucher.UsedCount += 1;
+        voucher.UpdatedAt = DateTime.UtcNow;
+
+        var voucherUser = voucher.VoucherUsers.FirstOrDefault(item => item.UserId == userId);
+        if (voucherUser is not null)
+        {
+            voucherUser.UsedCount += 1;
+        }
+
+        order.VoucherUsages.Add(new VoucherUsage
+        {
+            VoucherId = voucher.Id,
+            UserId = userId,
+            UsedAt = DateTime.UtcNow
+        });
+    }
+
+    private sealed record ResolvedVoucher(
+        Voucher? Voucher,
+        decimal DiscountAmount);
 
     private sealed record ResolvedOrderLine(
         ProductVariant Variant,
