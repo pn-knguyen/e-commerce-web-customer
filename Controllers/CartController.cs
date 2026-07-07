@@ -1,5 +1,7 @@
 using e_commerce_web_customer.Application.Contracts;
 using e_commerce_web_customer.Application.Constants;
+using e_commerce_web_customer.Application.Recommendations.Abstractions;
+using e_commerce_web_customer.Application.Recommendations.Models;
 using e_commerce_web_customer.Application.Services;
 using e_commerce_web_customer.ViewModels.Cart;
 using Microsoft.AspNetCore.Mvc;
@@ -10,7 +12,8 @@ public sealed class CartController(
     CartSessionService cartSession,
     ICartItemValidator cartItemValidator,
     ICartPersistenceService cartPersistenceService,
-    ICartDemoDataProvider demoDataProvider) : Controller
+    ICartDemoDataProvider demoDataProvider,
+    ICartAccessoryRecommendationService cartAccessoryRecommendationService) : Controller
 {
     [HttpGet]
     public async Task<IActionResult> Index(
@@ -18,13 +21,15 @@ public sealed class CartController(
         CancellationToken cancellationToken = default)
     {
         IReadOnlyList<CartItemViewModel> items;
+        IReadOnlyList<CartSessionItem> sessionItems = [];
+        IReadOnlyList<CartAccessoryRecommendationGroupViewModel> accessoryRecommendationGroups = [];
         if (demo)
         {
             items = await demoDataProvider.GetCartItemsAsync(cancellationToken);
         }
         else
         {
-            var sessionItems = cartSession.Load();
+            sessionItems = cartSession.Load();
             var userEmail = GetLoggedInUserEmail();
 
             if (sessionItems.Count == 0 && userEmail is not null)
@@ -43,11 +48,15 @@ public sealed class CartController(
             }
 
             items = BuildCartItems(sessionItems);
+            accessoryRecommendationGroups = await BuildAccessoryRecommendationGroupsAsync(
+                sessionItems,
+                cancellationToken);
         }
 
         return View(new CartIndexViewModel
         {
-            Items = items
+            Items = items,
+            AccessoryRecommendationGroups = accessoryRecommendationGroups
         });
     }
 
@@ -91,6 +100,7 @@ public sealed class CartController(
             var validatedItem = await cartItemValidator.ValidateAsync(
                 item,
                 cancellationToken);
+            cartSession.ClearCheckoutSelection();
             var updatedItems = cartSession.AddOrUpdate(validatedItem);
             var items = await ValidateCartItemsAsync(
                 updatedItems,
@@ -138,6 +148,48 @@ public sealed class CartController(
 
     [HttpPost]
     [ValidateAntiForgeryToken]
+    public async Task<IActionResult> PrepareCheckout(
+        [FromBody] List<CartSessionItem>? items,
+        CancellationToken cancellationToken)
+    {
+        if (items is null || items.Count == 0)
+        {
+            cartSession.ClearCheckoutSelection();
+            return BadRequest(new { error = "Vui lòng chọn ít nhất một sản phẩm." });
+        }
+
+        var validatedItems = new List<CartSessionItem>();
+        foreach (var item in items)
+        {
+            try
+            {
+                validatedItems.Add(await cartItemValidator.ValidateAsync(
+                    item,
+                    cancellationToken));
+            }
+            catch (CartItemValidationException)
+            {
+                // Invalid or unavailable items are not included in checkout.
+            }
+        }
+
+        if (validatedItems.Count == 0)
+        {
+            cartSession.ClearCheckoutSelection();
+            return BadRequest(new { error = "Các sản phẩm đã chọn hiện không khả dụng." });
+        }
+
+        cartSession.SaveCheckoutSelection(validatedItems);
+
+        return Ok(new
+        {
+            saved = validatedItems.Count,
+            redirectUrl = Url.Action("Index", "Checkout", new { mode = "selected" })
+        });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
     public async Task<IActionResult> SaveSession(
         [FromBody] List<CartSessionItem>? items,
         CancellationToken cancellationToken)
@@ -146,6 +198,8 @@ public sealed class CartController(
         {
             return BadRequest(new { error = "Cart is empty." });
         }
+
+        cartSession.ClearCheckoutSelection();
 
         if (items.Count == 0)
         {
@@ -200,6 +254,51 @@ public sealed class CartController(
             UnitPrice = item.UnitPrice,
             Quantity = Math.Max(1, item.Quantity)
         }).ToList();
+    }
+
+    private async Task<IReadOnlyList<CartAccessoryRecommendationGroupViewModel>> BuildAccessoryRecommendationGroupsAsync(
+        IReadOnlyList<CartSessionItem> sessionItems,
+        CancellationToken cancellationToken)
+    {
+        if (sessionItems.Count == 0)
+        {
+            return [];
+        }
+
+        var recommendations = await cartAccessoryRecommendationService.GetRecommendationsAsync(
+            sessionItems,
+            limitPerProduct: 2,
+            cancellationToken);
+
+        return recommendations
+            .Where(group => group.Items.Count > 0)
+            .Select(group => new CartAccessoryRecommendationGroupViewModel
+            {
+                ParentProductVariantKey = group.ParentProductVariantKey,
+                ParentProductName = group.ParentProductName,
+                ParentVariantLabel = group.ParentVariantLabel,
+                Items = group.Items
+                    .Select(ToCartAccessoryRecommendation)
+                    .ToList()
+            })
+            .ToList();
+    }
+
+    private static CartAccessoryRecommendationViewModel ToCartAccessoryRecommendation(
+        ProductRecommendationItem item)
+    {
+        return new CartAccessoryRecommendationViewModel
+        {
+            ProductVariantKey = item.ProductVariantKey,
+            Url = item.Url,
+            Name = item.Name,
+            VariantLabel = item.VariantLabel,
+            ImageUrl = item.ImageUrl,
+            ImageAlt = item.ImageAlt,
+            MemberOffer = item.MemberOffer,
+            CurrentPrice = item.CurrentPrice,
+            OldPrice = item.OldPrice
+        };
     }
 
     private string ResolveProductUrl(CartSessionItem item)

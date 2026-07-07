@@ -62,23 +62,55 @@ public sealed class DbHomePageDataService(EcommerceDbContext dbContext) : IHomeP
             AudioWearableSectionDefinitions,
             categories,
             cancellationToken);
+        var accessoryDirectory = CreateAccessoryDirectory(categories);
 
         return new HomeIndexViewModel
         {
             Hero = HomeHeroViewModelFactory.Create(categoryMenu.Items),
             FeaturedCategorySections = [phoneTabletSection],
-            AccessoryDirectory = new CategoryDirectoryViewModel
-            {
-                Id = "db-accessory-directory",
-                Title = "Sắm thêm phụ kiện chất lượng",
-                ViewAllUrl = "/catalog?cat=accessories",
-                Items = []
-            },
+            AccessoryDirectory = accessoryDirectory,
             AdditionalCategorySections =
             [
                 computerSection,
                 audioWearableSection
             ]
+        };
+    }
+
+    private static CategoryDirectoryViewModel CreateAccessoryDirectory(
+        IReadOnlyList<CategoryRecord> categories)
+    {
+        var categoriesBySlug = categories.ToDictionary(
+            category => category.Slug,
+            StringComparer.OrdinalIgnoreCase);
+
+        var items = HomeAccessoryDirectoryContent.Categories
+            .Select(definition =>
+            {
+                if (!categoriesBySlug.TryGetValue(definition.DbCategorySlug, out var category))
+                {
+                    return null;
+                }
+
+                return new CategoryDirectoryItemViewModel
+                {
+                    Label = category.Name,
+                    Url = BuildCatalogUrl(category.Slug),
+                    ImageUrl = string.IsNullOrWhiteSpace(category.ImagePath)
+                        ? HomeAccessoryDirectoryContent.GetMockImageUrl(definition)
+                        : NormalizeCategoryImage(category.ImagePath),
+                    ImageAlt = category.Name
+                };
+            })
+            .OfType<CategoryDirectoryItemViewModel>()
+            .ToList();
+
+        return new CategoryDirectoryViewModel
+        {
+            Id = "db-accessory-directory",
+            Title = HomeAccessoryDirectoryContent.Title,
+            ViewAllUrl = BuildCatalogUrl("phu-kien"),
+            Items = items
         };
     }
 

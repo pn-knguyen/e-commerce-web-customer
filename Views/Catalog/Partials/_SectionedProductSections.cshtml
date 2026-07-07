@@ -5,9 +5,6 @@
     <div class="catalog-sectioned-products">
         @foreach (var productSection in Model.ProductSections)
         {
-            var visibleProducts = productSection.Products.Take(productSection.VisibleProductLimit).ToList();
-            var hasMoreProducts = productSection.Products.Count > productSection.VisibleProductLimit;
-
             <section id="@productSection.Id"
                      class="catalog-audio-section"
                      aria-labelledby="@($"{productSection.Id}-title")"
@@ -15,18 +12,32 @@
                 <div class="container">
                     @if (productSection.Banner is not null)
                     {
-                        <a class="catalog-audio-banner catalog-audio-banner--@productSection.Banner.Theme"
-                           href="@productSection.ViewAllUrl">
-                            <div>
-                                <strong>@productSection.Banner.Title</strong>
-                                <span>@productSection.Banner.Subtitle</span>
-                            </div>
-                            <img src="@productSection.Banner.ImageUrl"
-                                 alt="@productSection.Banner.ImageAlt"
-                                 width="320"
-                                 height="180"
-                                 loading="lazy" />
-                        </a>
+                        @if (productSection.Banner.IsFullWidthImage)
+                        {
+                            <a class="catalog-section-image-banner"
+                               href="@productSection.ViewAllUrl">
+                                <img src="@productSection.Banner.ImageUrl"
+                                     alt="@productSection.Banner.ImageAlt"
+                                     width="1200"
+                                     height="120"
+                                     loading="lazy" />
+                            </a>
+                        }
+                        else
+                        {
+                            <a class="catalog-audio-banner catalog-audio-banner--@productSection.Banner.Theme"
+                               href="@productSection.ViewAllUrl">
+                                <div>
+                                    <strong>@productSection.Banner.Title</strong>
+                                    <span>@productSection.Banner.Subtitle</span>
+                                </div>
+                                <img src="@productSection.Banner.ImageUrl"
+                                     alt="@productSection.Banner.ImageAlt"
+                                     width="320"
+                                     height="180"
+                                     loading="lazy" />
+                            </a>
+                        }
                     }
 
                     @if (productSection.Subcategories.Count > 0)
@@ -61,41 +72,21 @@
                             }
                         </div>
 
-                        <a class="catalog-section-view-all" href="@productSection.ViewAllUrl">
+                        <a class="catalog-section-view-all"
+                           href="@productSection.ViewAllUrl"
+                           data-section-view-all>
                             Xem tất cả sản phẩm
                             <svg aria-hidden="true"><use href="#hero-icon-chevron"></use></svg>
                         </a>
                     </div>
 
-                    @if (visibleProducts.Count > 0)
-                    {
-                        <div class="catalog-section-product-grid">
-                            @foreach (var product in visibleProducts)
-                            {
-                                <div class="catalog-section-product-grid__item">
-                                    <partial name="~/Views/Shared/Partials/_ProductCard.cshtml"
-                                             model="product" />
-                                </div>
-                            }
-                        </div>
-
-                        @if (hasMoreProducts)
-                        {
-                            <div class="catalog-section-more">
-                                <a href="@productSection.ViewAllUrl">
-                                    Xem tất cả @productSection.Products.Count sản phẩm
-                                    <svg aria-hidden="true"><use href="#hero-icon-chevron"></use></svg>
-                                </a>
-                            </div>
-                        }
-                    }
-                    else
-                    {
-                        <div class="catalog-empty-state">
-                            <h3>Chưa có sản phẩm</h3>
-                            <p>Nhóm sản phẩm này đang được cập nhật.</p>
-                        </div>
-                    }
+                    <div class="catalog-section-product-panel"
+                         data-section-product-panel
+                         aria-live="polite"
+                         aria-busy="false">
+                        <partial name="~/Views/Catalog/Partials/_SectionProductPanel.cshtml"
+                                 model="productSection" />
+                    </div>
                 </div>
             </section>
         }

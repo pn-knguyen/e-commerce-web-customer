@@ -5,6 +5,7 @@
   if (!page) return;
 
   const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const sectionProductRequests = new WeakMap();
 
   initializePromoCarousel();
   initializeHotSaleCarousel();
@@ -12,6 +13,7 @@
   initializeFilterDropdowns();
   initializeSectionNavigation();
   initializeSectionPills();
+  initializeSectionProductCarousels();
   initializeSectionReveals();
   initializeCountdowns();
   initializeLoadMore();
@@ -457,14 +459,7 @@
         if (!section) return;
 
         event.preventDefault();
-        setActivePill(pill);
-
-        const targetUrl = new URL(pill.href, window.location.origin);
-        targetUrl.hash = section.id;
-
-        if (history.replaceState) {
-          history.replaceState(null, '', `${targetUrl.pathname}${targetUrl.search}${targetUrl.hash}`);
-        }
+        loadSectionProducts(section, pill, setActivePill);
 
         section.scrollIntoView({
           behavior: reducedMotion ? 'auto' : 'smooth',
@@ -474,8 +469,211 @@
     });
   }
 
-  function initializeSectionReveals() {
-    const items = Array.from(page.querySelectorAll('.catalog-section-product-grid__item'));
+  function initializeSectionProductCarousels(root = page) {
+    const elements = Array.from(root.querySelectorAll('[data-section-product-swiper]'));
+    if (elements.length === 0 || typeof window.Swiper !== 'function') return;
+
+    elements.forEach((element) => {
+      if (element.swiper) return;
+
+      const carousel = element.closest('.catalog-section-product-carousel');
+
+      new window.Swiper(element, {
+        slidesPerView: 2,
+        slidesPerGroup: 2,
+        spaceBetween: 8,
+        speed: reducedMotion ? 0 : 350,
+        grabCursor: true,
+        watchOverflow: true,
+        grid: {
+          rows: 2,
+          fill: 'row'
+        },
+        keyboard: {
+          enabled: true,
+          onlyInViewport: true
+        },
+        navigation: {
+          prevEl: carousel?.querySelector('[data-section-product-prev]'),
+          nextEl: carousel?.querySelector('[data-section-product-next]')
+        },
+        breakpoints: {
+          640: {
+            slidesPerView: 3,
+            slidesPerGroup: 3,
+            spaceBetween: 10
+          },
+          900: {
+            slidesPerView: 4,
+            slidesPerGroup: 4,
+            spaceBetween: 12
+          },
+          1200: {
+            slidesPerView: 5,
+            slidesPerGroup: 5,
+            spaceBetween: 12
+          }
+        }
+      });
+    });
+  }
+
+  async function loadSectionProducts(section, pill, setActivePill) {
+    const panel = section.querySelector('[data-section-product-panel]');
+    if (!panel) return;
+
+    const selectedUrl = new URL(pill.href, window.location.origin);
+    const categorySlug = getCatalogCategorySlug(selectedUrl);
+    if (!categorySlug) return;
+
+    const currentCategory = panel.dataset.currentCategory || '';
+    if (currentCategory === categorySlug && panel.getAttribute('aria-busy') !== 'true') {
+      setActivePill(pill);
+      updateSectionHistory(selectedUrl, section.id);
+      return;
+    }
+
+    const previousRequest = sectionProductRequests.get(section);
+    previousRequest?.abort();
+
+    const controller = new AbortController();
+    sectionProductRequests.set(section, controller);
+
+    setActivePill(pill);
+    updateSectionHistory(selectedUrl, section.id);
+    setSectionProductsLoading(section, panel);
+
+    try {
+      const minimumLoading = wait(reducedMotion ? 60 : 220);
+      const response = await fetch(buildSectionProductsUrl(selectedUrl), {
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest'
+        },
+        signal: controller.signal
+      });
+
+      if (!response.ok) {
+        throw new Error('Không thể tải sản phẩm cho danh mục này.');
+      }
+
+      const html = await response.text();
+      await minimumLoading;
+      if (controller.signal.aborted) return;
+
+      destroySectionProductCarousel(panel);
+      panel.innerHTML = html;
+      panel.dataset.currentCategory = categorySlug;
+      panel.setAttribute('aria-busy', 'false');
+      section.classList.remove('is-loading-products');
+
+      const viewAll = section.querySelector('[data-section-view-all]');
+      if (viewAll) {
+        viewAll.href = selectedUrl.pathname + selectedUrl.search;
+      }
+
+      initializeSectionProductCarousels(panel);
+      initializeSectionReveals(panel);
+    } catch (error) {
+      if (error.name === 'AbortError') return;
+
+      panel.setAttribute('aria-busy', 'false');
+      section.classList.remove('is-loading-products');
+      panel.innerHTML = `
+        <div class="catalog-empty-state catalog-empty-state--error">
+          <h3>Chưa tải được sản phẩm</h3>
+          <p>Vui lòng thử lại danh mục này sau vài giây.</p>
+        </div>`;
+    } finally {
+      if (sectionProductRequests.get(section) === controller) {
+        sectionProductRequests.delete(section);
+      }
+    }
+  }
+
+  function getCatalogCategorySlug(url) {
+    const querySlug = url.searchParams.get('cat');
+    if (querySlug) return querySlug.trim().toLowerCase();
+
+    const pathParts = url.pathname.split('/').filter(Boolean);
+    if (pathParts[0] === 'catalog' && pathParts[1]) {
+      return pathParts[1].trim().toLowerCase();
+    }
+
+    return '';
+  }
+
+  function buildSectionProductsUrl(selectedUrl) {
+    const endpoint = new URL('/catalog/section-products', window.location.origin);
+    const currentUrl = new URL(window.location.href);
+    const categorySlug = getCatalogCategorySlug(selectedUrl);
+
+    endpoint.searchParams.set('cat', categorySlug);
+
+    ['brand', 'sort', 'inStock', 'isNew'].forEach((key) => {
+      const value = selectedUrl.searchParams.get(key) || currentUrl.searchParams.get(key);
+      if (value) endpoint.searchParams.set(key, value);
+    });
+
+    currentUrl.searchParams.forEach((value, key) => {
+      if (key.toLowerCase().startsWith('f_') && value) {
+        endpoint.searchParams.append(key, value);
+      }
+    });
+
+    return endpoint;
+  }
+
+  function updateSectionHistory(selectedUrl, sectionId) {
+    if (!history.replaceState) return;
+
+    const nextUrl = new URL(selectedUrl.href);
+    nextUrl.hash = sectionId;
+    history.replaceState(null, '', `${nextUrl.pathname}${nextUrl.search}${nextUrl.hash}`);
+  }
+
+  function setSectionProductsLoading(section, panel) {
+    destroySectionProductCarousel(panel);
+    section.classList.add('is-loading-products');
+    panel.setAttribute('aria-busy', 'true');
+    panel.innerHTML = createSectionProductSkeleton();
+  }
+
+  function createSectionProductSkeleton() {
+    const cards = Array.from({ length: 10 }, () => `
+      <div class="catalog-section-product-skeleton-card">
+        <span class="catalog-section-product-skeleton-card__media"></span>
+        <span class="catalog-section-product-skeleton-card__line catalog-section-product-skeleton-card__line--wide"></span>
+        <span class="catalog-section-product-skeleton-card__line"></span>
+        <span class="catalog-section-product-skeleton-card__price"></span>
+      </div>
+    `).join('');
+
+    return `
+      <div class="catalog-section-product-loading" role="status">
+        <span class="sr-only">Đang tải sản phẩm</span>
+        <div class="catalog-section-product-skeleton" aria-hidden="true">
+          ${cards}
+        </div>
+      </div>
+    `;
+  }
+
+  function destroySectionProductCarousel(root) {
+    root.querySelectorAll('[data-section-product-swiper]').forEach((element) => {
+      if (element.swiper) {
+        element.swiper.destroy(true, true);
+      }
+    });
+  }
+
+  function wait(duration) {
+    return new Promise((resolve) => {
+      window.setTimeout(resolve, duration);
+    });
+  }
+
+  function initializeSectionReveals(root = page) {
+    const items = Array.from(root.querySelectorAll('.catalog-section-product-grid__item:not(.is-revealed)'));
     if (items.length === 0) return;
 
     if (reducedMotion || !('IntersectionObserver' in window)) {

@@ -27,6 +27,8 @@
   const taxOutput         = page.querySelector('[data-cart-tax]');
   const totalOutput       = page.querySelector('[data-cart-total]');
   const checkoutButton    = page.querySelector('[data-cart-checkout]');
+  const recommendationSummaryRow = page.querySelector('[data-cart-recommendation-summary]');
+  const recommendationSubtotalOutput = page.querySelector('[data-cart-recommendation-subtotal]');
 
   /* ─── Helpers ────────────────────────────────────────────────── */
 
@@ -81,6 +83,67 @@
       .filter((item) => item.quantity > 0);
   }
 
+  function getRecommendationInputs() {
+    return Array.from(
+      page.querySelectorAll('[data-cart-recommendation-select]')
+    );
+  }
+
+  function getSelectedRecommendationInputs() {
+    return getRecommendationInputs().filter((input) => input.checked && !input.disabled);
+  }
+
+  function getRecommendationCard(element) {
+    return element.closest('.cart-recommendation-card');
+  }
+
+  function getRecommendationQuantity(input) {
+    const card = getRecommendationCard(input);
+    const output = card?.querySelector('[data-cart-recommendation-quantity]');
+    return Math.max(1, Number(output?.textContent) || 1);
+  }
+
+  function readRecommendationPayload(input) {
+    return {
+      id: input.dataset.cartId || '',
+      name: input.dataset.cartName || '',
+      productUrl: input.dataset.cartUrl || '',
+      imageUrl: input.dataset.cartImage || '',
+      imageAlt: input.dataset.cartAlt || '',
+      variant: input.dataset.cartVariant || '',
+      unitPrice: parseFloat(input.dataset.cartPrice) || 0,
+      quantity: getRecommendationQuantity(input),
+    };
+  }
+
+  function getRecommendationSubtotal() {
+    return getSelectedRecommendationInputs().reduce((total, input) => {
+      const price = Number(input.dataset.cartPrice) || 0;
+      return total + price * getRecommendationQuantity(input);
+    }, 0);
+  }
+
+  function syncRecommendationGroups(items) {
+    const itemById = new Map(
+      items.map((item) => [item.dataset.productId || '', item])
+    );
+    const groups = Array.from(
+      page.querySelectorAll('[data-cart-recommendation-group]')
+    );
+
+    groups.forEach((group) => {
+      const parentItem = itemById.get(group.dataset.parentProductId || '');
+      const parentAvailable = Boolean(parentItem);
+      const parentSelected = parentAvailable && isSelected(parentItem);
+
+      group.hidden = !parentAvailable;
+      group.classList.toggle('is-inactive', parentAvailable && !parentSelected);
+      group.querySelectorAll('[data-cart-recommendation-select]').forEach((input) => {
+        input.disabled = !parentSelected;
+      });
+    });
+  }
+
   function isSelected(item) {
     const checkbox = item.querySelector('[data-cart-select]');
     return !checkbox || checkbox.checked;
@@ -93,6 +156,25 @@
 
     quantityOutput.textContent = quantity;
     decreaseButton.disabled    = quantity <= 1;
+  }
+
+  function removeItemBlock(item) {
+    const itemBlock = item?.closest('[data-cart-item-block]');
+    (itemBlock || item)?.remove();
+  }
+
+  function updateRecommendationQuantity(card, nextQuantity) {
+    if (!card) return;
+
+    const increaseButton = card.querySelector('[data-cart-recommendation-increase]');
+    const decreaseButton = card.querySelector('[data-cart-recommendation-decrease]');
+    const quantityOutput = card.querySelector('[data-cart-recommendation-quantity]');
+    const maxQuantity = Number(increaseButton?.dataset.maxQuantity) || 10;
+    const quantity = Math.min(Math.max(1, nextQuantity), maxQuantity);
+
+    if (quantityOutput) quantityOutput.textContent = quantity;
+    if (decreaseButton) decreaseButton.disabled = quantity <= 1;
+    if (increaseButton) increaseButton.disabled = quantity >= maxQuantity;
   }
 
   let persistTimer = 0;
@@ -131,28 +213,35 @@
 
   function updateSummary() {
     const items         = getItems();
+    syncRecommendationGroups(items);
     const selectedItems = items.filter(isSelected);
     const selectedCount = selectedItems.length;
     const itemCount     = items.reduce((t, i) => t + getQuantity(i), 0);
-    const subtotal      = selectedItems.reduce(
+    const productSubtotal = selectedItems.reduce(
       (t, i) => t + (Number(i.dataset.unitPrice) || 0) * getQuantity(i), 0
     );
+    const recommendationSubtotal = getRecommendationSubtotal();
     const shipping      = Number(shippingOutput?.dataset.value) || 0;
     const tax           = Number(taxOutput?.dataset.value) || 0;
-    const total         = subtotal + shipping + tax;
+    const total         = productSubtotal + recommendationSubtotal + shipping + tax;
 
     /* title badge */
     if (titleCount) titleCount.textContent = `(${itemCount})`;
 
     /* totals */
-    if (subtotalOutput) subtotalOutput.textContent = money(subtotal);
+    if (subtotalOutput) subtotalOutput.textContent = money(productSubtotal);
+    if (recommendationSubtotalOutput) {
+      recommendationSubtotalOutput.textContent = `+${money(recommendationSubtotal)}`;
+    }
+    if (recommendationSummaryRow) {
+      recommendationSummaryRow.hidden = recommendationSubtotal <= 0;
+    }
     if (totalOutput)    totalOutput.textContent    = money(total);
 
     /* empty / visible */
     itemsContainer.hidden = items.length === 0;
     if (toolbar)    toolbar.hidden    = items.length === 0;
     emptyState.hidden     = items.length !== 0;
-
     /* checkout state */
     if (checkoutButton) {
       checkoutButton.classList.toggle('is-disabled', selectedCount === 0);
@@ -177,6 +266,7 @@
     if (selectedCountEl) {
       selectedCountEl.textContent = selectedCount > 0 ? `(${selectedCount})` : '';
     }
+
   }
 
   /* ─── Keep select-all checkbox in sync ──────────────────────── */
@@ -205,6 +295,24 @@
     const increaseButton   = event.target.closest('[data-cart-increase]');
     const decreaseButton   = event.target.closest('[data-cart-decrease]');
     const removeButton     = event.target.closest('[data-cart-remove]');
+    const recommendationIncreaseButton = event.target.closest('[data-cart-recommendation-increase]');
+    const recommendationDecreaseButton = event.target.closest('[data-cart-recommendation-decrease]');
+
+    if (recommendationIncreaseButton) {
+      const card = getRecommendationCard(recommendationIncreaseButton);
+      const output = card?.querySelector('[data-cart-recommendation-quantity]');
+      updateRecommendationQuantity(card, (Number(output?.textContent) || 1) + 1);
+      updateSummary();
+      return;
+    }
+
+    if (recommendationDecreaseButton) {
+      const card = getRecommendationCard(recommendationDecreaseButton);
+      const output = card?.querySelector('[data-cart-recommendation-quantity]');
+      updateRecommendationQuantity(card, (Number(output?.textContent) || 1) - 1);
+      updateSummary();
+      return;
+    }
 
     if (increaseButton) {
       const item        = increaseButton.closest('[data-cart-item]');
@@ -225,7 +333,7 @@
 
     if (removeButton) {
       const item = removeButton.closest('[data-cart-item]');
-      item.remove();
+      removeItemBlock(item);
       updateSummary();
       scheduleCartPersist();
       return;
@@ -236,6 +344,11 @@
 
   page.addEventListener('change', (event) => {
     if (event.target.matches('[data-cart-select]')) {
+      updateSummary();
+      return;
+    }
+
+    if (event.target.matches('[data-cart-recommendation-select]')) {
       updateSummary();
     }
   });
@@ -258,7 +371,7 @@
   if (deleteSelectedBtn) {
     deleteSelectedBtn.addEventListener('click', () => {
       getItems().forEach((item) => {
-        if (isSelected(item)) item.remove();
+        if (isSelected(item)) removeItemBlock(item);
       });
       updateSummary();
       scheduleCartPersist();
@@ -269,7 +382,7 @@
 
   if (clearButton) {
     clearButton.addEventListener('click', () => {
-      getItems().forEach((item) => item.remove());
+      getItems().forEach(removeItemBlock);
       updateSummary();
       scheduleCartPersist();
     });
@@ -285,34 +398,43 @@
       event.preventDefault();
 
       const selectedItems = collectCartItems({ selectedOnly: true });
+      const selectedRecommendations = getSelectedRecommendationInputs()
+        .map(readRecommendationPayload);
+      const checkoutItems = [...selectedItems, ...selectedRecommendations];
 
-      if (selectedItems.length === 0) return;
+      if (checkoutItems.length === 0) return;
 
       try {
-        const res = await fetch('/Cart/SaveSession', {
+        const res = await fetch('/Cart/PrepareCheckout', {
           method:  'POST',
           headers: {
             'Content-Type':                'application/json',
             'RequestVerificationToken':    readCsrfToken(),
           },
-          body: JSON.stringify(selectedItems),
+          body: JSON.stringify(checkoutItems),
         });
 
         if (await redirectToLoginIfNeeded(res)) return;
 
         if (!res.ok) {
-          console.warn('Cart session save failed, navigating anyway.');
+          const error = await res.json().catch(() => ({}));
+          window.alert(error.error || 'Không thể chuẩn bị đơn thanh toán. Vui lòng thử lại.');
+          return;
         }
-      } catch {
-        // Network error - navigate anyway; checkout redirects back to cart if the session is empty.
-      }
 
-      // Navigate to checkout
-      window.location.href = checkoutButton.href;
+        const result = await res.json().catch(() => ({}));
+        window.location.href = result.redirectUrl || checkoutButton.href;
+      } catch {
+        window.alert('Không thể kết nối để chuẩn bị đơn thanh toán. Vui lòng thử lại.');
+      }
     });
   }
 
   /* ─── Init ───────────────────────────────────────────────────── */
 
+  Array.from(page.querySelectorAll('.cart-recommendation-card')).forEach((card) => {
+    const output = card.querySelector('[data-cart-recommendation-quantity]');
+    updateRecommendationQuantity(card, Number(output?.textContent) || 1);
+  });
   updateSummary();
 })();

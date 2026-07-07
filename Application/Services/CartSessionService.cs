@@ -115,6 +115,43 @@ public sealed class CartSessionService(ISessionStorage sessionStorage)
 
     public void ClearBuyNow() => sessionStorage.Remove(SessionKeys.BuyNowSession);
 
+    // Checkout selection is kept separate so it never replaces the persisted cart.
+    public void SaveCheckoutSelection(IEnumerable<CartSessionItem> items)
+    {
+        var normalizedItems = items
+            .Select(Normalize)
+            .Where(IsValid)
+            .ToList();
+
+        if (normalizedItems.Count == 0)
+        {
+            ClearCheckoutSelection();
+            return;
+        }
+
+        sessionStorage.SetString(
+            SessionKeys.CheckoutSelectionSession,
+            JsonSerializer.Serialize(normalizedItems));
+    }
+
+    public IReadOnlyList<CartSessionItem> LoadCheckoutSelection()
+    {
+        var json = sessionStorage.GetString(SessionKeys.CheckoutSelectionSession);
+        if (string.IsNullOrWhiteSpace(json)) return [];
+
+        try
+        {
+            return JsonSerializer.Deserialize<List<CartSessionItem>>(json) ?? [];
+        }
+        catch
+        {
+            return [];
+        }
+    }
+
+    public void ClearCheckoutSelection() =>
+        sessionStorage.Remove(SessionKeys.CheckoutSelectionSession);
+
     private static CartSessionItem Normalize(CartSessionItem item) => new()
     {
         Id = (item.Id ?? string.Empty).Trim(),

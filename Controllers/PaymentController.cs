@@ -1,4 +1,6 @@
+using e_commerce_web_customer.Application.Constants;
 using e_commerce_web_customer.Application.Contracts;
+using e_commerce_web_customer.Application.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace e_commerce_web_customer.Controllers;
@@ -12,7 +14,8 @@ public sealed class PaymentController(
     IMoMoIntegration momoIntegration,
     IVnPayIntegration vnPayIntegration,
     IOrderService orderService,
-    e_commerce_web_customer.Application.Services.CartSessionService cartSession,
+    CartSessionService cartSession,
+    ICartPersistenceService cartPersistenceService,
     ILogger<PaymentController> logger) : Controller
 {
     /// <summary>
@@ -113,8 +116,17 @@ public sealed class PaymentController(
             await orderService.ConfirmOnlinePaymentAsync(orderId, cancellationToken);
             if (clearSession)
             {
-                cartSession.Clear();
                 cartSession.ClearBuyNow();
+                cartSession.ClearCheckoutSelection();
+
+                var userEmail = HttpContext.Session.GetString(SessionKeys.UserEmail);
+                if (!string.IsNullOrWhiteSpace(userEmail))
+                {
+                    var persistedItems = await cartPersistenceService.LoadAsync(
+                        userEmail.Trim(),
+                        cancellationToken);
+                    cartSession.Save(persistedItems);
+                }
             }
         }
         else

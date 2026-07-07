@@ -24,6 +24,7 @@ public sealed class CategoryPageViewModel
     public int InitialProductCount { get; init; } = 20;
     public IReadOnlyList<CategorySectionNavigationItemViewModel> SectionTabs { get; init; } = [];
     public IReadOnlyList<CategoryProductSectionViewModel> ProductSections { get; init; } = [];
+    public bool IsAccessoryDirectory { get; init; }
     public required CategorySeoContentViewModel SeoContent { get; init; }
     public required QuestionAnswerSectionViewModel QuestionAnswer { get; init; }
 }
@@ -154,6 +155,7 @@ public sealed class CategorySectionBannerViewModel
     public required string ImageUrl { get; init; }
     public required string ImageAlt { get; init; }
     public string Theme { get; init; } = "rose";
+    public bool IsFullWidthImage { get; init; }
 }
 
 public sealed class CategorySectionPillViewModel

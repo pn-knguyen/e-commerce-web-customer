@@ -31,6 +31,7 @@ public sealed class AccountController(
     {
         cartSession.Clear();
         cartSession.ClearBuyNow();
+        cartSession.ClearCheckoutSelection();
         HttpContext.Session.Remove(SessionKeys.IsLoggedIn);
         HttpContext.Session.Remove(SessionKeys.UserEmail);
         HttpContext.Session.Remove(SessionKeys.UserDisplayName);

@@ -316,6 +316,10 @@ public sealed class DbCategoryPageDataService(EcommerceDbContext dbContext) : IC
         CategoryPageRequest request)
     {
         var directChildren = GetDirectChildren(category.Id, categories);
+        var isAccessoryDirectory = string.Equals(
+            category.Slug,
+            "phu-kien",
+            StringComparison.OrdinalIgnoreCase);
         var sections = directChildren
             .Select(child => BuildProductSection(
                 child,
@@ -332,8 +336,10 @@ public sealed class DbCategoryPageDataService(EcommerceDbContext dbContext) : IC
             LayoutMode = CategoryPageLayoutMode.Sectioned,
             Breadcrumbs = BuildBreadcrumbs(category, categories),
             PromotionBanners = [],
-            Brands = brands,
-            QuickLinks = BuildCategoryQuickLinks(directChildren, allVariants),
+            Brands = isAccessoryDirectory ? [] : brands,
+            QuickLinks = isAccessoryDirectory
+                ? BuildAccessoryDirectoryLinks(category, categories)
+                : BuildCategoryQuickLinks(directChildren, allVariants),
             HotSale = BuildHotSale(filteredVariants, request.Sort),
             Filter = BuildEmptyFilter(),
             Products = productCards,
@@ -346,9 +352,29 @@ public sealed class DbCategoryPageDataService(EcommerceDbContext dbContext) : IC
                 IsActive = index == 0
             }).ToList(),
             ProductSections = sections,
+            IsAccessoryDirectory = isAccessoryDirectory,
             SeoContent = BuildSeoContent(category),
             QuestionAnswer = BuildQuestionAnswer(category)
         };
+    }
+
+    private static IReadOnlyList<CategoryQuickLinkViewModel> BuildAccessoryDirectoryLinks(
+        Category rootCategory,
+        IReadOnlyList<Category> categories)
+    {
+        var secondLevelCategories = GetDirectChildren(rootCategory.Id, categories);
+
+        return secondLevelCategories
+            .SelectMany(category => GetDirectChildren(category.Id, categories))
+            .Take(24)
+            .Select(category => new CategoryQuickLinkViewModel
+            {
+                Label = category.Name,
+                Url = BuildCatalogUrl(category.Slug),
+                ImageUrl = NormalizeImageUrl(category.ImagePath),
+                ImageAlt = category.Name
+            })
+            .ToList();
     }
 
     private static CategoryProductSectionViewModel BuildProductSection(
@@ -371,11 +397,40 @@ public sealed class DbCategoryPageDataService(EcommerceDbContext dbContext) : IC
             Description = sectionCategory.Description,
             ViewAllUrl = BuildCatalogUrl(sectionCategory.Slug, request.Brand, request.Sort),
             VisibleProductLimit = SectionProductLimit,
+            Banner = BuildAccessorySectionBanner(sectionCategory),
             Subcategories = subcategories
                 .Select(subcategory => BuildSectionPill(subcategory, sectionVariants))
                 .ToList(),
             SortOptions = BuildSortOptions(sectionCategory.Slug, request.Brand, request.Sort),
             Products = BuildProductCards(sectionVariants, request.Sort)
+        };
+    }
+
+    private static CategorySectionBannerViewModel? BuildAccessorySectionBanner(
+        Category category)
+    {
+        var imageName = category.Slug switch
+        {
+            "phu-kien-di-dong" => "phu-kien-di-dong.webp",
+            "phu-kien-laptop" => "phu-kien-laptop.webp",
+            "thiet-bi-mang" => "thiet-bi-mang.webp",
+            "thiet-bi-luu-tru" => "thiet-bi-luu-tru.webp",
+            "camera" => "camera.webp",
+            _ => null
+        };
+
+        if (imageName is null)
+        {
+            return null;
+        }
+
+        return new CategorySectionBannerViewModel
+        {
+            Title = category.Name,
+            Subtitle = string.Empty,
+            ImageUrl = $"/images/banner_phu_kien/{imageName}",
+            ImageAlt = $"Ưu đãi {category.Name.ToLowerInvariant()}",
+            IsFullWidthImage = true
         };
     }
 

@@ -134,13 +134,15 @@ public sealed class CheckoutController(
     }
 
     [HttpGet]
-    public IActionResult Success()
+    public async Task<IActionResult> Success(
+        CancellationToken cancellationToken = default)
     {
         var successModel = ReadSuccessModel();
         if (successModel is not null)
         {
-            cartSession.Clear();
             cartSession.ClearBuyNow();
+            cartSession.ClearCheckoutSelection();
+            await RefreshCartFromPersistenceAsync(cancellationToken);
         }
 
         return successModel is null
@@ -303,15 +305,23 @@ public sealed class CheckoutController(
         string mode,
         CancellationToken cancellationToken)
     {
-        var sessionItems = string.Equals(
+        var isBuyNow = string.Equals(
             mode,
             "buynow",
-            StringComparison.OrdinalIgnoreCase)
+            StringComparison.OrdinalIgnoreCase);
+        var isSelectedCheckout = string.Equals(
+            mode,
+            "selected",
+            StringComparison.OrdinalIgnoreCase);
+        var sessionItems = isBuyNow
             ? cartSession.LoadBuyNow()
-            : cartSession.Load();
+            : isSelectedCheckout
+                ? cartSession.LoadCheckoutSelection()
+                : cartSession.Load();
 
         if (sessionItems.Count == 0
-            && !string.Equals(mode, "buynow", StringComparison.OrdinalIgnoreCase)
+            && !isBuyNow
+            && !isSelectedCheckout
             && GetLoggedInUserEmail() is { } storedCartEmail)
         {
             sessionItems = await cartPersistenceService.LoadAsync(
@@ -338,7 +348,7 @@ public sealed class CheckoutController(
                 }
             }
 
-            if (string.Equals(mode, "buynow", StringComparison.OrdinalIgnoreCase))
+            if (isBuyNow)
             {
                 if (validatedItems.Count > 0)
                 {
@@ -347,6 +357,17 @@ public sealed class CheckoutController(
                 else
                 {
                     cartSession.ClearBuyNow();
+                }
+            }
+            else if (isSelectedCheckout)
+            {
+                if (validatedItems.Count > 0)
+                {
+                    cartSession.SaveCheckoutSelection(validatedItems);
+                }
+                else
+                {
+                    cartSession.ClearCheckoutSelection();
                 }
             }
             else
@@ -551,16 +572,27 @@ public sealed class CheckoutController(
         if (string.Equals(mode, "buynow", StringComparison.OrdinalIgnoreCase))
         {
             cartSession.ClearBuyNow();
+        }
+        else if (string.Equals(mode, "selected", StringComparison.OrdinalIgnoreCase))
+        {
+            cartSession.ClearCheckoutSelection();
+        }
+
+        await RefreshCartFromPersistenceAsync(cancellationToken);
+    }
+
+    private async Task RefreshCartFromPersistenceAsync(
+        CancellationToken cancellationToken)
+    {
+        if (GetLoggedInUserEmail() is not { } userEmail)
+        {
             return;
         }
 
-        cartSession.Clear();
-        if (GetLoggedInUserEmail() is { } userEmail)
-        {
-            await cartPersistenceService.ClearAsync(
-                userEmail,
-                cancellationToken);
-        }
+        var persistedItems = await cartPersistenceService.LoadAsync(
+            userEmail,
+            cancellationToken);
+        cartSession.Save(persistedItems);
     }
 
     private bool IsLoggedIn()

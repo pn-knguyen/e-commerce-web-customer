@@ -2,6 +2,8 @@ using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using e_commerce_web_customer.Application.Contracts;
+using e_commerce_web_customer.Application.Recommendations.Abstractions;
+using e_commerce_web_customer.Application.Recommendations.Models;
 using e_commerce_web_customer.Data;
 using e_commerce_web_customer.Models.Constants;
 using e_commerce_web_customer.Models.Entities;
@@ -11,7 +13,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace e_commerce_web_customer.Infrastructure.Products.Db;
 
-public sealed class DbProductDetailDataService(EcommerceDbContext dbContext) : IProductDetailDataService
+public sealed class DbProductDetailDataService(
+    EcommerceDbContext dbContext,
+    IProductRecommendationService productRecommendationService) : IProductDetailDataService
 {
     private const string FallbackImageUrl = "/images/logo-techstore-icon.svg";
     private const string DefaultSpecGroupName = "Thông tin sản phẩm";
@@ -44,8 +48,7 @@ public sealed class DbProductDetailDataService(EcommerceDbContext dbContext) : I
             .AsNoTracking()
             .Where(product =>
                 product.IsActive
-                && product.BrandId == seedProduct.BrandId
-                && product.CategoryId == seedProduct.CategoryId)
+                && product.Id == seedProduct.Id)
             .Include(product => product.Brand)
             .Include(product => product.Category)
                 .ThenInclude(category => category!.CategorySpecifications)
@@ -61,8 +64,6 @@ public sealed class DbProductDetailDataService(EcommerceDbContext dbContext) : I
             .AsSplitQuery()
             .OrderBy(product => product.Id)
             .ToListAsync(cancellationToken);
-
-        familyProducts = FilterProductsBySeries(familyProducts, seedProduct);
 
         var selectedProduct = familyProducts.FirstOrDefault(product => product.Id == seedProduct.Id);
         if (selectedProduct is null)
@@ -102,6 +103,18 @@ public sealed class DbProductDetailDataService(EcommerceDbContext dbContext) : I
         var imageVariant = ResolveImageVariant(selectedVariant, colorVariants);
         var selectedImage = GetPrimaryImage(imageVariant);
         var mainImageUrl = NormalizeImageUrl(selectedImage?.ImagePath);
+        var accessoryUpsells = await productRecommendationService.GetAccessoryUpsellsAsync(
+            new ProductRecommendationRequest
+            {
+                ProductId = selectedProduct.Id,
+                ProductName = selectedProduct.Name,
+                ProductSlug = selectedProduct.Slug,
+                BrandSlug = selectedProduct.Brand?.Slug,
+                CategorySlug = selectedProduct.Category?.Slug,
+                Surface = RecommendationSurface.ProductDetailAccessoryUpsell,
+                Limit = 6
+            },
+            cancellationToken);
 
         return new ProductDetailViewModel
         {
@@ -125,7 +138,33 @@ public sealed class DbProductDetailDataService(EcommerceDbContext dbContext) : I
             ColorOptions = BuildColorOptions(selectedProduct, colorVariants, selectedVariant, detailName),
             VariantSpecRows = BuildVariantSpecRows(selectedVariant),
             TechnicalSpecSections = BuildTechnicalSpecSections(selectedProduct, detailName),
-            RelatedProductGroups = BuildRelatedProductGroups(versionGroups, selectedVersionKey, selectedVariant),
+            AccessoryUpsells = accessoryUpsells
+                .Select(accessory => new ProductAccessoryUpsellViewModel
+                {
+                    ProductVariantKey = accessory.ProductVariantKey,
+                    Url = accessory.Url,
+                    Name = accessory.Name,
+                    ImageUrl = accessory.ImageUrl,
+                    ImageAlt = accessory.ImageAlt,
+                    MemberOffer = accessory.MemberOffer,
+                    CurrentPrice = accessory.CurrentPrice,
+                    OldPrice = accessory.OldPrice,
+                    Variants = accessory.Variants
+                        .Select(variant => new ProductAccessoryUpsellVariantViewModel
+                        {
+                            ProductVariantKey = variant.ProductVariantKey,
+                            Url = variant.Url,
+                            Label = variant.Label,
+                            ImageUrl = variant.ImageUrl,
+                            ImageAlt = variant.ImageAlt,
+                            CurrentPrice = variant.CurrentPrice,
+                            Quantity = variant.Quantity,
+                            IsDefault = variant.IsDefault
+                        })
+                        .ToList()
+                })
+                .ToList(),
+            RelatedProductGroups = BuildRelatedProductGroups(activeVariants, selectedProduct, selectedVariant),
             ReviewSummary = BuildReviewSummary(detailName, selectedProduct.RatingAverage, selectedProduct.RatingCount),
             QuestionAnswerSection = BuildQuestionAnswerSection(detailName)
         };
@@ -178,56 +217,8 @@ public sealed class DbProductDetailDataService(EcommerceDbContext dbContext) : I
             .OrderBy(group => productOrderById[group.Key.ProductId])
             .ThenBy(group => group.Key.StorageSize)
             .ThenBy(group => group.Key.RamSize)
-            .ThenBy(group => group.Key.StorageLabel)
+            .ThenBy(group => group.Key.Label)
             .ToList();
-    }
-
-    private static List<Product> FilterProductsBySeries(
-        IReadOnlyList<Product> products,
-        Product seedProduct)
-    {
-        var seedSeriesKey = ResolveProductSeriesKey(seedProduct);
-        if (seedSeriesKey is null)
-        {
-            return products.ToList();
-        }
-
-        var sameSeriesProducts = products
-            .Where(product => string.Equals(
-                ResolveProductSeriesKey(product),
-                seedSeriesKey,
-                StringComparison.OrdinalIgnoreCase))
-            .ToList();
-
-        return sameSeriesProducts.Count > 0
-            ? sameSeriesProducts
-            : products.ToList();
-    }
-
-    private static string? ResolveProductSeriesKey(Product product)
-    {
-        var normalizedText = RemoveDiacritics($"{product.Slug} {product.Name}")
-            .ToLowerInvariant();
-
-        var iphoneMatch = Regex.Match(
-            normalizedText,
-            @"\biphone[\s-]*(?<generation>\d{1,2})(?:e)?\b",
-            RegexOptions.IgnoreCase);
-        if (iphoneMatch.Success)
-        {
-            return $"iphone-{iphoneMatch.Groups["generation"].Value}";
-        }
-
-        var galaxySMatch = Regex.Match(
-            normalizedText,
-            @"\bgalaxy[\s-]*s(?<generation>\d{1,3})\b",
-            RegexOptions.IgnoreCase);
-        if (galaxySMatch.Success)
-        {
-            return $"galaxy-s{galaxySMatch.Groups["generation"].Value}";
-        }
-
-        return null;
     }
 
     private static ProductVariant ResolveImageVariant(
@@ -245,54 +236,77 @@ public sealed class DbProductDetailDataService(EcommerceDbContext dbContext) : I
 
     private static VersionKey BuildVersionKey(ProductVariant variant)
     {
-        var ram = FindVariantAttribute(
-            variant,
+        var attributes = GetVersionAttributeValues(variant);
+        var ram = attributes.FirstOrDefault(attribute => IsAttributeCode(
+            attribute,
             CatalogAttributeCodes.Ram,
-            CatalogAttributeCodes.RamCapacity);
-        var storage = FindVariantAttribute(
-            variant,
+            CatalogAttributeCodes.RamCapacity));
+        var storage = attributes.FirstOrDefault(attribute => IsAttributeCode(
+            attribute,
             CatalogAttributeCodes.Rom,
             CatalogAttributeCodes.Storage,
-            CatalogAttributeCodes.InternalStorage);
-
-        var ramLabel = ram?.Label ?? string.Empty;
-        var storageLabel = storage?.Label ?? string.Empty;
+            CatalogAttributeCodes.InternalStorage));
+        var signature = attributes.Count == 0
+            ? "default"
+            : string.Join(
+                '|',
+                attributes.Select(attribute => attribute.OptionId.ToString(CultureInfo.InvariantCulture)));
+        var label = BuildVersionAttributeLabel(attributes);
 
         return new VersionKey(
             variant.ProductId,
-            ram?.OptionId ?? 0,
-            storage?.OptionId ?? 0,
-            ramLabel,
-            storageLabel,
-            ParseCapacityToMb(ramLabel),
-            ParseCapacityToMb(storageLabel));
+            signature,
+            label,
+            ParseCapacityToMb(ram?.Label),
+            ParseCapacityToMb(storage?.Label));
     }
 
-    private static VariantAttributeValue? FindVariantAttribute(
-        ProductVariant variant,
-        params string[] attributeCodes)
+    private static IReadOnlyList<VariantAttributeValue> GetVersionAttributeValues(ProductVariant variant)
     {
-        foreach (var variantAttribute in variant.VariantAttributes)
-        {
-            var option = variantAttribute.AttributeOption;
-            var attribute = option?.Attribute;
-            if (option is null || attribute is null)
+        return variant.VariantAttributes
+            .Select(variantAttribute =>
             {
-                continue;
-            }
+                var option = variantAttribute.AttributeOption;
+                var attribute = option?.Attribute;
+                if (option is null || attribute is null)
+                {
+                    return null;
+                }
 
-            if (attributeCodes.Any(code => string.Equals(code, attribute.Code, StringComparison.OrdinalIgnoreCase)))
-            {
+                var label = string.IsNullOrWhiteSpace(option.Label)
+                    ? option.Value
+                    : option.Label;
+
                 return new VariantAttributeValue(
                     variantAttribute.AttributeOptionId,
                     attribute.Code,
                     attribute.Name,
                     option.Value,
-                    option.Label);
-            }
+                    label);
+            })
+            .Where(attribute => attribute is not null)
+            .Select(attribute => attribute!)
+            .Where(attribute => !IsColorAttribute(attribute.Code, attribute.Name))
+            .Where(attribute => !string.IsNullOrWhiteSpace(attribute.Label))
+            .OrderBy(attribute => GetAttributeDisplayOrder(
+                attribute.Code,
+                attribute.Name,
+                attribute.Value,
+                attribute.Label))
+            .ThenBy(attribute => attribute.OptionId)
+            .DistinctBy(attribute => attribute.OptionId)
+            .ToList();
+    }
+
+    private static string BuildVersionAttributeLabel(IReadOnlyList<VariantAttributeValue> attributes)
+    {
+        var parts = new List<string>();
+        foreach (var attribute in attributes)
+        {
+            AddVariantLabel(parts, attribute.Label);
         }
 
-        return null;
+        return string.Join(' ', parts);
     }
 
     private static IReadOnlyList<ProductDetailStorageOptionViewModel> BuildStorageOptions(
@@ -307,7 +321,7 @@ public sealed class DbProductDetailDataService(EcommerceDbContext dbContext) : I
 
                 return new ProductDetailStorageOptionViewModel
                 {
-                    Label = BuildVersionLabel(group.Product, group.Key),
+                    Label = BuildVersionLabel(group.Key),
                     Url = BuildVariantDetailUrl(group.Product, targetVariant),
                     IsActive = group.Key.Equals(selectedVersionKey),
                     IsInitiallyHidden = false,
@@ -322,10 +336,11 @@ public sealed class DbProductDetailDataService(EcommerceDbContext dbContext) : I
         VersionGroup group,
         ProductVariant selectedVariant)
     {
-        if (!string.IsNullOrWhiteSpace(selectedVariant.ColorName))
+        var selectedColor = GetColorLabel(selectedVariant);
+        if (!string.IsNullOrWhiteSpace(selectedColor))
         {
             var sameColorVariant = group.Variants.FirstOrDefault(variant =>
-                string.Equals(variant.ColorName, selectedVariant.ColorName, StringComparison.OrdinalIgnoreCase));
+                string.Equals(GetColorLabel(variant), selectedColor, StringComparison.OrdinalIgnoreCase));
 
             if (sameColorVariant is not null)
             {
@@ -355,9 +370,7 @@ public sealed class DbProductDetailDataService(EcommerceDbContext dbContext) : I
                     VariantKey = GetVariantKey(variant),
                     DetailUrl = BuildVariantDetailUrl(product, variant),
                     VariantLabel = BuildCartVariantLabel(variant),
-                    Name = string.IsNullOrWhiteSpace(variant.ColorName)
-                        ? "Mặc định"
-                        : variant.ColorName,
+                    Name = BuildColorName(variant),
                     ImageUrl = NormalizeImageUrl(image?.ImagePath),
                     ImageAlt = BuildImageAlt(image, detailName, variant),
                     Price = variant.Price,
@@ -367,6 +380,93 @@ public sealed class DbProductDetailDataService(EcommerceDbContext dbContext) : I
                 };
             })
             .ToList();
+    }
+
+    private static string BuildColorName(ProductVariant variant)
+    {
+        return GetColorLabel(variant) ?? "Mặc định";
+    }
+
+    private static string? GetColorLabel(ProductVariant variant)
+    {
+        if (!string.IsNullOrWhiteSpace(variant.ColorName))
+        {
+            return variant.ColorName.Trim();
+        }
+
+        return variant.VariantAttributes
+            .Select(variantAttribute => variantAttribute.AttributeOption)
+            .Where(option => option?.Attribute is not null)
+            .FirstOrDefault(option => IsColorAttribute(
+                option!.Attribute!.Code,
+                option.Attribute.Name))
+            is { } colorOption
+                ? string.IsNullOrWhiteSpace(colorOption.Label)
+                    ? colorOption.Value
+                    : colorOption.Label
+                : null;
+    }
+
+    private static bool IsAttributeCode(VariantAttributeValue attribute, params string[] attributeCodes)
+    {
+        return attributeCodes.Any(code => string.Equals(
+            code,
+            attribute.Code,
+            StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool IsColorAttribute(string? code, string? name)
+    {
+        if (string.Equals(code, CatalogAttributeCodes.Color, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var normalizedName = RemoveDiacritics(name ?? string.Empty).ToLowerInvariant();
+        return normalizedName.Contains("color", StringComparison.Ordinal)
+            || normalizedName.Contains("mau", StringComparison.Ordinal);
+    }
+
+    private static int GetAttributeDisplayOrder(
+        string? code,
+        string? name,
+        string? value,
+        string? label)
+    {
+        var normalizedCode = code?.Trim().ToLowerInvariant() ?? string.Empty;
+        if (normalizedCode is CatalogAttributeCodes.Ram or CatalogAttributeCodes.RamCapacity)
+        {
+            return 0;
+        }
+
+        if (normalizedCode is CatalogAttributeCodes.Rom
+            or CatalogAttributeCodes.Storage
+            or CatalogAttributeCodes.InternalStorage)
+        {
+            return 1;
+        }
+
+        var searchableText = RemoveDiacritics(string.Join(' ', code, name, value, label)).ToLowerInvariant();
+        if (ContainsAny(searchableText, CatalogAttributeCodes.Ram, "bo nho ram"))
+        {
+            return 0;
+        }
+
+        if (ContainsAny(
+            searchableText,
+            CatalogAttributeCodes.Rom,
+            CatalogAttributeCodes.Storage,
+            CatalogAttributeCodes.InternalStorage,
+            "internal-storage",
+            "capacity",
+            "dung luong",
+            "luu tru",
+            "bo nho trong"))
+        {
+            return 1;
+        }
+
+        return 100;
     }
 
     private static IReadOnlyList<ProductTechnicalSpecRowViewModel> BuildVariantSpecRows(ProductVariant selectedVariant)
@@ -526,22 +626,26 @@ public sealed class DbProductDetailDataService(EcommerceDbContext dbContext) : I
     }
 
     private static IReadOnlyList<ProductRelatedProductGroupViewModel> BuildRelatedProductGroups(
-        IReadOnlyList<VersionGroup> versionGroups,
-        VersionKey selectedVersionKey,
+        IReadOnlyList<ProductVariant> activeVariants,
+        Product product,
         ProductVariant selectedVariant)
     {
-        var products = versionGroups
-            .Where(group => !group.Key.Equals(selectedVersionKey))
-            .Select(group =>
+        var products = activeVariants
+            .Where(variant => variant.ProductId == product.Id && variant.Id != selectedVariant.Id)
+            .OrderBy(variant => BuildVersionKey(variant).StorageSize)
+            .ThenBy(variant => BuildVersionKey(variant).RamSize)
+            .ThenBy(variant => BuildVersionKey(variant).Label)
+            .ThenBy(GetColorOrder)
+            .ThenBy(variant => variant.Id)
+            .Select(variant =>
             {
-                var variant = ResolveVersionLinkVariant(group, selectedVariant);
                 var image = GetPrimaryImage(variant);
-                var name = BuildDetailName(group.Product, variant);
+                var name = BuildRelatedVariantName(product, variant);
 
                 return new ProductRelatedProductViewModel
                 {
                     ProductVariantKey = GetVariantKey(variant),
-                    Url = BuildVariantDetailUrl(group.Product, variant),
+                    Url = BuildVariantDetailUrl(product, variant),
                     Name = name,
                     ImageUrl = NormalizeImageUrl(image?.ImagePath),
                     ImageAlt = BuildImageAlt(image, name, variant),
@@ -552,7 +656,7 @@ public sealed class DbProductDetailDataService(EcommerceDbContext dbContext) : I
                     GiftNote = null,
                     DeliveryLabel = "Giao 2 giờ",
                     Location = "Hồ Chí Minh",
-                    Rating = group.Product.RatingAverage > 0 ? group.Product.RatingAverage : null
+                    Rating = product.RatingAverage > 0 ? product.RatingAverage : null
                 };
             })
             .Take(12)
@@ -567,8 +671,8 @@ public sealed class DbProductDetailDataService(EcommerceDbContext dbContext) : I
         [
             new()
             {
-                Id = "same-series",
-                Label = "Sản phẩm cùng dòng",
+                Id = "same-product-variants",
+                Label = "Phiên bản cùng sản phẩm",
                 IsActive = true,
                 Products = products
             }
@@ -662,37 +766,45 @@ public sealed class DbProductDetailDataService(EcommerceDbContext dbContext) : I
 
     private static string BuildDetailName(Product product, ProductVariant variant)
     {
-        var versionKey = BuildVersionKey(variant);
         var parts = new List<string> { product.Name };
 
-        AddCapacityLabel(parts, versionKey.RamLabel);
-        AddCapacityLabel(parts, versionKey.StorageLabel);
+        foreach (var attribute in GetVersionAttributeValues(variant))
+        {
+            AddVariantLabel(parts, attribute.Label);
+        }
 
         return string.Join(' ', parts);
     }
 
     private static string BuildCartVariantLabel(ProductVariant variant)
     {
-        var versionKey = BuildVersionKey(variant);
         var parts = new List<string>();
 
-        AddCapacityLabel(parts, versionKey.RamLabel);
-        AddCapacityLabel(parts, versionKey.StorageLabel);
-
-        if (!string.IsNullOrWhiteSpace(variant.ColorName))
+        foreach (var attribute in GetVersionAttributeValues(variant))
         {
-            parts.Add(variant.ColorName.Trim());
+            AddVariantLabel(parts, attribute.Label);
+        }
+
+        var colorLabel = GetColorLabel(variant);
+        if (!string.IsNullOrWhiteSpace(colorLabel))
+        {
+            AddVariantLabel(parts, colorLabel);
         }
 
         return string.Join(" - ", parts);
     }
 
-    private static string BuildVersionLabel(Product product, VersionKey versionKey)
+    private static string BuildVersionLabel(VersionKey versionKey)
     {
-        var parts = new List<string> { BuildShortProductName(product) };
+        return string.IsNullOrWhiteSpace(versionKey.Label)
+            ? "Phiên bản tiêu chuẩn"
+            : versionKey.Label;
+    }
 
-        AddCapacityLabel(parts, versionKey.RamLabel);
-        AddCapacityLabel(parts, versionKey.StorageLabel);
+    private static string BuildRelatedVariantName(Product product, ProductVariant variant)
+    {
+        var parts = new List<string> { BuildDetailName(product, variant) };
+        AddVariantLabel(parts, GetColorLabel(variant));
 
         return string.Join(' ', parts);
     }
@@ -716,11 +828,23 @@ public sealed class DbProductDetailDataService(EcommerceDbContext dbContext) : I
             : name;
     }
 
-    private static void AddCapacityLabel(List<string> parts, string label)
+    private static void AddVariantLabel(List<string> parts, string? label)
     {
         var normalizedLabel = NormalizeCapacityLabel(label);
-        if (!string.IsNullOrWhiteSpace(normalizedLabel)
-            && !parts.Contains(normalizedLabel, StringComparer.OrdinalIgnoreCase))
+        if (string.IsNullOrWhiteSpace(normalizedLabel))
+        {
+            return;
+        }
+
+        var normalizedExistingText = NormalizeDisplayToken(string.Join(' ', parts));
+        if (normalizedExistingText.Contains(
+            NormalizeDisplayToken(normalizedLabel),
+            StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        if (!parts.Contains(normalizedLabel, StringComparer.OrdinalIgnoreCase))
         {
             parts.Add(normalizedLabel);
         }
@@ -738,6 +862,14 @@ public sealed class DbProductDetailDataService(EcommerceDbContext dbContext) : I
             "(\\d)\\s+(GB|TB|MB)\\b",
             "$1$2",
             RegexOptions.IgnoreCase);
+    }
+
+    private static string NormalizeDisplayToken(string value)
+    {
+        return RemoveDiacritics(value)
+            .Trim()
+            .ToLowerInvariant()
+            .Replace(" ", string.Empty, StringComparison.Ordinal);
     }
 
     private static string BuildVariantDetailUrl(Product product, ProductVariant variant)
@@ -807,7 +939,7 @@ public sealed class DbProductDetailDataService(EcommerceDbContext dbContext) : I
 
     private static int GetColorOrder(ProductVariant variant)
     {
-        var colorName = RemoveDiacritics(variant.ColorName ?? string.Empty).ToLowerInvariant();
+        var colorName = RemoveDiacritics(GetColorLabel(variant) ?? string.Empty).ToLowerInvariant();
 
         if (ContainsAny(colorName, "den", "black"))
         {
@@ -902,10 +1034,8 @@ public sealed class DbProductDetailDataService(EcommerceDbContext dbContext) : I
 
     private readonly record struct VersionKey(
         long ProductId,
-        long RamOptionId,
-        long StorageOptionId,
-        string RamLabel,
-        string StorageLabel,
+        string Signature,
+        string Label,
         int RamSize,
         int StorageSize);
 
@@ -926,4 +1056,5 @@ public sealed class DbProductDetailDataService(EcommerceDbContext dbContext) : I
         int GroupSortOrder,
         ProductTechnicalSpecRowViewModel Row,
         int RowSortOrder);
+
 }
