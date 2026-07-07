@@ -18,6 +18,10 @@
   const specModalContent = specModal?.querySelector('[data-spec-modal-content]');
   const reviewModal = page.querySelector('[data-review-modal]');
   const galleryModal = page.querySelector('[data-gallery-modal]');
+  const upsellModal = page.querySelector('[data-upsell-modal]');
+  const upsellModalProduct = upsellModal?.querySelector('[data-upsell-modal-product]');
+  const upsellModalVariants = upsellModal?.querySelector('[data-upsell-modal-variants]');
+  const upsellConfirmButton = upsellModal?.querySelector('[data-upsell-confirm]');
   const galleryModalImage = galleryModal?.querySelector('[data-gallery-modal-image]');
   const extraVersions = Array.from(page.querySelectorAll('[data-extra-version="true"]'));
   const thumbs = Array.from(page.querySelectorAll('[data-gallery-thumb]'));
@@ -27,6 +31,7 @@
     : [];
   let modalLockCount = 0;
   let activeGalleryIndex = thumbs.findIndex((thumb) => thumb.classList.contains('is-active'));
+  let activeUpsellButton = null;
   let specScrollFrame = 0;
 
   if (activeGalleryIndex < 0) {
@@ -46,6 +51,11 @@
 
     if (event.target === galleryModal) {
       closeModal(galleryModal);
+      return;
+    }
+
+    if (event.target === upsellModal) {
+      closeModal(upsellModal);
       return;
     }
 
@@ -137,6 +147,78 @@
       return;
     }
 
+    const upsellAddButton = event.target.closest('[data-upsell-add]');
+    if (upsellAddButton) {
+      activeUpsellButton = upsellAddButton;
+      const variantTemplate = upsellAddButton
+        .closest('.upsell-item')
+        ?.querySelector('[data-upsell-variant-template]');
+      const variants = variantTemplate
+        ? Array.from(variantTemplate.content.querySelectorAll('[data-upsell-variant]'))
+        : [];
+
+      if (variants.length === 0) {
+        window.showToast?.('Phụ kiện này hiện không còn phiên bản có thể mua.', 'info');
+        return;
+      }
+
+      if (variants.length === 1) {
+        const added = await submitCartAction(
+          variants[0],
+          '/Cart/AddItem',
+          { busyAction: upsellAddButton }
+        );
+        if (added) markUpsellAdded(upsellAddButton);
+        return;
+      }
+
+      if (upsellModalProduct) {
+        upsellModalProduct.textContent = upsellAddButton.dataset.productName || 'Phụ kiện';
+      }
+
+      if (upsellModalVariants) {
+        upsellModalVariants.replaceChildren(variantTemplate.content.cloneNode(true));
+      }
+
+      const firstVariant = upsellModalVariants?.querySelector('[data-upsell-variant]');
+      setActiveUpsellVariant(firstVariant);
+      if (upsellConfirmButton) upsellConfirmButton.disabled = !firstVariant;
+      openModal(upsellModal);
+      window.setTimeout(() => firstVariant?.focus(), 50);
+      return;
+    }
+
+    if (event.target.closest('[data-upsell-close]')) {
+      closeModal(upsellModal);
+      activeUpsellButton?.focus();
+      return;
+    }
+
+    const upsellVariant = event.target.closest('[data-upsell-variant]');
+    if (upsellVariant) {
+      setActiveUpsellVariant(upsellVariant);
+      return;
+    }
+
+    const upsellConfirm = event.target.closest('[data-upsell-confirm]');
+    if (upsellConfirm) {
+      const selectedVariant = upsellModalVariants
+        ?.querySelector('[data-upsell-variant].is-active');
+      if (!selectedVariant || !activeUpsellButton) return;
+
+      const added = await submitCartAction(
+        selectedVariant,
+        '/Cart/AddItem',
+        { busyAction: upsellConfirm }
+      );
+      if (!added) return;
+
+      markUpsellAdded(activeUpsellButton);
+      closeModal(upsellModal);
+      activeUpsellButton.focus();
+      return;
+    }
+
     if (event.target.closest('[data-gallery-modal-prev]')) {
       showGalleryItem(activeGalleryIndex - 1);
       return;
@@ -190,6 +272,7 @@
     closeModal(specModal);
     closeModal(reviewModal);
     closeModal(galleryModal);
+    closeModal(upsellModal);
   });
 
   specModalContent?.addEventListener('scroll', () => {
@@ -202,7 +285,37 @@
   }, { passive: true });
 
   setupStickyOrder();
+  setupUpsellSwiper();
   syncStockState(page.querySelector('[data-color-option].is-active'));
+
+  function setupUpsellSwiper() {
+    const swiperElement = page.querySelector('[data-upsell-swiper]');
+    if (!swiperElement || typeof window.Swiper !== 'function') return;
+
+    new window.Swiper(swiperElement, {
+      slidesPerView: 1,
+      slidesPerGroup: 1,
+      spaceBetween: 10,
+      grid: {
+        rows: 2,
+        fill: 'row'
+      },
+      navigation: {
+        nextEl: '.pd-upsell-next',
+        prevEl: '.pd-upsell-prev'
+      },
+      pagination: {
+        el: '.pd-upsell-pagination',
+        clickable: true
+      },
+      breakpoints: {
+        540: {
+          slidesPerView: 2,
+          slidesPerGroup: 2
+        }
+      }
+    });
+  }
 
   function setActiveButton(selector, activeButton) {
     page.querySelectorAll(selector).forEach((button) => {
@@ -210,6 +323,28 @@
       button.classList.toggle('is-active', isActive);
       button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
     });
+  }
+
+  function setActiveUpsellVariant(activeButton) {
+    if (!activeButton) return;
+
+    upsellModal?.querySelectorAll('[data-upsell-variant]').forEach((button) => {
+      const isActive = button === activeButton;
+      button.classList.toggle('is-active', isActive);
+      button.setAttribute('aria-checked', isActive ? 'true' : 'false');
+    });
+  }
+
+  function markUpsellAdded(button) {
+    button.classList.add('is-added');
+    const label = button.querySelector('span');
+    const icon = button.querySelector('b');
+    if (label) label.textContent = 'Đã thêm';
+    if (icon) icon.textContent = '✓';
+    button.setAttribute(
+      'aria-label',
+      `${button.dataset.productName || 'Phụ kiện'} đã được thêm vào giỏ`
+    );
   }
 
   function showGalleryItem(index) {
@@ -447,16 +582,17 @@
   }
 
   async function submitCartAction(action, endpoint, options = {}) {
-    if (action.dataset.pending === 'true') return;
+    const busyAction = options.busyAction || action;
+    if (busyAction.dataset.pending === 'true') return false;
 
     if (action.dataset.cartAvailable === 'false') {
       const variant = action.dataset.cartVariant || 'Biến thể này';
       window.showToast?.(`${variant} hiện đã hết hàng.`, 'info');
-      return;
+      return false;
     }
 
     const payload = buildCartPayload(action);
-    setActionBusy(action, true);
+    setActionBusy(busyAction, true);
 
     try {
       const response = await fetch(endpoint, {
@@ -476,7 +612,7 @@
           'info'
         );
         window.location.href = result.redirectUrl;
-        return;
+        return false;
       }
 
       if (!response.ok) {
@@ -491,15 +627,17 @@
 
       if (options.redirect && result.redirectUrl) {
         window.location.href = result.redirectUrl;
-        return;
+        return true;
       }
 
       window.showToast?.('Đã thêm sản phẩm vào giỏ hàng', 'success');
+      return true;
     } catch (error) {
       console.error(error);
       window.showToast?.('Không thể cập nhật giỏ hàng. Vui lòng thử lại.', 'error');
+      return false;
     } finally {
-      setActionBusy(action, false);
+      setActionBusy(busyAction, false);
     }
   }
 

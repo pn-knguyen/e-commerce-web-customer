@@ -12,7 +12,7 @@
     var previewSpecRows = Model.VariantSpecRows
         .Concat(highlightedSpecRows)
         .DistinctBy(row => row.Label, StringComparer.OrdinalIgnoreCase)
-        .Take(16)
+        .Take(8)
         .ToList();
     const int visibleReviewLimit = 2;
     var hasMoreReviews = Model.ReviewSummary.Reviews.Count > visibleReviewLimit;
@@ -34,9 +34,17 @@
     var selectedAvailabilityNote = selectedVariantAvailable
         ? "Sẵn sàng giao nhanh hoặc nhận tại cửa hàng."
         : "Bạn vẫn có thể chọn biến thể này để xem ảnh và thông tin chi tiết.";
+    var relatedProductGroups = Model.RelatedProductGroups
+        .Where(group => group.Products.Count > 0)
+        .ToList();
+    var activeRelatedGroupId = relatedProductGroups.FirstOrDefault(group => group.IsActive)?.Id
+        ?? relatedProductGroups.FirstOrDefault()?.Id;
+    var upsellProducts = Model.AccessoryUpsells;
+    var hasAccessoryUpsells = upsellProducts.Count > 0;
 }
 
 @section Styles {
+    <link rel="stylesheet" href="~/lib/swiper/swiper-bundle.min.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/pages/product-details.css" asp-append-version="true" />
 }
 
@@ -303,53 +311,150 @@
     </div>
 
     <div class="container product-detail-container">
-        <section id="thong-so-ky-thuat" class="pd-section pd-technical-section" aria-labelledby="pd-technical-title">
-            <div class="pd-section-head">
-                <h2 id="pd-technical-title">Thông số kỹ thuật</h2>
-                <button type="button" data-spec-open>
-                    <span>Xem tất cả</span>
-                    <svg aria-hidden="true"><use href="#hero-icon-chevron"></use></svg>
-                </button>
-            </div>
+        <div class="pd-support-grid @(hasAccessoryUpsells ? null : "pd-support-grid--single")">
+            <section id="thong-so-ky-thuat" class="pd-section pd-technical-section" aria-labelledby="pd-technical-title">
+                <div class="pd-section-head">
+                    <h2 id="pd-technical-title">Thông số kỹ thuật</h2>
+                    <button type="button" data-spec-open>
+                        <span>Xem tất cả</span>
+                        <svg aria-hidden="true"><use href="#hero-icon-chevron"></use></svg>
+                    </button>
+                </div>
 
-            <table class="technical-content">
-                <tbody>
-                    @foreach (var row in previewSpecRows)
-                    {
-                        <tr>
-                            <td>@row.Label</td>
-                            <td class="@(row.IsHighlighted ? "is-highlighted" : null)">@row.Value</td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </section>
+                <table class="technical-content">
+                    <tbody>
+                        @foreach (var row in previewSpecRows)
+                        {
+                            <tr>
+                                <td>@row.Label</td>
+                                <td class="@(row.IsHighlighted ? "is-highlighted" : null)">@row.Value</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </section>
 
-        <section id="block-same-product" class="pd-section pd-related-section" aria-labelledby="pd-related-title">
+            @if (hasAccessoryUpsells)
+            {
+            <section id="boxUpsell" class="pd-section pd-upsell-section" aria-labelledby="pd-upsell-title">
+                <div class="pd-upsell-head">
+                    <div>
+                        <h2 id="pd-upsell-title" class="upsell-title">Phụ kiện mua cùng</h2>
+                        <p>Gợi ý phù hợp để dùng trọn bộ hơn</p>
+                    </div>
+
+                    <div class="pd-upsell-navigation" aria-label="Điều hướng phụ kiện">
+                        <button class="pd-upsell-prev" type="button" aria-label="Xem phụ kiện trước">
+                            <svg aria-hidden="true"><use href="#hero-icon-chevron-left"></use></svg>
+                        </button>
+                        <button class="pd-upsell-next" type="button" aria-label="Xem phụ kiện tiếp theo">
+                            <svg aria-hidden="true"><use href="#hero-icon-chevron"></use></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="swiper pd-upsell-swiper" data-upsell-swiper>
+                    <div class="swiper-wrapper">
+                        @foreach (var accessory in upsellProducts)
+                        {
+                            <article class="swiper-slide upsell-item">
+                                <img src="@accessory.ImageUrl"
+                                     alt="@accessory.ImageAlt"
+                                     width="92"
+                                     height="92"
+                                     loading="lazy" />
+
+                                <div class="pd-upsell-content">
+                                    <h3><a href="@accessory.Url">@accessory.Name</a></h3>
+                                    <p>@accessory.MemberOffer</p>
+
+                                    <div class="pd-upsell-foot">
+                                        <div class="pd-upsell-price">
+                                            <strong>@ProductDetailViewModel.FormatPrice(accessory.CurrentPrice)</strong>
+                                            @if (accessory.OldPrice.HasValue)
+                                            {
+                                                <del>@ProductDetailViewModel.FormatPrice(accessory.OldPrice.Value)</del>
+                                            }
+                                        </div>
+
+                                        <button type="button"
+                                                data-upsell-add
+                                                data-product-name="@accessory.Name"
+                                                data-variant-count="@accessory.Variants.Count"
+                                                aria-label="Thêm @accessory.Name vào giỏ">
+                                            <span>Thêm vào giỏ</span>
+                                            <b aria-hidden="true">+</b>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <template data-upsell-variant-template>
+                                    @foreach (var variant in accessory.Variants)
+                                    {
+                                        <button type="button"
+                                                role="radio"
+                                                aria-checked="false"
+                                                data-upsell-variant
+                                                data-cart-id="@variant.ProductVariantKey"
+                                                data-cart-name="@accessory.Name"
+                                                data-cart-url="@variant.Url"
+                                                data-cart-image="@variant.ImageUrl"
+                                                data-cart-alt="@variant.ImageAlt"
+                                                data-cart-variant="@variant.Label"
+                                                data-cart-price="@variant.CurrentPrice.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                                                data-cart-available="true">
+                                            <img src="@variant.ImageUrl"
+                                                 alt="@variant.ImageAlt"
+                                                 width="44"
+                                                 height="44"
+                                                 loading="lazy" />
+                                            <span>@variant.Label</span>
+                                            <strong>@ProductDetailViewModel.FormatPrice(variant.CurrentPrice)</strong>
+                                            <small>Còn @variant.Quantity sản phẩm</small>
+                                        </button>
+                                    }
+                                </template>
+                            </article>
+                        }
+                    </div>
+
+                    <div class="pd-upsell-pagination swiper-pagination" aria-label="Trang phụ kiện"></div>
+                </div>
+            </section>
+            }
+        </div>
+
+        @if (relatedProductGroups.Count > 0)
+        {
+        <section id="block-product-variants" class="pd-section pd-related-section" aria-labelledby="pd-related-title">
             <div class="same-product-head">
-                <h2 id="pd-related-title" class="same-product-title">Có thể bạn cũng thích</h2>
+                <h2 id="pd-related-title" class="same-product-title">Phiên bản cùng sản phẩm</h2>
             </div>
 
-            <div class="same-product-options-list" role="tablist" aria-label="Nhóm sản phẩm gợi ý">
-                @foreach (var group in Model.RelatedProductGroups)
+            <div class="same-product-options-list" role="tablist" aria-label="Nhóm phiên bản cùng sản phẩm">
+                @foreach (var group in relatedProductGroups)
                 {
-                    <button class="pd-related-tab @(group.IsActive ? "is-active" : null)"
+                    var isRelatedActive = string.Equals(group.Id, activeRelatedGroupId, StringComparison.OrdinalIgnoreCase);
+
+                    <button class="pd-related-tab @(isRelatedActive ? "is-active" : null)"
                             type="button"
                             role="tab"
                             data-related-tab="@group.Id"
-                            aria-selected="@(group.IsActive ? "true" : "false")">
+                            aria-selected="@(isRelatedActive ? "true" : "false")">
                         @group.Label
                     </button>
                 }
             </div>
 
             <div class="product-list-swiper">
-                @foreach (var group in Model.RelatedProductGroups)
+                @foreach (var group in relatedProductGroups)
                 {
+                    var isRelatedActive = string.Equals(group.Id, activeRelatedGroupId, StringComparison.OrdinalIgnoreCase);
+
                     <div class="pd-related-panel"
                          role="tabpanel"
                          data-related-panel="@group.Id"
-                         hidden="@(!group.IsActive)">
+                         hidden="@(!isRelatedActive)">
                         <div class="pd-related-track">
                             @foreach (var product in group.Products)
                             {
@@ -444,6 +549,7 @@
                 }
             </div>
         </section>
+        }
 
         <section class="pd-section boxReview pd-review-section" aria-labelledby="pd-review-title">
             <div class="boxReview-head">
@@ -607,6 +713,27 @@
         </aside>
     </div>
 
+    <div id="modalChooseColorRec" class="pd-upsell-modal" data-upsell-modal hidden>
+        <div class="pd-upsell-modal-card" role="dialog" aria-modal="true" aria-labelledby="pd-upsell-modal-title">
+            <header>
+                <div>
+                    <span>Chọn phiên bản</span>
+                    <h2 id="pd-upsell-modal-title" data-upsell-modal-product>Tên phụ kiện</h2>
+                </div>
+                <button type="button" data-upsell-close aria-label="Đóng chọn phiên bản">
+                    <span aria-hidden="true">×</span>
+                </button>
+            </header>
+
+            <div class="pd-upsell-variants"
+                 role="radiogroup"
+                 aria-label="Phiên bản phụ kiện"
+                 data-upsell-modal-variants></div>
+
+            <button class="pd-upsell-confirm" type="button" data-upsell-confirm disabled>Thêm vào giỏ</button>
+        </div>
+    </div>
+
     <div class="pd-review-modal" data-review-modal hidden>
         <div class="pd-review-modal-card" role="dialog" aria-modal="true" aria-labelledby="pd-review-modal-title">
             <header>
@@ -716,5 +843,6 @@
 </section>
 
 @section Scripts {
+    <script src="~/lib/swiper/swiper-bundle.min.js" asp-append-version="true"></script>
     <script src="~/js/product-details.js" asp-append-version="true"></script>
 }

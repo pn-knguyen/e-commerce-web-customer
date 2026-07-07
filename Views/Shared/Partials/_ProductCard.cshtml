@@ -1,8 +1,7 @@
 @using e_commerce_web_customer.Application.Constants
-@using e_commerce_web_customer.Data
+@using e_commerce_web_customer.Application.Contracts
 @using Microsoft.AspNetCore.Http
-@using Microsoft.EntityFrameworkCore
-@inject EcommerceDbContext WishlistDbContext
+@inject IWishlistService WishlistService
 @model ProductCardViewModel
 
 @{
@@ -16,21 +15,12 @@
         if (isLoggedIn && !string.IsNullOrWhiteSpace(userEmail) && !string.IsNullOrWhiteSpace(Model.Id))
         {
             var variantKey = Model.Id.Trim();
-            var hasNumericVariantId = long.TryParse(
-                variantKey,
-                System.Globalization.NumberStyles.Integer,
-                System.Globalization.CultureInfo.InvariantCulture,
-                out var variantId);
+            var statuses = await WishlistService.GetStatusesAsync(
+                userEmail,
+                [variantKey],
+                Context.RequestAborted);
 
-            isWishlisted = await WishlistDbContext.Wishlists
-                .AsNoTracking()
-                .AnyAsync(item =>
-                    item.User != null
-                    && item.User.Email.ToLower() == userEmail
-                    && item.ProductVariant != null
-                    && (hasNumericVariantId
-                        ? item.ProductVariantId == variantId
-                        : item.ProductVariant.Code == variantKey));
+            isWishlisted = statuses.TryGetValue(variantKey, out var status) && status;
         }
     }
 

@@ -10,7 +10,7 @@
 }
 
 <section class="cart-page" data-cart-page data-initial-count="@Model.ItemCount">
-    @* Hidden CSRF token — read by cart.js when calling /Cart/SaveSession *@
+    @* Hidden CSRF token used by cart.js for cart and checkout requests. *@
     @Html.AntiForgeryToken()
     <div class="container cart-container">
         <div class="cart-layout">
@@ -51,6 +51,13 @@
                 <div class="cart-items" data-cart-items @(!Model.IsEmpty ? null : "hidden")>
                     @foreach (var item in Model.Items)
                     {
+                        var accessoryGroup = Model.AccessoryRecommendationGroups.FirstOrDefault(group =>
+                            string.Equals(
+                                group.ParentProductVariantKey,
+                                item.Id,
+                                StringComparison.OrdinalIgnoreCase));
+
+                        <section class="cart-item-block" data-cart-item-block>
                         <article class="cart-item"
                                  data-cart-item
                                  data-product-id="@item.Id"
@@ -114,6 +121,80 @@
                                 </svg>
                             </button>
                         </article>
+
+                        @if (accessoryGroup is not null)
+                        {
+                            <section class="cart-item-accessories"
+                                     data-cart-recommendation-group
+                                     data-parent-product-id="@accessoryGroup.ParentProductVariantKey"
+                                     aria-label="Phụ kiện nên mua kèm @item.Name">
+                                <header class="cart-item-accessories-head">
+                                    <h3>Phụ kiện nên mua kèm</h3>
+                                    <span>Chọn phụ kiện để cộng vào tổng tiền</span>
+                                </header>
+
+                                <div class="cart-recommendation-list">
+                                    @foreach (var accessory in accessoryGroup.Items)
+                                    {
+                                        <article class="cart-recommendation-card">
+                                            <label class="cart-recommendation-select">
+                                                <input type="checkbox"
+                                                       data-cart-recommendation-select
+                                                       data-cart-id="@accessory.ProductVariantKey"
+                                                       data-cart-name="@accessory.Name"
+                                                       data-cart-url="@accessory.Url"
+                                                       data-cart-image="@accessory.ImageUrl"
+                                                       data-cart-alt="@accessory.ImageAlt"
+                                                       data-cart-price="@accessory.CurrentPrice.ToString(System.Globalization.CultureInfo.InvariantCulture)"
+                                                       data-cart-variant="@accessory.VariantLabel"
+                                                       aria-label="Chọn thêm @accessory.Name cho @item.Name" />
+                                                <span aria-hidden="true"></span>
+                                            </label>
+
+                                            <a class="cart-recommendation-media" href="@accessory.Url" aria-label="Xem @accessory.Name">
+                                                <img src="@accessory.ImageUrl"
+                                                     alt="@accessory.ImageAlt"
+                                                     width="96"
+                                                     height="96"
+                                                     loading="lazy" />
+                                            </a>
+
+                                            <div class="cart-recommendation-info">
+                                                <h3><a href="@accessory.Url">@accessory.Name</a></h3>
+                                                @if (!string.IsNullOrWhiteSpace(accessory.VariantLabel))
+                                                {
+                                                    <p class="cart-recommendation-variant">@accessory.VariantLabel</p>
+                                                }
+                                                <p>@accessory.MemberOffer</p>
+                                            </div>
+
+                                            <div class="cart-recommendation-side">
+                                                <div class="cart-recommendation-price">
+                                                    <strong>@CartIndexViewModel.FormatPrice(accessory.CurrentPrice)</strong>
+                                                    @if (accessory.OldPrice.HasValue)
+                                                    {
+                                                        <del>@CartIndexViewModel.FormatPrice(accessory.OldPrice.Value)</del>
+                                                    }
+                                                </div>
+
+                                                <div class="cart-recommendation-quantity" aria-label="Số lượng @accessory.Name">
+                                                    <button type="button"
+                                                            aria-label="Giảm số lượng @accessory.Name"
+                                                            data-cart-recommendation-decrease
+                                                            disabled>−</button>
+                                                    <output data-cart-recommendation-quantity>1</output>
+                                                    <button type="button"
+                                                            aria-label="Tăng số lượng @accessory.Name"
+                                                            data-cart-recommendation-increase
+                                                            data-max-quantity="10">+</button>
+                                                </div>
+                                            </div>
+                                        </article>
+                                    }
+                                </div>
+                            </section>
+                        }
+                        </section>
                     }
                 </div>
 
@@ -141,6 +222,10 @@
                         <dt>Tạm tính</dt>
                         <dd data-cart-subtotal>@CartIndexViewModel.FormatPrice(Model.Subtotal)</dd>
                     </div>
+                    <div data-cart-recommendation-summary hidden>
+                        <dt>Phụ kiện đã chọn</dt>
+                        <dd data-cart-recommendation-subtotal>0đ</dd>
+                    </div>
                     <div>
                         <dt>Phí vận chuyển</dt>
                         <dd data-cart-shipping data-value="@Model.ShippingFee.ToString(System.Globalization.CultureInfo.InvariantCulture)">@CartIndexViewModel.FormatPrice(Model.ShippingFee)</dd>
@@ -159,6 +244,7 @@
                 <a class="cart-checkout-button @(Model.IsEmpty ? "is-disabled" : null)"
                    asp-controller="Checkout"
                    asp-action="Index"
+                   asp-route-mode="selected"
                    aria-disabled="@Model.IsEmpty.ToString().ToLowerInvariant()"
                    data-cart-checkout>
                     Thanh toán

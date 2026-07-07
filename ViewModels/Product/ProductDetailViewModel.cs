@@ -25,6 +25,7 @@ public sealed class ProductDetailViewModel
     public required IReadOnlyList<ProductDetailColorOptionViewModel> ColorOptions { get; init; }
     public IReadOnlyList<ProductTechnicalSpecRowViewModel> VariantSpecRows { get; init; } = [];
     public required IReadOnlyList<ProductTechnicalSpecSectionViewModel> TechnicalSpecSections { get; init; }
+    public IReadOnlyList<ProductAccessoryUpsellViewModel> AccessoryUpsells { get; init; } = [];
     public required IReadOnlyList<ProductRelatedProductGroupViewModel> RelatedProductGroups { get; init; }
     public required ProductReviewSummaryViewModel ReviewSummary { get; init; }
     public required QuestionAnswerSectionViewModel QuestionAnswerSection { get; init; }
@@ -121,6 +122,31 @@ public sealed class ProductRelatedProductViewModel
     public decimal? Rating { get; init; }
     public string? UsedPriceLabel { get; init; }
     public string? SavingLabel { get; init; }
+}
+
+public sealed class ProductAccessoryUpsellViewModel
+{
+    public required string ProductVariantKey { get; init; }
+    public required string Url { get; init; }
+    public required string Name { get; init; }
+    public required string ImageUrl { get; init; }
+    public required string ImageAlt { get; init; }
+    public required string MemberOffer { get; init; }
+    public decimal CurrentPrice { get; init; }
+    public decimal? OldPrice { get; init; }
+    public IReadOnlyList<ProductAccessoryUpsellVariantViewModel> Variants { get; init; } = [];
+}
+
+public sealed class ProductAccessoryUpsellVariantViewModel
+{
+    public required string ProductVariantKey { get; init; }
+    public required string Url { get; init; }
+    public required string Label { get; init; }
+    public required string ImageUrl { get; init; }
+    public required string ImageAlt { get; init; }
+    public decimal CurrentPrice { get; init; }
+    public int Quantity { get; init; }
+    public bool IsDefault { get; init; }
 }
 
 public sealed class ProductReviewSummaryViewModel

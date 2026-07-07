@@ -8,4 +8,5 @@ public static class SessionKeys
     public const string UserPhoneNumber = "UserPhoneNumber";
     public const string CartSession = "CartSession";
     public const string BuyNowSession = "BuyNowSession";
+    public const string CheckoutSelectionSession = "CheckoutSelectionSession";
 }

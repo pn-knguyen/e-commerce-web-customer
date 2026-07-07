@@ -7,6 +7,7 @@ public sealed class CartIndexViewModel
     private static readonly CultureInfo VietnameseCulture = CultureInfo.GetCultureInfo("vi-VN");
 
     public IReadOnlyList<CartItemViewModel> Items { get; init; } = [];
+    public IReadOnlyList<CartAccessoryRecommendationGroupViewModel> AccessoryRecommendationGroups { get; init; } = [];
     public decimal ShippingFee { get; init; }
     public decimal Tax { get; init; }
 

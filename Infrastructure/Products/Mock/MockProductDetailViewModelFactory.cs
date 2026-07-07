@@ -107,6 +107,7 @@ public sealed class MockProductDetailViewModelFactory(
                 }
             ],
             TechnicalSpecSections = CreateGenericTechnicalSpecs(slug, category.Label, brand),
+            AccessoryUpsells = CreateMockAccessoryUpsells(),
             RelatedProductGroups = CreateGenericRelatedProductGroups(slug, category.Slug),
             ReviewSummary = CreateGenericReviewSummary(name),
             QuestionAnswerSection = CreateGenericQuestionAnswer(name)
@@ -203,11 +204,7 @@ public sealed class MockProductDetailViewModelFactory(
             [
                 Storage("iPhone 17 Pro Max 256GB", "/product/iphone-17-pro-max-256gb", slug),
                 Storage("iPhone 17 Pro Max 512GB", "/product/iphone-17-pro-max-512gb", slug),
-                Storage("iPhone 17 Pro Max 1TB", "/product/iphone-17-pro-max-1tb", slug),
-                Storage("iPhone 17 Pro 256GB", "/product/iphone-17-pro-256gb", slug),
-                Storage("iPhone 17 Pro 512GB", "/product/iphone-17-pro-512gb", slug),
-                Storage("iPhone 17 256GB", "/product/iphone-17-256gb", slug, isInitiallyHidden: true),
-                Storage("iPhone 17 Plus 256GB", "/product/iphone-17-plus-256gb", slug, isInitiallyHidden: true)
+                Storage("iPhone 17 Pro Max 1TB", "/product/iphone-17-pro-max-1tb", slug)
             ],
             ColorOptions = colorOptions,
             VariantSpecRows =
@@ -215,6 +212,7 @@ public sealed class MockProductDetailViewModelFactory(
                 Row("Bộ nhớ trong", activeStorage, isHighlighted: true)
             ],
             TechnicalSpecSections = CreateTechnicalSpecSections(activeStorage),
+            AccessoryUpsells = CreateMockAccessoryUpsells(),
             RelatedProductGroups = CreateRelatedProductGroups(),
             ReviewSummary = CreateReviewSummary($"iPhone 17 Pro Max {activeStorage}"),
             QuestionAnswerSection = CreateQuestionAnswerSection(activeStorage)
@@ -335,8 +333,6 @@ public sealed class MockProductDetailViewModelFactory(
                 Products =
                 [
                     Related("Xiaomi 17 Ultra 5G 16GB 512GB", $"{PhoneImageRoot}/phone-camera-cutout.png", "Xiaomi 17 Ultra màu đen", 32_690_000m, 39_990_000m, "Giảm 18%", "Giảm thêm 500.000đ cho MTB Xiaomi - Poco khi mua cùng bất ...", rating: 5m),
-                    Related("iPhone 17 512GB | Chính hãng", $"{PhoneImageRoot}/phone-rose-cutout.png", "iPhone 17 màu hồng", 29_890_000m, 31_490_000m, "Giảm 5%", "Trả góp 0% lãi suất, tối đa 12 tháng, trả trước từ 10% qua CTT...", rating: 5m),
-                    Related("iPhone Air 512GB | Chính hãng", $"{PhoneImageRoot}/phone-orange-cutout.png", "iPhone Air màu xanh", 28_990_000m, 38_490_000m, "Giảm 25%", "Trả góp 0% lãi suất, tối đa 12 tháng, trả trước từ 10% qua CTT...", rating: 5m),
                     Related("Samsung Galaxy Z Fold 6 12GB 256GB", $"{PhoneImageRoot}/phone-violet-cutout.png", "Samsung Galaxy Z Fold 6", 29_990_000m, 43_990_000m, "Giảm 32%", "Tặng ốp lưng Samsung", rating: 4.9m),
                     Related("OPPO Find X9 Pro 16GB 512GB", "/images/home/hero-smartphones.webp", "OPPO Find X9 Pro", 32_490_000m, 32_990_000m, "Giảm 2%", "Tặng gói Google One AI Premium miễn phí 3 tháng sử dụng", rating: 5m)
                 ]
@@ -505,6 +501,83 @@ public sealed class MockProductDetailViewModelFactory(
             Rating = rating,
             UsedPriceLabel = usedPriceLabel,
             SavingLabel = savingLabel
+        };
+    }
+
+    private static IReadOnlyList<ProductAccessoryUpsellViewModel> CreateMockAccessoryUpsells()
+    {
+        return
+        [
+            AccessoryUpsell(
+                "screen-protector",
+                "Dán kính cường lực màn hình chống nhìn trộm",
+                "/images/categories/accessories/screen-protectors.webp",
+                "Dán kính cường lực màn hình",
+                "Thành viên giảm thêm đến 18.000đ",
+                360_000m,
+                400_000m),
+            AccessoryUpsell(
+                "gan-charger",
+                "Sạc nhanh GaN 45W hai cổng USB-C",
+                "/images/categories/accessories/charging-cables.webp",
+                "Bộ sạc nhanh GaN màu trắng",
+                "Thành viên giảm thêm đến 30.000đ",
+                590_000m,
+                648_000m),
+            AccessoryUpsell(
+                "power-bank",
+                "Pin dự phòng sạc nhanh 20.000mAh",
+                "/images/categories/accessories/power-banks.webp",
+                "Pin dự phòng sạc nhanh màu đen",
+                "Thành viên giảm thêm đến 28.000đ",
+                550_000m,
+                690_000m),
+            AccessoryUpsell(
+                "usb-c-hub",
+                "Hub chuyển đổi USB-C đa năng 7 trong 1",
+                "/images/categories/accessories/usb-c-hubs.webp",
+                "Hub chuyển đổi USB-C màu xám",
+                "Thành viên giảm thêm đến 23.000đ",
+                468_000m,
+                520_000m),
+            AccessoryUpsell(
+                "keyboard-mouse",
+                "Bộ bàn phím và chuột không dây RGB",
+                "/images/categories/accessories/keyboard-mouse.webp",
+                "Bộ bàn phím và chuột RGB",
+                "Thành viên giảm thêm đến 35.000đ",
+                790_000m,
+                890_000m),
+            AccessoryUpsell(
+                "laptop-dock",
+                "Đế tản nhiệt và mở rộng kết nối laptop",
+                "/images/categories/accessories/laptop-accessories.webp",
+                "Đế tản nhiệt laptop",
+                "Thành viên giảm thêm đến 40.000đ",
+                850_000m,
+                990_000m)
+        ];
+    }
+
+    private static ProductAccessoryUpsellViewModel AccessoryUpsell(
+        string key,
+        string name,
+        string imageUrl,
+        string imageAlt,
+        string memberOffer,
+        decimal currentPrice,
+        decimal oldPrice)
+    {
+        return new ProductAccessoryUpsellViewModel
+        {
+            ProductVariantKey = key,
+            Url = $"/product/{key}",
+            Name = name,
+            ImageUrl = imageUrl,
+            ImageAlt = imageAlt,
+            MemberOffer = memberOffer,
+            CurrentPrice = currentPrice,
+            OldPrice = oldPrice
         };
     }
 
