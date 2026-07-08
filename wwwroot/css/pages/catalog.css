@@ -448,6 +448,12 @@
   transition: box-shadow var(--transition-fast);
 }
 
+.catalog-page--sectioned .catalog-filter-shell {
+  position: relative;
+  top: auto;
+  z-index: auto;
+}
+
 .catalog-filter-shell.is-stuck {
   padding: 8px 0 10px;
   box-shadow: 0 4px 12px rgb(39 39 42 / 0.14);

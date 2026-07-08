@@ -84,6 +84,8 @@
   }
 
   function initializeStickyFilter() {
+    if (page.hasAttribute('data-sectioned-catalog')) return;
+
     const sentinel = page.querySelector('[data-filter-sentinel]');
     const filter = page.querySelector('[data-filter-shell]');
     if (!sentinel || !filter || !('IntersectionObserver' in window)) return;
