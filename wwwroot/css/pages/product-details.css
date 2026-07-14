@@ -166,6 +166,8 @@
 .pd-main-media {
   position: relative;
   display: grid;
+  width: 100%;
+  min-width: 0;
   aspect-ratio: 16 / 9;
   min-height: 324px;
   overflow: hidden;
@@ -495,11 +497,16 @@
 }
 
 .pd-color-option small {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   color: #27272a;
   font-size: 14px;
   font-weight: 400;
   line-height: 1.15;
   font-variant-numeric: tabular-nums;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .pd-option-stock {
@@ -1512,6 +1519,8 @@
 
 .pd-related-section {
   max-width: 1200px;
+  --product-card-height: 416px;
+  --product-card-media-height: 232px;
 }
 
 .same-product-options-list {
@@ -1567,240 +1576,31 @@
 
 .pd-related-track {
   display: grid;
-  grid-auto-columns: 228px;
+  grid-auto-columns: clamp(224px, 20vw, 238px);
   grid-auto-flow: column;
-  gap: 12px;
+  gap: 8px;
   overflow-x: auto;
   padding: 10px 8px 14px;
   scroll-padding-inline: 8px;
   scroll-snap-type: x proximity;
 }
 
-.pd-related-card {
-  position: relative;
-  display: grid;
-  min-height: 394px;
-  grid-template-rows: auto auto auto auto auto 1fr auto;
-  gap: 8px;
+.pd-related-track > .product-card {
   scroll-snap-align: start;
-  overflow: hidden;
-  padding: 10px;
-  border: 1px solid #f2f2f3;
-  border-radius: 8px;
-  background: #fff;
-  box-shadow: 0 6px 22px rgb(24 24 27 / 0.08);
-  transition:
-    box-shadow var(--transition-fast),
-    transform var(--transition-fast);
 }
 
-.pd-related-card:hover {
-  box-shadow: 0 12px 28px rgb(24 24 27 / 0.12);
-  transform: translateY(-2px);
+@media (min-width: 1024px) {
+  .pd-related-section {
+    --product-card-height: 420px;
+    --product-card-media-height: 232px;
+  }
 }
 
-.pd-related-badges {
-  position: absolute;
-  top: 0;
-  right: 0;
-  left: 0;
-  z-index: 2;
-  display: flex;
-  justify-content: space-between;
-  pointer-events: none;
-}
-
-.pd-related-discount,
-.pd-related-installment,
-.pd-saving-label {
-  display: inline-flex;
-  min-height: 22px;
-  align-items: center;
-  justify-content: center;
-  padding: 3px 8px;
-  border-radius: 0 0 5px 5px;
-  font-size: 11px;
-  font-weight: 800;
-  line-height: 1;
-}
-
-.pd-related-discount,
-.pd-saving-label {
-  background: #d70018;
-  color: #fff;
-}
-
-.pd-related-installment {
-  background: #eef1ff;
-  color: #6261ff;
-}
-
-.pd-related-image {
-  display: grid;
-  height: 178px;
-  place-items: center;
-  padding-top: 8px;
-}
-
-.pd-related-image img {
-  width: 176px;
-  height: 168px;
-  object-fit: contain;
-}
-
-.pd-related-card h3 {
-  display: -webkit-box;
-  min-height: 40px;
-  overflow: hidden;
-  margin: 0;
-  color: #27272a;
-  font-size: 14px;
-  font-weight: 800;
-  line-height: 1.35;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-
-.pd-related-card h3 a:hover {
-  color: #d70018;
-}
-
-.pd-related-price {
-  display: flex;
-  min-width: 0;
-  align-items: baseline;
-  gap: 5px;
-}
-
-.pd-related-price strong {
-  color: #d70018;
-  font-size: 16px;
-  font-weight: 800;
-  line-height: 1.15;
-  font-variant-numeric: tabular-nums;
-}
-
-.pd-related-price del {
-  overflow: hidden;
-  color: #a1a1aa;
-  font-size: 12px;
-  font-weight: 600;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-variant-numeric: tabular-nums;
-}
-
-.pd-related-note {
-  display: -webkit-box;
-  min-height: 44px;
-  overflow: hidden;
-  margin: 0;
-  padding: 6px 8px;
-  border-radius: 5px;
-  background: #f4f4f5;
-  color: #3f3f46;
-  font-size: 12px;
-  line-height: 1.35;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-
-.pd-used-price {
-  margin: 0;
-  color: #a1a1aa;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.pd-saving-label {
-  width: fit-content;
-  border-radius: 5px;
-}
-
-.pd-related-meta {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 8px;
-  color: #71717a;
-  font-size: 12px;
-  font-weight: 600;
-}
-
-.pd-delivery-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
-  border-radius: 999px;
-  background: #6261ff;
-  color: #fff;
-  font-weight: 800;
-}
-
-.pd-delivery-badge svg {
-  width: 14px;
-  height: 14px;
-}
-
-.pd-location {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.pd-related-foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  color: #6261ff;
-}
-
-.pd-card-rating {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: #27272a;
-  font-size: 15px;
-  font-weight: 700;
-}
-
-.pd-card-rating svg,
 .pd-review-stars svg,
 .star-bar svg,
 .pd-experience-row svg,
 .pd-review-item-stars svg {
   color: #facc15;
-  fill: currentColor;
-}
-
-.pd-card-rating svg {
-  width: 16px;
-  height: 16px;
-}
-
-.pd-related-foot button {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  border: 0;
-  background: transparent;
-  color: #6261ff;
-  font-size: 14px;
-  font-weight: 600;
-}
-
-.pd-related-foot button svg {
-  width: 19px;
-  height: 19px;
-}
-
-.pd-related-foot button.is-active {
-  color: #e60012;
-}
-
-.pd-related-foot button.is-active svg {
   fill: currentColor;
 }
 
@@ -2651,7 +2451,7 @@
   }
 
   .pd-related-track {
-    grid-auto-columns: minmax(220px, 42vw);
+    grid-auto-columns: clamp(232px, 42vw, 264px);
   }
 
   .comment-form {
@@ -2680,13 +2480,16 @@
   }
 
   .pd-main-media {
-    min-height: 260px;
+    aspect-ratio: auto;
+    height: clamp(236px, 72vw, 320px);
+    min-height: 0;
     padding: 10px;
   }
 
   .pd-main-media img {
-    max-width: 100%;
-    max-height: 100%;
+    inset: 10px;
+    width: calc(100% - 20px);
+    height: calc(100% - 20px);
   }
 
   .pd-gallery-modal {
@@ -2856,7 +2659,15 @@
   }
 
   .pd-related-track {
-    grid-auto-columns: minmax(210px, 78vw);
+    grid-auto-columns: clamp(218px, 76vw, 304px);
+    gap: 8px;
+    padding: 8px 6px 12px;
+    scroll-padding-inline: 6px;
+  }
+
+  .pd-related-section {
+    --product-card-height: 408px;
+    --product-card-media-height: 230px;
   }
 
   .boxReview {
@@ -2944,7 +2755,6 @@
   .pd-spec-modal,
   .pd-review-modal,
   .pd-review-modal-card,
-  .pd-related-card,
   .pd-section-head button,
   .pd-related-tab,
   .pd-review-write,

@@ -19,6 +19,10 @@ public sealed class DbCategoryPageDataService(EcommerceDbContext dbContext) : IC
     private const int InitialProductCount = 20;
     private const int SectionProductLimit = 20;
     private const int NewArrivalWindowDays = 60;
+    private const int MaxDynamicFilterGroups = 12;
+    private const int MaxDynamicFilterOptions = 24;
+    private const string AttributeFilterPrefix = "attribute-";
+    private const string SpecificationFilterPrefix = "specification-";
 
     private static readonly IReadOnlyDictionary<string, string> CategoryAliases =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -230,6 +234,7 @@ public sealed class DbCategoryPageDataService(EcommerceDbContext dbContext) : IC
                 category,
                 categories,
                 allVariants,
+                brandFilteredVariants,
                 filteredVariants,
                 brands,
                 productCards,
@@ -310,6 +315,7 @@ public sealed class DbCategoryPageDataService(EcommerceDbContext dbContext) : IC
         Category category,
         IReadOnlyList<Category> categories,
         IReadOnlyList<ProductVariant> allVariants,
+        IReadOnlyList<ProductVariant> filterSourceVariants,
         IReadOnlyList<ProductVariant> filteredVariants,
         IReadOnlyList<CategoryBrandViewModel> brands,
         IReadOnlyList<ProductCardViewModel> productCards,
@@ -341,7 +347,12 @@ public sealed class DbCategoryPageDataService(EcommerceDbContext dbContext) : IC
                 ? BuildAccessoryDirectoryLinks(category, categories)
                 : BuildCategoryQuickLinks(directChildren, allVariants),
             HotSale = BuildHotSale(filteredVariants, request.Sort),
-            Filter = BuildEmptyFilter(),
+            Filter = BuildFilter(
+                category,
+                categories,
+                filterSourceVariants,
+                productCards.Count,
+                request),
             Products = productCards,
             InitialProductCount = InitialProductCount,
             SectionTabs = sections.Select((section, index) => new CategorySectionNavigationItemViewModel
@@ -548,10 +559,56 @@ public sealed class DbCategoryPageDataService(EcommerceDbContext dbContext) : IC
 
             filtered = filtered.Where(variant =>
                 selectedValues.Any(value =>
-                    MatchesPhoneFilter(variant, filter.Key, value)));
+                    MatchesCatalogFilter(variant, filter.Key, value)));
         }
 
         return filtered.ToList();
+    }
+
+    private static bool MatchesCatalogFilter(
+        ProductVariant variant,
+        string groupKey,
+        string optionValue)
+    {
+        if (TryParseFilterEntityId(groupKey, AttributeFilterPrefix, out var attributeId))
+        {
+            return variant.VariantAttributes.Any(item =>
+                item.AttributeOption?.AttributeId == attributeId
+                && string.Equals(
+                    item.AttributeOptionId.ToString(CultureInfo.InvariantCulture),
+                    optionValue,
+                    StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (TryParseFilterEntityId(groupKey, SpecificationFilterPrefix, out var specificationId))
+        {
+            return variant.Product?.ProductSpecifications.Any(item =>
+                item.SpecificationId == specificationId
+                && string.Equals(
+                    item.Value.Trim(),
+                    optionValue.Trim(),
+                    StringComparison.OrdinalIgnoreCase)) == true;
+        }
+
+        return MatchesPhoneFilter(variant, groupKey, optionValue);
+    }
+
+    private static bool TryParseFilterEntityId(
+        string groupKey,
+        string prefix,
+        out long id)
+    {
+        id = 0;
+        if (!groupKey.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        return long.TryParse(
+            groupKey[prefix.Length..],
+            NumberStyles.None,
+            CultureInfo.InvariantCulture,
+            out id);
     }
 
     private static bool MatchesPhoneFilter(
@@ -1007,84 +1064,256 @@ public sealed class DbCategoryPageDataService(EcommerceDbContext dbContext) : IC
         }
 
         var categoryIds = GetSubtreeCategoryIds(category.Id, categories);
-        var dynamicFilters = categories
-            .Where(item => categoryIds.Contains(item.Id))
-            .SelectMany(item => item.CategoryVariantAttributes)
-            .Where(item => item.Attribute is not null)
-            .Select(item => new
-            {
-                Id = $"attribute-{item.AttributeId}",
-                Code = item.Attribute!.Code,
-                Label = item.Attribute.Name,
-                Priority = 0,
-                SortOrder = 0
-            })
-            .Concat(categories
-                .Where(item => categoryIds.Contains(item.Id))
-                .SelectMany(item => item.CategorySpecifications)
-                .Where(item => item.Specification is not null)
-                .Select(item => new
-                {
-                    Id = $"specification-{item.SpecificationId}",
-                    Code = item.Specification!.Key,
-                    Label = item.Specification.Name,
-                    Priority = 1,
-                    item.SortOrder
-                }))
-            .GroupBy(item => item.Id)
-            .Select(group => group.First())
-            .OrderBy(item => item.Priority)
-            .ThenBy(item => item.SortOrder)
-            .ThenBy(item => item.Label)
-            .Take(12)
-            .Select(item => new CategoryFilterItemViewModel
-            {
-                Label = item.Label,
-                Url = BuildCatalogUrl(
-                    category.Slug,
-                    request.Brand,
-                    request.Sort,
-                    $"filter={Uri.EscapeDataString(item.Code)}"),
-                HasDropdown = true
-            })
-            .ToList();
-
-        List<CategoryFilterItemViewModel> primaryItems =
-        [
-            new()
-            {
-                Label = "Bộ lọc",
-                Url = BuildCatalogUrl(category.Slug, request.Brand, request.Sort, "filter=all"),
-                Icon = "filter",
-                IsEmphasized = true
-            },
-            new()
-            {
-                Label = "Sẵn hàng",
-                Url = BuildCatalogUrl(category.Slug, request.Brand, request.Sort, "availability=in-stock"),
-                Icon = "truck"
-            },
-            new()
-            {
-                Label = "Xem theo giá",
-                Url = BuildCatalogUrl(category.Slug, request.Brand, request.Sort, "filter=price"),
-                Icon = "price",
-                HasDropdown = true
-            }
-        ];
-        primaryItems.AddRange(dynamicFilters.Take(5));
+        var groups = BuildDynamicFilterGroups(
+            categories,
+            categoryIds,
+            filterSourceVariants,
+            request.Filters);
+        var activeSelectionCount = (request.Filters?.Sum(item => item.Value.Count) ?? 0)
+            + (request.InStockOnly ? 1 : 0)
+            + (request.NewArrivalsOnly ? 1 : 0);
 
         return new CategoryFilterViewModel
         {
             Title = "Chọn theo tiêu chí",
-            PrimaryItems = primaryItems,
-            SecondaryItems = dynamicFilters.Skip(5).ToList(),
+            PrimaryItems = BuildFilterStateItems(category.Slug, request, activeSelectionCount),
+            SecondaryItems = [],
+            Groups = groups,
             SortOptions = BuildSortOptions(category.Slug, request.Brand, request.Sort, request),
             CategorySlug = category.Slug,
             Brand = request.Brand,
             Sort = request.Sort,
+            ActiveSelectionCount = activeSelectionCount,
             ResultCount = resultCount
         };
+    }
+
+    private static IReadOnlyList<CategoryFilterGroupViewModel> BuildDynamicFilterGroups(
+        IReadOnlyList<Category> categories,
+        IReadOnlySet<long> categoryIds,
+        IReadOnlyList<ProductVariant> filterSourceVariants,
+        IReadOnlyDictionary<string, IReadOnlyList<string>>? filters)
+    {
+        var selectedFilters = filters
+            ?? new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase);
+        var groups = new List<CategoryFilterGroupViewModel>
+        {
+            BuildDynamicPriceFilterGroup(filterSourceVariants, selectedFilters)
+        };
+
+        var attributeDefinitions = categories
+            .Where(item => categoryIds.Contains(item.Id))
+            .SelectMany(item => item.CategoryVariantAttributes)
+            .Where(item => item.Attribute is not null)
+            .GroupBy(item => item.AttributeId)
+            .Select(group => group.First().Attribute!)
+            .OrderBy(attribute => attribute.Name)
+            .ToList();
+
+        foreach (var attribute in attributeDefinitions)
+        {
+            if (groups.Count >= MaxDynamicFilterGroups)
+            {
+                break;
+            }
+
+            var group = BuildAttributeFilterGroup(
+                attribute,
+                filterSourceVariants,
+                selectedFilters);
+            if (ShouldIncludeDynamicGroup(group))
+            {
+                groups.Add(group);
+            }
+        }
+
+        var specificationDefinitions = categories
+            .Where(item => categoryIds.Contains(item.Id))
+            .SelectMany(item => item.CategorySpecifications)
+            .Where(item => item.Specification is not null)
+            .GroupBy(item => item.SpecificationId)
+            .Select(group => group
+                .OrderBy(item => item.SortOrder)
+                .First())
+            .OrderBy(item => item.SortOrder)
+            .ThenBy(item => item.Specification!.Name)
+            .ToList();
+
+        foreach (var definition in specificationDefinitions)
+        {
+            if (groups.Count >= MaxDynamicFilterGroups)
+            {
+                break;
+            }
+
+            var group = BuildSpecificationFilterGroup(
+                definition.Specification!,
+                filterSourceVariants,
+                selectedFilters);
+            if (ShouldIncludeDynamicGroup(group))
+            {
+                groups.Add(group);
+            }
+        }
+
+        return groups;
+    }
+
+    private static CategoryFilterGroupViewModel BuildDynamicPriceFilterGroup(
+        IReadOnlyList<ProductVariant> filterSourceVariants,
+        IReadOnlyDictionary<string, IReadOnlyList<string>> selectedFilters)
+    {
+        var definition = PhoneFilterGroups.First(group => group.Key == "price");
+        var selectedValues = GetSelectedFilterValues(selectedFilters, definition.Key);
+
+        return new CategoryFilterGroupViewModel
+        {
+            Key = definition.Key,
+            Label = definition.Label,
+            Icon = definition.Icon,
+            SelectedCount = selectedValues.Count,
+            Options = definition.Options.Select(option => new CategoryFilterOptionViewModel
+            {
+                Value = option.Value,
+                Label = option.Label,
+                IsSelected = selectedValues.Contains(option.Value),
+                IsAvailable = selectedValues.Contains(option.Value)
+                    || filterSourceVariants.Any(variant =>
+                        MatchesPrice(variant.Price, option.Value))
+            }).ToList()
+        };
+    }
+
+    private static CategoryFilterGroupViewModel BuildAttributeFilterGroup(
+        Models.Entities.Attribute attribute,
+        IReadOnlyList<ProductVariant> filterSourceVariants,
+        IReadOnlyDictionary<string, IReadOnlyList<string>> selectedFilters)
+    {
+        var key = $"{AttributeFilterPrefix}{attribute.Id}";
+        var selectedValues = GetSelectedFilterValues(selectedFilters, key);
+        var options = filterSourceVariants
+            .SelectMany(variant => variant.VariantAttributes)
+            .Select(item => item.AttributeOption)
+            .OfType<AttributeOption>()
+            .Where(option => option.AttributeId == attribute.Id)
+            .GroupBy(option => option.Id)
+            .Select(group => group.First())
+            .OrderBy(option => option.Label)
+            .ThenBy(option => option.Value)
+            .Select(option =>
+            {
+                var value = option.Id.ToString(CultureInfo.InvariantCulture);
+                return new CategoryFilterOptionViewModel
+                {
+                    Value = value,
+                    Label = string.IsNullOrWhiteSpace(option.Label) ? option.Value : option.Label,
+                    IsSelected = selectedValues.Contains(value),
+                    IsAvailable = true
+                };
+            })
+            .ToList();
+
+        return new CategoryFilterGroupViewModel
+        {
+            Key = key,
+            Label = attribute.Name,
+            SelectedCount = selectedValues.Count,
+            Options = options
+        };
+    }
+
+    private static CategoryFilterGroupViewModel BuildSpecificationFilterGroup(
+        Specification specification,
+        IReadOnlyList<ProductVariant> filterSourceVariants,
+        IReadOnlyDictionary<string, IReadOnlyList<string>> selectedFilters)
+    {
+        var key = $"{SpecificationFilterPrefix}{specification.Id}";
+        var selectedValues = GetSelectedFilterValues(selectedFilters, key);
+        var options = filterSourceVariants
+            .SelectMany(variant => variant.Product?.ProductSpecifications
+                ?? Enumerable.Empty<ProductSpecification>())
+            .Where(item => item.SpecificationId == specification.Id)
+            .Select(item => item.Value.Trim())
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(value => value, StringComparer.CurrentCultureIgnoreCase)
+            .Select(value => new CategoryFilterOptionViewModel
+            {
+                Value = value,
+                Label = value,
+                IsSelected = selectedValues.Contains(value),
+                IsAvailable = true
+            })
+            .ToList();
+
+        return new CategoryFilterGroupViewModel
+        {
+            Key = key,
+            Label = specification.Name,
+            SelectedCount = selectedValues.Count,
+            Options = options
+        };
+    }
+
+    private static HashSet<string> GetSelectedFilterValues(
+        IReadOnlyDictionary<string, IReadOnlyList<string>> selectedFilters,
+        string key)
+    {
+        return selectedFilters.TryGetValue(key, out var values)
+            ? values.ToHashSet(StringComparer.OrdinalIgnoreCase)
+            : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static bool ShouldIncludeDynamicGroup(CategoryFilterGroupViewModel group)
+    {
+        return group.Options.Count > 1
+            && group.Options.Count <= MaxDynamicFilterOptions;
+    }
+
+    private static IReadOnlyList<CategoryFilterItemViewModel> BuildFilterStateItems(
+        string categorySlug,
+        CategoryPageRequest request,
+        int activeSelectionCount)
+    {
+        return
+        [
+            new()
+            {
+                Label = activeSelectionCount > 0
+                    ? $"Bộ lọc ({activeSelectionCount})"
+                    : "Bộ lọc",
+                Url = BuildCatalogUrl(categorySlug, request.Brand, request.Sort),
+                Icon = "filter",
+                IsEmphasized = true,
+                IsActive = activeSelectionCount > 0
+            },
+            new()
+            {
+                Label = "Sẵn hàng",
+                Url = BuildCatalogStateUrl(
+                    categorySlug,
+                    request.Brand,
+                    request.Sort,
+                    request.Filters,
+                    !request.InStockOnly,
+                    request.NewArrivalsOnly),
+                Icon = "truck",
+                IsActive = request.InStockOnly
+            },
+            new()
+            {
+                Label = "Hàng mới về",
+                Url = BuildCatalogStateUrl(
+                    categorySlug,
+                    request.Brand,
+                    request.Sort,
+                    request.Filters,
+                    request.InStockOnly,
+                    !request.NewArrivalsOnly),
+                Icon = "box",
+                IsActive = request.NewArrivalsOnly
+            }
+        ];
     }
 
     private static CategoryFilterViewModel BuildPhoneFilter(
@@ -1134,59 +1363,10 @@ public sealed class DbCategoryPageDataService(EcommerceDbContext dbContext) : IC
             Sort = request.Sort,
             ActiveSelectionCount = activeSelectionCount,
             ResultCount = resultCount,
-            PrimaryItems =
-            [
-                new()
-                {
-                    Label = activeSelectionCount > 0
-                        ? $"Bộ lọc ({activeSelectionCount})"
-                        : "Bộ lọc",
-                    Url = BuildCatalogUrl(category.Slug, request.Brand, request.Sort),
-                    Icon = "filter",
-                    IsEmphasized = true,
-                    IsActive = activeSelectionCount > 0
-                },
-                new()
-                {
-                    Label = "Sẵn hàng",
-                    Url = BuildCatalogStateUrl(
-                        category.Slug,
-                        request.Brand,
-                        request.Sort,
-                        request.Filters,
-                        !request.InStockOnly,
-                        request.NewArrivalsOnly),
-                    Icon = "truck",
-                    IsActive = request.InStockOnly
-                },
-                new()
-                {
-                    Label = "Hàng mới về",
-                    Url = BuildCatalogStateUrl(
-                        category.Slug,
-                        request.Brand,
-                        request.Sort,
-                        request.Filters,
-                        request.InStockOnly,
-                        !request.NewArrivalsOnly),
-                    Icon = "box",
-                    IsActive = request.NewArrivalsOnly
-                }
-            ],
+            PrimaryItems = BuildFilterStateItems(category.Slug, request, activeSelectionCount),
             SecondaryItems = [],
             Groups = groups,
             SortOptions = BuildSortOptions(category.Slug, request.Brand, request.Sort, request)
-        };
-    }
-
-    private static CategoryFilterViewModel BuildEmptyFilter()
-    {
-        return new CategoryFilterViewModel
-        {
-            Title = "Chọn theo tiêu chí",
-            PrimaryItems = [],
-            SecondaryItems = [],
-            SortOptions = []
         };
     }
 
