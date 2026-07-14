@@ -458,91 +458,25 @@
                         <div class="pd-related-track">
                             @foreach (var product in group.Products)
                             {
-                                <article class="pd-related-card">
-                                    <div class="pd-related-badges">
-                                        @if (!string.IsNullOrWhiteSpace(product.DiscountLabel))
-                                        {
-                                            <span class="pd-related-discount">@product.DiscountLabel</span>
-                                        }
+                                var relatedProductCard = new ProductCardViewModel
+                                {
+                                    Id = product.ProductVariantKey,
+                                    Name = product.Name,
+                                    Url = product.Url,
+                                    ImageUrl = product.ImageUrl,
+                                    ImageAlt = product.ImageAlt,
+                                    CurrentPrice = ProductDetailViewModel.FormatPrice(product.CurrentPrice),
+                                    OldPrice = product.OldPrice.HasValue
+                                        ? ProductDetailViewModel.FormatPrice(product.OldPrice.Value)
+                                        : null,
+                                    DiscountLabel = product.DiscountLabel,
+                                    InstallmentLabel = product.InstallmentLabel,
+                                    DeliveryLabel = product.DeliveryLabel,
+                                    Location = product.Location,
+                                    Rating = product.Rating
+                                };
 
-                                        @if (!string.IsNullOrWhiteSpace(product.InstallmentLabel))
-                                        {
-                                            <span class="pd-related-installment">@product.InstallmentLabel</span>
-                                        }
-                                    </div>
-
-                                    <a class="pd-related-image" href="@product.Url">
-                                        <img src="@product.ImageUrl"
-                                             alt="@product.ImageAlt"
-                                             width="176"
-                                             height="176"
-                                             loading="lazy" />
-                                    </a>
-
-                                    <h3><a href="@product.Url">@product.Name</a></h3>
-
-                                    <div class="pd-related-price">
-                                        <strong>@ProductDetailViewModel.FormatPrice(product.CurrentPrice)</strong>
-                                        @if (product.OldPrice.HasValue)
-                                        {
-                                            <del>@ProductDetailViewModel.FormatPrice(product.OldPrice.Value)</del>
-                                        }
-                                    </div>
-
-                                    @if (!string.IsNullOrWhiteSpace(product.GiftNote))
-                                    {
-                                        <p class="pd-related-note">@product.GiftNote</p>
-                                    }
-
-                                    @if (!string.IsNullOrWhiteSpace(product.UsedPriceLabel))
-                                    {
-                                        <p class="pd-used-price">@product.UsedPriceLabel</p>
-                                    }
-
-                                    @if (!string.IsNullOrWhiteSpace(product.SavingLabel))
-                                    {
-                                        <span class="pd-saving-label">@product.SavingLabel</span>
-                                    }
-
-                                    <div class="pd-related-meta">
-                                        @if (!string.IsNullOrWhiteSpace(product.DeliveryLabel))
-                                        {
-                                            <span class="pd-delivery-badge">
-                                                <svg aria-hidden="true"><use href="#hero-icon-truck"></use></svg>
-                                                @product.DeliveryLabel
-                                            </span>
-                                        }
-
-                                        @if (!string.IsNullOrWhiteSpace(product.Location))
-                                        {
-                                            <span class="pd-location">@product.Location</span>
-                                        }
-                                    </div>
-
-                                    <div class="pd-related-foot">
-                                        @if (product.Rating.HasValue)
-                                        {
-                                            <span class="pd-card-rating">
-                                                <svg aria-hidden="true"><use href="#product-card-icon-star"></use></svg>
-                                                @product.Rating.Value.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture)
-                                            </span>
-                                        }
-
-                                        <button type="button"
-                                                data-product-wishlist
-                                                data-product-id="@product.ProductVariantKey"
-                                                data-product-name="@product.Name"
-                                                data-active-label="Đã thích"
-                                                data-inactive-label="Yêu thích"
-                                                data-filled-icon="#product-card-icon-heart-filled"
-                                                data-outline-icon="#product-card-icon-heart"
-                                                aria-pressed="false"
-                                                aria-label="Thêm @product.Name vào danh sách yêu thích">
-                                            <svg aria-hidden="true"><use href="#product-card-icon-heart"></use></svg>
-                                            <span>Yêu thích</span>
-                                        </button>
-                                    </div>
-                                </article>
+                                <partial name="~/Views/Shared/Partials/_ProductCard.cshtml" model="relatedProductCard" />
                             }
                         </div>
                     </div>

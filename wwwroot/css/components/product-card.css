@@ -75,7 +75,10 @@
 
 .product-card__media img {
   width: 100%;
-  height: 200px;
+  height: min(
+    200px,
+    max(152px, calc(var(--product-card-media-height, 238px) - 38px))
+  );
   object-fit: contain;
   transition: transform var(--transition-base);
 }
