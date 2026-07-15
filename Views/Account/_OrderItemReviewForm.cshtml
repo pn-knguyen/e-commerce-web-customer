@@ -1,0 +1,73 @@
+@model AccountOrderItemReviewEntryViewModel
+
+@{
+    var item = Model.Item;
+    var selectedStars = item.Review?.Stars ?? 5;
+    var formId = $"order-review-{item.OrderItemId}";
+}
+
+<article class="od-review-item">
+    <div class="od-review-product">
+        <img src="@item.ProductImageUrl" alt="@item.ProductImageAlt" width="54" height="54" loading="lazy" />
+        <div>
+            <h3>@item.ProductName</h3>
+            @if (!string.IsNullOrWhiteSpace(item.VariantText))
+            {
+                <p>@item.VariantText</p>
+            }
+            <span>Số lượng: <strong>@item.Quantity</strong></span>
+        </div>
+    </div>
+
+    @if (item.HasReview)
+    {
+        <div class="od-review-current">
+            <strong>@item.ReviewTitle</strong>
+            <span>@item.Review!.Stars/5 sao · @item.Review.SubmittedAtText</span>
+            @if (item.Review.HasComment)
+            {
+                <p>@item.Review.Comment</p>
+            }
+        </div>
+    }
+
+    @if (item.CanReview)
+    {
+        <form class="od-review-form" asp-controller="Account" asp-action="SubmitReview" method="post">
+            @Html.AntiForgeryToken()
+            <input type="hidden" name="OrderCode" value="@Model.OrderCode" />
+            <input type="hidden" name="OrderItemId" value="@item.OrderItemId" />
+
+            <fieldset>
+                <legend>@item.ReviewTitle</legend>
+                <div class="od-review-rating-options" role="radiogroup" aria-label="Chọn số sao">
+                    @for (var star = 1; star <= 5; star++)
+                    {
+                        var optionId = $"{formId}-star-{star}";
+                        <label for="@optionId">
+                            <input id="@optionId"
+                                   type="radio"
+                                   name="Stars"
+                                   value="@star"
+                                   checked="@(selectedStars == star)"
+                                   required />
+                            <span aria-hidden="true">★</span>
+                            <small>@star</small>
+                        </label>
+                    }
+                </div>
+            </fieldset>
+
+            <label class="od-review-comment" for="@($"{formId}-comment")">
+                <span>Chia sẻ trải nghiệm</span>
+                <textarea id="@($"{formId}-comment")"
+                          name="Comment"
+                          rows="3"
+                          maxlength="1000"
+                          placeholder="Sản phẩm có đúng kỳ vọng của bạn không?">@item.Review?.Comment</textarea>
+            </label>
+
+            <button type="submit">@item.ReviewSubmitLabel</button>
+        </form>
+    }
+</article>

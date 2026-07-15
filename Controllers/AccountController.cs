@@ -14,6 +14,7 @@ public sealed class AccountController(
     IAccountProfilePageProvider accountProfilePageProvider,
     IAccountOrderDetailProvider accountOrderDetailProvider,
     IAccountAddressService accountAddressService,
+    IOrderReviewService orderReviewService,
     CartSessionService cartSession) : Controller
 {
     private static readonly MemoryCache MagicLinkSessions = new MemoryCache(new MemoryCacheOptions());
@@ -87,6 +88,33 @@ public sealed class AccountController(
         return model is null
             ? NotFound()
             : View(model);
+    }
+
+    [HttpPost("account/orders/reviews")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> SubmitReview(
+        AccountOrderReviewFormViewModel model,
+        CancellationToken cancellationToken = default)
+    {
+        if (!IsLoggedIn())
+        {
+            var returnUrl = BuildOrderDetailUrl(model.OrderCode);
+            return RedirectToAction(nameof(Login), new { returnUrl });
+        }
+
+        if (!ModelState.IsValid)
+        {
+            TempData["ReviewError"] = "Vui lòng chọn số sao từ 1 đến 5 và kiểm tra lại nội dung đánh giá.";
+            return RedirectToOrderDetailReview(model.OrderCode);
+        }
+
+        var result = await orderReviewService.SubmitReviewAsync(
+            HttpContext.Session.GetString(SessionKeys.UserEmail),
+            new OrderReviewInput(model.OrderItemId, model.Stars, model.Comment),
+            cancellationToken);
+
+        TempData[result.Success ? "ReviewSuccess" : "ReviewError"] = result.Message;
+        return RedirectToOrderDetailReview(model.OrderCode);
     }
 
     [HttpGet]
@@ -313,5 +341,28 @@ public sealed class AccountController(
         var url = Url.Action(nameof(Profile), "Account", new { tab = AccountProfileTabs.Info })
             ?? "/Account/Profile?tab=info";
         return Redirect(url + "#profile-address-title");
+    }
+
+    private IActionResult RedirectToOrderDetailReview(string? orderCode)
+    {
+        var url = BuildOrderDetailUrl(orderCode);
+        if (string.IsNullOrWhiteSpace(url))
+        {
+            return RedirectToAction(nameof(Profile), new { tab = AccountProfileTabs.History });
+        }
+
+        return Redirect(url + "#order-reviews");
+    }
+
+    private string? BuildOrderDetailUrl(string? orderCode)
+    {
+        var normalizedCode = orderCode?.Trim().TrimStart('#');
+        if (string.IsNullOrWhiteSpace(normalizedCode))
+        {
+            return Url.Action(nameof(Profile), "Account", new { tab = AccountProfileTabs.History });
+        }
+
+        return Url.Action(nameof(OrderDetail), "Account", new { code = normalizedCode })
+            ?? "/account/orders/" + Uri.EscapeDataString(normalizedCode);
     }
 }

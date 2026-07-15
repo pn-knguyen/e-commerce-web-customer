@@ -1,3 +1,5 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace e_commerce_web_customer.ViewModels.Account;
 
 public sealed class AccountOrderDetailViewModel
@@ -19,6 +21,7 @@ public sealed class AccountOrderDetailViewModel
 
 public sealed class AccountOrderDetailItemViewModel
 {
+    public long OrderItemId { get; init; }
     public string ProductName { get; init; } = string.Empty;
     public string ProductImageUrl { get; init; } = "/images/logo-techstore-icon.svg";
     public string ProductImageAlt { get; init; } = string.Empty;
@@ -27,6 +30,41 @@ public sealed class AccountOrderDetailItemViewModel
     public string VariantText { get; init; } = string.Empty;
     public int Quantity { get; init; }
     public string LineTotalText { get; init; } = string.Empty;
+    public bool CanReview { get; init; }
+    public AccountOrderItemReviewViewModel? Review { get; init; }
+
+    public bool HasReview => Review is not null;
+    public string ReviewSubmitLabel => HasReview ? "Cập nhật đánh giá" : "Gửi đánh giá";
+    public string ReviewTitle => HasReview ? "Đánh giá của bạn" : "Đánh giá sản phẩm";
+}
+
+public sealed class AccountOrderItemReviewViewModel
+{
+    public int Stars { get; init; }
+    public string Comment { get; init; } = string.Empty;
+    public string SubmittedAtText { get; init; } = string.Empty;
+    public bool HasComment => !string.IsNullOrWhiteSpace(Comment);
+}
+
+public sealed class AccountOrderItemReviewEntryViewModel
+{
+    public string OrderCode { get; init; } = string.Empty;
+    public required AccountOrderDetailItemViewModel Item { get; init; }
+}
+
+public sealed class AccountOrderReviewFormViewModel
+{
+    [Required]
+    public string OrderCode { get; init; } = string.Empty;
+
+    [Range(1, long.MaxValue)]
+    public long OrderItemId { get; init; }
+
+    [Range(1, 5)]
+    public int Stars { get; init; }
+
+    [StringLength(1000)]
+    public string? Comment { get; init; }
 }
 
 public sealed class AccountOrderStepViewModel

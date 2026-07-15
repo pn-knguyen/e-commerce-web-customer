@@ -39,6 +39,13 @@ public sealed class DbAccountOrderDetailProvider(EcommerceDbContext dbContext) :
             .Include(item => item.OrderItems)
                 .ThenInclude(item => item.ProductVariant)
                     .ThenInclude(variant => variant!.ProductVariantImages)
+            .Include(item => item.OrderItems)
+                .ThenInclude(item => item.ProductVariant)
+                    .ThenInclude(variant => variant!.VariantAttributes)
+                        .ThenInclude(attribute => attribute.AttributeOption)
+                            .ThenInclude(option => option!.Attribute)
+            .Include(item => item.OrderItems)
+                .ThenInclude(item => item.Rating)
             .Where(item => item.User != null && item.User.Email.ToLower() == normalizedEmail)
             .FirstOrDefaultAsync(
                 item => item.OrderCode.ToLower() == normalizedCode.ToLower(),
@@ -89,6 +96,8 @@ public sealed class DbAccountOrderDetailProvider(EcommerceDbContext dbContext) :
         var itemQuantity = order.OrderItems.Sum(item => Math.Max(1, item.Quantity));
         var isUnpaid = order.PaymentStatus is PaymentStatus.Unpaid or PaymentStatus.Failed;
         var isActiveOrder = order.OrderStatus is not OrderStatus.Cancelled and not OrderStatus.Returned;
+        var canReviewItems = order.PaymentStatus == PaymentStatus.Paid
+            && order.OrderStatus == OrderStatus.Completed;
         var providerKey = ResolveProviderKey(order.PaymentMethod?.Name);
 
         var canRetryPayment = isUnpaid && isActiveOrder
@@ -116,7 +125,10 @@ public sealed class DbAccountOrderDetailProvider(EcommerceDbContext dbContext) :
             OrderedDateText = order.CreatedAt.ToLocalTime().ToString("dd/MM/yyyy", ViCulture),
             StatusText = GetStatusText(order.OrderStatus),
             StatusTone = GetStatusTone(order.OrderStatus),
-            Items = order.OrderItems.Select(item => ToItemViewModel(item, order.CreatedAt)).ToList(),
+            Items = order.OrderItems
+                .OrderBy(item => item.Id)
+                .Select(item => ToItemViewModel(item, canReviewItems))
+                .ToList(),
             Steps = CreateSteps(order.OrderStatus, shipment),
             Shipment = CreateShipmentViewModel(shipment),
             Customer = new AccountOrderCustomerViewModel
@@ -142,23 +154,69 @@ public sealed class DbAccountOrderDetailProvider(EcommerceDbContext dbContext) :
         };
     }
 
-    private static AccountOrderDetailItemViewModel ToItemViewModel(OrderItem item, DateTime orderedAt)
+    private static AccountOrderDetailItemViewModel ToItemViewModel(OrderItem item, bool canReview)
     {
         var variant = item.ProductVariant;
         var product = variant?.Product;
         var image = variant?.ProductVariantImages
             .OrderBy(image => image.Position)
             .FirstOrDefault();
+        var quantity = Math.Max(1, item.Quantity);
 
         return new AccountOrderDetailItemViewModel
         {
+            OrderItemId = item.Id,
             ProductName = product?.Name ?? "Sản phẩm TechStore",
             ProductImageUrl = NormalizeImageUrl(image?.ImagePath),
             ProductImageAlt = image?.AltText ?? product?.Name ?? "Sản phẩm TechStore",
             UnitPriceText = FormatCurrency(item.UnitPrice),
             ColorText = variant?.ColorName ?? string.Empty,
-            Quantity = Math.Max(1, item.Quantity)
+            VariantText = BuildVariantText(variant),
+            Quantity = quantity,
+            LineTotalText = FormatCurrency(item.UnitPrice * quantity),
+            CanReview = canReview,
+            Review = ToReviewViewModel(item.Rating)
         };
+    }
+
+    private static AccountOrderItemReviewViewModel? ToReviewViewModel(Rating? rating)
+    {
+        if (rating is null)
+        {
+            return null;
+        }
+
+        return new AccountOrderItemReviewViewModel
+        {
+            Stars = rating.Stars,
+            Comment = rating.Comment?.Trim() ?? string.Empty,
+            SubmittedAtText = FormatDateTime(rating.UpdatedAt ?? rating.CreatedAt)
+        };
+    }
+
+    private static string BuildVariantText(ProductVariant? variant)
+    {
+        if (variant is null)
+        {
+            return string.Empty;
+        }
+
+        var parts = variant.VariantAttributes
+            .OrderBy(item => item.AttributeOption?.Attribute?.Id ?? item.AttributeOption?.AttributeId ?? 0)
+            .ThenBy(item => item.AttributeOptionId)
+            .Select(item => item.AttributeOption?.Label ?? item.AttributeOption?.Value)
+            .Where(part => !string.IsNullOrWhiteSpace(part))
+            .Select(part => part!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (!string.IsNullOrWhiteSpace(variant.ColorName)
+            && !parts.Contains(variant.ColorName.Trim(), StringComparer.OrdinalIgnoreCase))
+        {
+            parts.Add(variant.ColorName.Trim());
+        }
+
+        return string.Join(" - ", parts);
     }
 
     private static IReadOnlyList<AccountOrderStepViewModel> CreateSteps(

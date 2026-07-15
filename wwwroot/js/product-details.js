@@ -16,7 +16,6 @@
   const stockStatusNote = page.querySelector('[data-stock-status-note]');
   const specModal = page.querySelector('[data-spec-modal]');
   const specModalContent = specModal?.querySelector('[data-spec-modal-content]');
-  const reviewModal = page.querySelector('[data-review-modal]');
   const galleryModal = page.querySelector('[data-gallery-modal]');
   const upsellModal = page.querySelector('[data-upsell-modal]');
   const upsellModalProduct = upsellModal?.querySelector('[data-upsell-modal-product]');
@@ -41,11 +40,6 @@
   page.addEventListener('click', async (event) => {
     if (event.target === specModal) {
       closeModal(specModal);
-      return;
-    }
-
-    if (event.target === reviewModal) {
-      closeModal(reviewModal);
       return;
     }
 
@@ -102,16 +96,6 @@
     const qaShowMore = event.target.closest('[data-qa-show-more]');
     if (qaShowMore) {
       revealItems('[data-qa-thread]', qaShowMore);
-      return;
-    }
-
-    if (event.target.closest('[data-review-open]')) {
-      openModal(reviewModal);
-      return;
-    }
-
-    if (event.target.closest('[data-review-close]')) {
-      closeModal(reviewModal);
       return;
     }
 
@@ -270,7 +254,6 @@
     if (event.key !== 'Escape') return;
 
     closeModal(specModal);
-    closeModal(reviewModal);
     closeModal(galleryModal);
     closeModal(upsellModal);
   });

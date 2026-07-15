@@ -78,6 +78,7 @@ public static class StorefrontServiceCollectionExtensions
         services.AddSingleton<IAccountProfilePageProvider, MockAccountProfilePageProvider>();
         services.AddSingleton<IAccountOrderDetailProvider, MockAccountOrderDetailProvider>();
         services.AddSingleton<IAccountAddressService, MockAccountAddressService>();
+        services.AddSingleton<IOrderReviewService, MockOrderReviewService>();
         services.AddSingleton<ICartDemoDataProvider, MockCartDemoDataProvider>();
         services.AddSingleton<ICartPersistenceService, NoOpCartPersistenceService>();
         services.AddSingleton<ICheckoutPaymentMethodProvider, MockCheckoutPaymentMethodProvider>();
@@ -132,6 +133,7 @@ public static class StorefrontServiceCollectionExtensions
         services.AddScoped<IAccountProfilePageProvider, DbAccountProfilePageProvider>();
         services.AddScoped<IAccountOrderDetailProvider, DbAccountOrderDetailProvider>();
         services.AddScoped<IAccountAddressService, DbAccountAddressService>();
+        services.AddScoped<IOrderReviewService, DbOrderReviewService>();
         services.AddScoped<ICartDemoDataProvider, EmptyCartDemoDataProvider>();
         services.AddScoped<ICartPersistenceService, DbCartPersistenceService>();
         services.AddScoped<ICheckoutPaymentMethodProvider, DbCheckoutPaymentMethodProvider>();
