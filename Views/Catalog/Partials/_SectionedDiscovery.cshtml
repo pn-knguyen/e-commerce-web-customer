@@ -1,5 +1,9 @@
 @model CategoryPageViewModel
 
+@{
+    var isApplianceRoot = string.Equals(Model.Slug, "do-gia-dung", StringComparison.OrdinalIgnoreCase);
+}
+
 <section class="catalog-sectioned-discovery" aria-labelledby="catalog-title">
     <div class="container">
         <nav class="catalog-breadcrumb" aria-label="Đường dẫn">
@@ -30,7 +34,7 @@
         @if (Model.PromotionBanners.Count > 0)
         {
             <div class="catalog-promo-carousel catalog-sectioned-promo">
-                <div class="swiper catalog-promo-swiper" aria-label="Khuyến mãi âm thanh">
+                <div class="swiper catalog-promo-swiper" aria-label="Khuyến mãi">
                     <div class="swiper-wrapper">
                         @foreach (var banner in Model.PromotionBanners)
                         {
@@ -94,28 +98,56 @@
 
             @if (Model.Brands.Count > 0)
             {
-                <nav class="catalog-brand-list catalog-sectioned-brands" aria-label="Thương hiệu sản phẩm">
-                    @foreach (var brand in Model.Brands)
-                    {
-                        <a href="@brand.Url" data-brand="@brand.Id">
-                            @if (!string.IsNullOrWhiteSpace(brand.ImageUrl))
+                @if (isApplianceRoot)
+                {
+                    <section class="catalog-sectioned-brand-section" aria-labelledby="catalog-sectioned-brand-title">
+                        <h2 id="catalog-sectioned-brand-title">Thương hiệu</h2>
+                        <nav class="catalog-brand-list catalog-sectioned-brands" aria-label="Thương hiệu sản phẩm">
+                            @foreach (var brand in Model.Brands)
                             {
-                                <img src="@brand.ImageUrl"
-                                     alt="@(brand.ImageAlt ?? brand.Label)"
-                                     width="96"
-                                     height="32"
-                                     loading="lazy" />
+                                <a href="@brand.Url" data-brand="@brand.Id">
+                                    @if (!string.IsNullOrWhiteSpace(brand.ImageUrl))
+                                    {
+                                        <img src="@brand.ImageUrl"
+                                             alt="@(brand.ImageAlt ?? brand.Label)"
+                                             width="96"
+                                             height="32"
+                                             loading="lazy" />
+                                    }
+                                    else
+                                    {
+                                        <span>@brand.Label</span>
+                                    }
+                                </a>
                             }
-                            else
-                            {
-                                <span>@brand.Label</span>
-                            }
-                        </a>
-                    }
-                </nav>
+                        </nav>
+                    </section>
+                }
+                else
+                {
+                    <nav class="catalog-brand-list catalog-sectioned-brands" aria-label="Thương hiệu sản phẩm">
+                        @foreach (var brand in Model.Brands)
+                        {
+                            <a href="@brand.Url" data-brand="@brand.Id">
+                                @if (!string.IsNullOrWhiteSpace(brand.ImageUrl))
+                                {
+                                    <img src="@brand.ImageUrl"
+                                         alt="@(brand.ImageAlt ?? brand.Label)"
+                                         width="96"
+                                         height="32"
+                                         loading="lazy" />
+                                }
+                                else
+                                {
+                                    <span>@brand.Label</span>
+                                }
+                            </a>
+                        }
+                    </nav>
+                }
             }
 
-            @if (Model.QuickLinks.Count > 0)
+            @if (!isApplianceRoot && Model.QuickLinks.Count > 0)
             {
                 <section class="catalog-sectioned-types" aria-labelledby="catalog-sectioned-types-title">
                     <h2 id="catalog-sectioned-types-title">Chọn loại sản phẩm</h2>

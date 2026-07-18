@@ -23,12 +23,18 @@
     <partial name="_CategoryProducts" model="categorySection" />
 }
 
+@if (Model.ApplianceShowcase.Columns.Count > 0)
+{
+    <partial name="_ApplianceShowcase" model="Model.ApplianceShowcase" />
+}
+
 <partial name="_CategoryProductsIconSprite" />
 
 @section Styles {
     <link rel="stylesheet" href="~/lib/swiper/swiper-bundle.min.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/pages/home-hero.css" asp-append-version="true" />
     <link rel="stylesheet" href="~/css/pages/home-category-products.css" asp-append-version="true" />
+    <link rel="stylesheet" href="~/css/pages/home-appliance-showcase.css" asp-append-version="true" />
 }
 
 @section Scripts {

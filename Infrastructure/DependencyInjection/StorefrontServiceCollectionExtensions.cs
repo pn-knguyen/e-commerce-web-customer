@@ -13,6 +13,7 @@ using e_commerce_web_customer.Infrastructure.Account.Db;
 using e_commerce_web_customer.Infrastructure.Account.Mock;
 using e_commerce_web_customer.Infrastructure.Cart.Db;
 using e_commerce_web_customer.Infrastructure.Cart.Mock;
+using e_commerce_web_customer.Infrastructure.Caching;
 using e_commerce_web_customer.Infrastructure.Catalog.Db;
 using e_commerce_web_customer.Infrastructure.Catalog.Mock;
 using e_commerce_web_customer.Infrastructure.CustomerMessages;
@@ -103,8 +104,19 @@ public static class StorefrontServiceCollectionExtensions
                 "Connection string 'DefaultConnection' is required when UseMockData is false.");
         }
 
-        services.AddDbContext<EcommerceDbContext>(options =>
-            options.UseSqlServer(connectionString));
+        services.AddPooledDbContextFactory<EcommerceDbContext>(options =>
+            options.UseSqlServer(
+                connectionString,
+                sqlServerOptions => sqlServerOptions.EnableRetryOnFailure(
+                    maxRetryCount: 2,
+                    maxRetryDelay: TimeSpan.FromSeconds(1),
+                    errorNumbersToAdd: null)),
+            poolSize: 128);
+        services.AddScoped(serviceProvider =>
+            serviceProvider
+                .GetRequiredService<IDbContextFactory<EcommerceDbContext>>()
+                .CreateDbContext());
+        services.AddSingleton<StorefrontDbQueryGate>();
         services.Configure<GeminiOptions>(
             configuration.GetSection(GeminiOptions.SectionName));
         services.AddHttpClient<IAiService, AiService>(client =>

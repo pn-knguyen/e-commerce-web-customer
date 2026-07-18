@@ -8,4 +8,5 @@ public sealed class HomeIndexViewModel
     public required IReadOnlyList<CategoryProductsViewModel> FeaturedCategorySections { get; init; }
     public required CategoryDirectoryViewModel AccessoryDirectory { get; init; }
     public required IReadOnlyList<CategoryProductsViewModel> AdditionalCategorySections { get; init; }
+    public required HomeApplianceShowcaseViewModel ApplianceShowcase { get; init; }
 }

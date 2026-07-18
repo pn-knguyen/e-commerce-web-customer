@@ -23,7 +23,49 @@ public sealed class MockCategoryPageViewModelFactory : ICategoryPageViewModelFac
             _ => CreateGenericPage(request)
         };
 
-        return Task.FromResult<CategoryPageViewModel?>(model);
+        return Task.FromResult<CategoryPageViewModel?>(
+            model is null ? null : ApplyProductPagination(model, request.Page));
+    }
+
+    private static CategoryPageViewModel ApplyProductPagination(
+        CategoryPageViewModel model,
+        int requestedPage)
+    {
+        if (model.LayoutMode != CategoryPageLayoutMode.FilterListing)
+        {
+            return model;
+        }
+
+        const int pageSize = 20;
+        var page = Math.Max(1, requestedPage);
+        var totalProductCount = model.Products.Count;
+
+        return new CategoryPageViewModel
+        {
+            Slug = model.Slug,
+            Title = model.Title,
+            MetaDescription = model.MetaDescription,
+            LayoutMode = model.LayoutMode,
+            Breadcrumbs = model.Breadcrumbs,
+            PromotionBanners = model.PromotionBanners,
+            Brands = model.Brands,
+            QuickLinks = model.QuickLinks,
+            HotSale = model.HotSale,
+            Filter = model.Filter,
+            Products = model.Products
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .ToList(),
+            InitialProductCount = pageSize,
+            TotalProductCount = totalProductCount,
+            CurrentPage = page,
+            HasMoreProducts = page * pageSize < totalProductCount,
+            SectionTabs = model.SectionTabs,
+            ProductSections = model.ProductSections,
+            IsAccessoryDirectory = model.IsAccessoryDirectory,
+            SeoContent = model.SeoContent,
+            QuestionAnswer = model.QuestionAnswer
+        };
     }
 
     private static CategoryPageViewModel CreatePhonePage(CategoryPageRequest request)
@@ -592,6 +634,11 @@ public sealed class MockCategoryPageViewModelFactory : ICategoryPageViewModelFac
         var title = ResolveCategoryTitle(slug);
         var panel = ResolveHomeCategoryPanel(slug);
         var products = panel?.Products ?? ResolveFallbackProducts(slug);
+        if (string.Equals(slug, "tv", StringComparison.OrdinalIgnoreCase))
+        {
+            products = ApplyTvMockFilters(products, request.Filters);
+        }
+
         var activeSort = string.IsNullOrWhiteSpace(request.Sort)
             ? "popular"
             : request.Sort.Trim().ToLowerInvariant();
@@ -643,7 +690,7 @@ public sealed class MockCategoryPageViewModelFactory : ICategoryPageViewModelFac
                 Title = "Sản phẩm nổi bật",
                 Products = products.Take(8).Select(ToHotSaleCard).ToList()
             },
-            Filter = CreateGenericFilter(slug, activeSort),
+            Filter = CreateGenericFilter(slug, activeSort, request, products.Count),
             Products = products,
             InitialProductCount = 20,
             SeoContent = new CategorySeoContentViewModel
@@ -670,7 +717,7 @@ public sealed class MockCategoryPageViewModelFactory : ICategoryPageViewModelFac
             "desktop" or "pc" or "printer" => ComputerCategorySectionFactory.Create().Tabs.FirstOrDefault(item => item.Id == "desktop-pcs"),
             "computer-accessories" => ComputerCategorySectionFactory.Create().Tabs.FirstOrDefault(item => item.Id == "computer-accessories"),
             "smartwatch" or "watch" or "camera" or "camera-accessories" => AudioWearablesCategorySectionFactory.Create().Tabs.FirstOrDefault(item => item.Id == "watches"),
-            "tv" or "home-electronics" or "entertainment" => ComputerCategorySectionFactory.Create().Tabs.FirstOrDefault(item => item.Id == "monitors"),
+            "tv" or "home-electronics" or "entertainment" => TvCategorySectionFactory.Create().Tabs.FirstOrDefault(item => item.Id == "tv"),
             _ => null
         };
 
@@ -713,8 +760,17 @@ public sealed class MockCategoryPageViewModelFactory : ICategoryPageViewModelFac
         }).ToList();
     }
 
-    private static CategoryFilterViewModel CreateGenericFilter(string slug, string activeSort)
+    private static CategoryFilterViewModel CreateGenericFilter(
+        string slug,
+        string activeSort,
+        CategoryPageRequest request,
+        int resultCount)
     {
+        var activeSelectionCount = (request.Filters?.Sum(item => item.Value.Count) ?? 0)
+            + (request.InStockOnly ? 1 : 0)
+            + (request.NewArrivalsOnly ? 1 : 0);
+        var selectedScreenSizes = GetSelectedMockFilterValues(request.Filters, "screen-size");
+
         return new CategoryFilterViewModel
         {
             Title = "Chọn theo tiêu chí",
@@ -725,7 +781,8 @@ public sealed class MockCategoryPageViewModelFactory : ICategoryPageViewModelFac
                     Label = "Bộ lọc",
                     Url = $"/catalog?cat={Uri.EscapeDataString(slug)}&filter=all",
                     Icon = "filter",
-                    IsEmphasized = true
+                    IsEmphasized = true,
+                    IsActive = activeSelectionCount > 0
                 },
                 new()
                 {
@@ -741,6 +798,31 @@ public sealed class MockCategoryPageViewModelFactory : ICategoryPageViewModelFac
                 }
             ],
             SecondaryItems = [],
+            Groups = string.Equals(slug, "tv", StringComparison.OrdinalIgnoreCase)
+                ?
+                [
+                    new CategoryFilterGroupViewModel
+                    {
+                        Key = "screen-size",
+                        Label = "Kích thước màn hình",
+                        SelectedCount = selectedScreenSizes.Count,
+                        Options =
+                        [
+                            MockScreenSizeOption("32", selectedScreenSizes),
+                            MockScreenSizeOption("43", selectedScreenSizes),
+                            MockScreenSizeOption("55", selectedScreenSizes),
+                            MockScreenSizeOption("60", selectedScreenSizes),
+                            MockScreenSizeOption("65", selectedScreenSizes),
+                            MockScreenSizeOption("75", selectedScreenSizes)
+                        ]
+                    }
+                ]
+                : [],
+            CategorySlug = slug,
+            Brand = request.Brand,
+            Sort = request.Sort,
+            ActiveSelectionCount = activeSelectionCount,
+            ResultCount = resultCount,
             SortOptions =
             [
                 SortItem("Phổ biến", "popular", "star", activeSort, slug),
@@ -748,6 +830,52 @@ public sealed class MockCategoryPageViewModelFactory : ICategoryPageViewModelFac
                 SortItem("Giá Cao - Thấp", "price-desc", "sort-down", activeSort, slug)
             ]
         };
+    }
+
+    private static IReadOnlyList<ProductCardViewModel> ApplyTvMockFilters(
+        IReadOnlyList<ProductCardViewModel> products,
+        IReadOnlyDictionary<string, IReadOnlyList<string>>? filters)
+    {
+        var selectedScreenSizes = GetSelectedMockFilterValues(filters, "screen-size");
+        if (selectedScreenSizes.Count == 0)
+        {
+            return products;
+        }
+
+        return products
+            .Where(product => selectedScreenSizes.Any(size =>
+                ProductMatchesMockScreenSize(product, size)))
+            .ToList();
+    }
+
+    private static HashSet<string> GetSelectedMockFilterValues(
+        IReadOnlyDictionary<string, IReadOnlyList<string>>? filters,
+        string key)
+    {
+        return filters is not null && filters.TryGetValue(key, out var values)
+            ? values.ToHashSet(StringComparer.OrdinalIgnoreCase)
+            : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static CategoryFilterOptionViewModel MockScreenSizeOption(
+        string value,
+        IReadOnlySet<string> selectedValues)
+    {
+        return new CategoryFilterOptionViewModel
+        {
+            Value = value,
+            Label = $"{value} inch",
+            IsSelected = selectedValues.Contains(value),
+            IsAvailable = true
+        };
+    }
+
+    private static bool ProductMatchesMockScreenSize(ProductCardViewModel product, string size)
+    {
+        var sizeText = $"{size} inch";
+        return product.Name.Contains(sizeText, StringComparison.OrdinalIgnoreCase)
+            || product.Specifications.Any(specification =>
+                specification.Contains(sizeText, StringComparison.OrdinalIgnoreCase));
     }
 
     private static QuestionAnswerSectionViewModel CreateGenericQuestionAnswer(string categoryTitle)

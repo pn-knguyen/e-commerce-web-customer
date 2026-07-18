@@ -22,9 +22,20 @@ public sealed class MockSiteCategoryMenuProvider : ISiteCategoryMenuProvider
             Item("site-cat-accessories", "/catalog?cat=accessories", "Phụ kiện", "cable",
                 MockSiteCategoryMegaMenuData.Accessories),
             Item("site-cat-pc", "/catalog?cat=pc", "PC, Màn hình, Máy in", "desktop",
-                MockSiteCategoryMegaMenuData.Pc),
+                MockSiteCategoryMegaMenuData.Pc,
+                categoryLinks:
+                [
+                    Link("PC", "/catalog?cat=pc"),
+                    Link("Màn hình", "/catalog?cat=monitor"),
+                    Link("Máy in", "/catalog?cat=printer")
+                ]),
             Item("site-cat-tv", "/catalog?cat=tv", "Tivi, Điện máy", "tv",
-                MockSiteCategoryMegaMenuData.Tv),
+                MockSiteCategoryMegaMenuData.Tv,
+                categoryLinks:
+                [
+                    Link("Tivi", "/catalog?cat=tv"),
+                    Link("Điện máy", "/catalog?cat=home-electronics")
+                ]),
             Item("site-cat-tradein", "/catalog?cat=trade-in", "Thu cũ đổi mới", "swap",
                 MockSiteCategoryMegaMenuData.TradeIn),
             Item("site-cat-used", "/catalog?cat=used", "Hàng cũ", "history",
@@ -49,7 +60,8 @@ public sealed class MockSiteCategoryMenuProvider : ISiteCategoryMenuProvider
         string label,
         string icon,
         IReadOnlyList<SiteCategoryMenuGroupViewModel> groups,
-        bool isHighlighted = false)
+        bool isHighlighted = false,
+        IReadOnlyList<SiteCategoryMenuLinkViewModel>? categoryLinks = null)
     {
         return new SiteCategoryMenuItemViewModel
         {
@@ -58,7 +70,14 @@ public sealed class MockSiteCategoryMenuProvider : ISiteCategoryMenuProvider
             Label = label,
             Icon = icon,
             Groups = groups,
+            CategoryLinks = categoryLinks ?? [],
             IsHighlighted = isHighlighted
         };
     }
+
+    private static SiteCategoryMenuLinkViewModel Link(string label, string url) => new()
+    {
+        Label = label,
+        Url = url
+    };
 }

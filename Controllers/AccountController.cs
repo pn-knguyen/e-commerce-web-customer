@@ -1,8 +1,11 @@
+using System.Security.Claims;
 using e_commerce_web_customer.Application.Contracts;
 using e_commerce_web_customer.Application.Constants;
 using e_commerce_web_customer.Application.Account;
 using e_commerce_web_customer.Application.Services;
 using e_commerce_web_customer.ViewModels.Account;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Mvc;
 using FirebaseAdmin.Auth;
 using Microsoft.Extensions.Caching.Memory;
@@ -28,8 +31,9 @@ public sealed class AccountController(
 
     [HttpPost]
     [ValidateAntiForgeryToken]
-    public IActionResult Logout()
+    public async Task<IActionResult> Logout()
     {
+        await HttpContext.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
         cartSession.Clear();
         cartSession.ClearBuyNow();
         cartSession.ClearCheckoutSelection();
@@ -43,6 +47,9 @@ public sealed class AccountController(
     [HttpGet]
     public async Task<IActionResult> Profile(
         string? tab = null,
+        string? status = null,
+        string? from = null,
+        string? to = null,
         CancellationToken cancellationToken = default)
     {
         if (!IsLoggedIn())
@@ -50,7 +57,13 @@ public sealed class AccountController(
             var returnUrl = Url.Action(
                 nameof(Profile),
                 "Account",
-                new { tab = AccountProfileTabs.Normalize(tab) });
+                new
+                {
+                    tab = AccountProfileTabs.Normalize(tab),
+                    status,
+                    from,
+                    to
+                });
             return RedirectToAction(nameof(Login), new { returnUrl });
         }
 
@@ -59,9 +72,35 @@ public sealed class AccountController(
             HttpContext.Session.GetString(SessionKeys.UserDisplayName),
             HttpContext.Session.GetString(SessionKeys.UserPhoneNumber),
             AccountProfileTabs.Normalize(tab),
+            status,
+            from,
+            to,
             cancellationToken);
 
         return View(model);
+    }
+
+    [HttpGet("account/profile/order-history")]
+    public async Task<IActionResult> ProfileOrderHistory(
+        string? status = null,
+        string? from = null,
+        string? to = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (!IsLoggedIn())
+        {
+            return Unauthorized();
+        }
+
+        var model = await accountProfilePageProvider.GetOrderHistoryAsync(
+            HttpContext.Session.GetString(SessionKeys.UserEmail),
+            status,
+            from,
+            to,
+            cancellationToken);
+
+        Response.Headers.CacheControl = "no-store, no-cache";
+        return PartialView("_AccountOrderHistory", model);
     }
 
     [HttpGet("account/orders/{code}")]
@@ -121,6 +160,42 @@ public sealed class AccountController(
     public IActionResult Register()
     {
         return View(new RegisterViewModel());
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> UpdateProfile(
+        AccountProfileUpdateViewModel model,
+        CancellationToken cancellationToken = default)
+    {
+        if (!IsLoggedIn())
+        {
+            var returnUrl = Url.Action(nameof(Profile), "Account", new { tab = AccountProfileTabs.Info });
+            return RedirectToAction(nameof(Login), new { returnUrl });
+        }
+
+        if (!ModelState.IsValid)
+        {
+            TempData["ProfileError"] = "Vui lòng kiểm tra lại thông tin cá nhân.";
+            return RedirectToProfilePersonalInfo();
+        }
+
+        var result = await accountService.UpdateProfileAsync(
+            HttpContext.Session.GetString(SessionKeys.UserEmail),
+            new AccountProfileUpdateInput(
+                model.FullName,
+                model.PhoneNumber,
+                model.Gender),
+            cancellationToken);
+
+        if (result.Success && result.Profile is not null)
+        {
+            SetLoginSession(result.Profile.Email, result.Profile.DisplayName, result.Profile.PhoneNumber);
+            await SignInCustomerAsync(result.Profile.Email, result.Profile.DisplayName, result.Profile.PhoneNumber);
+        }
+
+        TempData[result.Success ? "ProfileSuccess" : "ProfileError"] = result.Message;
+        return RedirectToProfilePersonalInfo();
     }
 
     [HttpPost]
@@ -297,16 +372,14 @@ public sealed class AccountController(
              return Json(new { success = false, message = "Lỗi hệ thống: Hồ sơ người dùng không tồn tại." });
         }
 
-        HttpContext.Session.SetString(SessionKeys.IsLoggedIn, "true");
-        HttpContext.Session.SetString(SessionKeys.UserEmail, profile?.Email ?? email);
-        HttpContext.Session.SetString(
-            SessionKeys.UserDisplayName,
-            profile?.DisplayName ?? finalDisplayName ?? finalPhoneNumber ?? ResolveDisplayName(email));
-        
-        if (!string.IsNullOrWhiteSpace(profile?.PhoneNumber ?? finalPhoneNumber))
-        {
-            HttpContext.Session.SetString(SessionKeys.UserPhoneNumber, profile?.PhoneNumber ?? finalPhoneNumber!);
-        }
+        var resolvedEmail = profile.Email;
+        var resolvedDisplayName = profile.DisplayName;
+        var resolvedPhoneNumber = string.IsNullOrWhiteSpace(profile.PhoneNumber)
+            ? finalPhoneNumber
+            : profile.PhoneNumber;
+
+        SetLoginSession(resolvedEmail, resolvedDisplayName, resolvedPhoneNumber);
+        await SignInCustomerAsync(resolvedEmail, resolvedDisplayName, resolvedPhoneNumber);
 
         return Json(new { 
             success = true, 
@@ -321,7 +394,49 @@ public sealed class AccountController(
 
     private bool IsLoggedIn()
     {
-        return HttpContext.Session.GetString(SessionKeys.IsLoggedIn) == "true";
+        return HttpContext.User?.Identity?.IsAuthenticated == true
+            || HttpContext.Session.GetString(SessionKeys.IsLoggedIn) == "true";
+    }
+
+    private void SetLoginSession(string email, string displayName, string? phoneNumber)
+    {
+        HttpContext.Session.SetString(SessionKeys.IsLoggedIn, "true");
+        HttpContext.Session.SetString(SessionKeys.UserEmail, email);
+        HttpContext.Session.SetString(SessionKeys.UserDisplayName, displayName);
+
+        if (string.IsNullOrWhiteSpace(phoneNumber))
+        {
+            HttpContext.Session.Remove(SessionKeys.UserPhoneNumber);
+            return;
+        }
+
+        HttpContext.Session.SetString(SessionKeys.UserPhoneNumber, phoneNumber.Trim());
+    }
+
+    private async Task SignInCustomerAsync(string email, string displayName, string? phoneNumber)
+    {
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, email),
+            new(ClaimTypes.Email, email),
+            new(ClaimTypes.Name, displayName)
+        };
+
+        if (!string.IsNullOrWhiteSpace(phoneNumber))
+        {
+            claims.Add(new Claim(ClaimTypes.MobilePhone, phoneNumber.Trim()));
+        }
+
+        var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+        var principal = new ClaimsPrincipal(identity);
+        var properties = new AuthenticationProperties
+        {
+            IsPersistent = true,
+            AllowRefresh = true,
+            ExpiresUtc = DateTimeOffset.UtcNow.AddDays(30)
+        };
+
+        await HttpContext.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal, properties);
     }
 
     private static AccountAddressInput ToAddressInput(AccountAddressFormViewModel model) => new(
@@ -341,6 +456,13 @@ public sealed class AccountController(
         var url = Url.Action(nameof(Profile), "Account", new { tab = AccountProfileTabs.Info })
             ?? "/Account/Profile?tab=info";
         return Redirect(url + "#profile-address-title");
+    }
+
+    private IActionResult RedirectToProfilePersonalInfo()
+    {
+        var url = Url.Action(nameof(Profile), "Account", new { tab = AccountProfileTabs.Info })
+            ?? "/Account/Profile?tab=info";
+        return Redirect(url + "#profile-info-title");
     }
 
     private IActionResult RedirectToOrderDetailReview(string? orderCode)

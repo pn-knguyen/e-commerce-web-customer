@@ -2,18 +2,23 @@ using e_commerce_web_customer.Application.Catalog;
 using e_commerce_web_customer.Application.Contracts;
 using e_commerce_web_customer.Application.Search;
 using e_commerce_web_customer.Data;
+using e_commerce_web_customer.Infrastructure.Caching;
 using e_commerce_web_customer.Infrastructure.Home.Db;
 using e_commerce_web_customer.Models.Constants;
 using e_commerce_web_customer.Models.Entities;
 using e_commerce_web_customer.ViewModels.Catalog;
 using e_commerce_web_customer.ViewModels.Shared;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using System.Globalization;
 using System.Text.RegularExpressions;
 
 namespace e_commerce_web_customer.Infrastructure.Catalog.Db;
 
-public sealed class DbCategoryPageDataService(EcommerceDbContext dbContext) : ICategoryPageDataService
+public sealed class DbCategoryPageDataService(
+    EcommerceDbContext dbContext,
+    IMemoryCache cache,
+    StorefrontDbQueryGate dbQueryGate) : ICategoryPageDataService
 {
     private const string FallbackImageUrl = "/images/logo-techstore-icon.svg";
     private const int InitialProductCount = 20;
@@ -23,6 +28,27 @@ public sealed class DbCategoryPageDataService(EcommerceDbContext dbContext) : IC
     private const int MaxDynamicFilterOptions = 24;
     private const string AttributeFilterPrefix = "attribute-";
     private const string SpecificationFilterPrefix = "specification-";
+    private const string ScreenSizeFilterKey = "screen-size";
+
+    private static readonly string[] ApplianceBrandFallbackSlugs =
+    [
+        "aqua",
+        "bosch",
+        "camel",
+        "casper",
+        "daikin",
+        "electrolux",
+        "hitachi",
+        "hoa-phat",
+        "lg",
+        "panasonic",
+        "philips",
+        "robot",
+        "samsung",
+        "sharp",
+        "toshiba",
+        "xiaomi"
+    ];
 
     private static readonly IReadOnlyDictionary<string, string> CategoryAliases =
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
@@ -195,9 +221,36 @@ public sealed class DbCategoryPageDataService(EcommerceDbContext dbContext) : IC
             ])
     ];
 
-    public async Task<CategoryPageViewModel?> CreateCategoryPageAsync(
+    private static readonly IReadOnlyList<PhoneFilterOptionDefinition> TvScreenSizeFilterOptions =
+    [
+        new("32", "32 inch"),
+        new("43", "43 inch"),
+        new("55", "55 inch"),
+        new("60", "60 inch"),
+        new("65", "65 inch"),
+        new("75", "75 inch")
+    ];
+
+    public Task<CategoryPageViewModel?> CreateCategoryPageAsync(
         CategoryPageRequest request,
         CancellationToken cancellationToken = default)
+    {
+        var cacheKey = BuildCacheKey(request);
+
+        return cache.GetOrCreateExclusiveAsync(
+            cacheKey,
+            () => dbQueryGate.RunAsync(
+                () => CreateCategoryPageUncachedAsync(request, CancellationToken.None)),
+            new MemoryCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10),
+                SlidingExpiration = TimeSpan.FromMinutes(5)
+            });
+    }
+
+    private async Task<CategoryPageViewModel?> CreateCategoryPageUncachedAsync(
+        CategoryPageRequest request,
+        CancellationToken cancellationToken)
     {
         var categories = await dbContext.Categories
             .AsNoTracking()
@@ -212,22 +265,33 @@ public sealed class DbCategoryPageDataService(EcommerceDbContext dbContext) : IC
             .ToListAsync(cancellationToken);
 
         var requestedSlug = NormalizeCategorySlug(request.Slug);
-        var category = categories.FirstOrDefault(item =>
-            string.Equals(item.Slug, requestedSlug, StringComparison.OrdinalIgnoreCase));
+        var category = ResolveRequestedCategory(categories, requestedSlug);
         if (category is null)
         {
             return null;
         }
 
         var categoryIds = GetSubtreeCategoryIds(category.Id, categories);
-        var allVariants = await GetVariantsAsync(categoryIds, cancellationToken);
-        var brands = BuildBrands(category, allVariants, request);
-        var brandFilteredVariants = ApplyBrandFilter(allVariants, request.Brand);
-        var filteredVariants = ApplyCatalogFilters(brandFilteredVariants, request);
-        var productCards = BuildProductCards(filteredVariants, request.Sort);
         var directChildren = GetDirectChildren(category.Id, categories);
         var usesSectionedLayout = directChildren.Any(child =>
             categories.Any(grandchild => grandchild.ParentId == child.Id));
+        var hidesGlobalFilter = usesSectionedLayout && HidesGlobalFilter(category);
+        var allVariants = await GetVariantsAsync(
+            categoryIds,
+            includeProductSpecifications: !hidesGlobalFilter || HasSpecificationFilter(request),
+            cancellationToken);
+        var brands = BuildBrands(category, allVariants, request);
+        if (IsApplianceRoot(category)
+            && brands.Count == 0)
+        {
+            brands = await GetFallbackApplianceBrandsAsync(category.Slug, cancellationToken);
+        }
+
+        var brandFilteredVariants = ApplyBrandFilter(allVariants, request.Brand);
+        var filteredVariants = ApplyCatalogFilters(brandFilteredVariants, request);
+        var allProductCards = BuildProductCards(filteredVariants, request.Sort);
+        var totalProductCount = allProductCards.Count;
+        var productCards = GetProductPage(allProductCards, request.Page);
 
         return usesSectionedLayout
             ? BuildSectionedPage(
@@ -238,6 +302,7 @@ public sealed class DbCategoryPageDataService(EcommerceDbContext dbContext) : IC
                 filteredVariants,
                 brands,
                 productCards,
+                totalProductCount,
                 request)
             : BuildFilterListingPage(
                 category,
@@ -247,32 +312,78 @@ public sealed class DbCategoryPageDataService(EcommerceDbContext dbContext) : IC
                 filteredVariants,
                 brands,
                 productCards,
+                totalProductCount,
                 request);
     }
 
     private async Task<List<ProductVariant>> GetVariantsAsync(
         IReadOnlyCollection<long> categoryIds,
+        bool includeProductSpecifications,
         CancellationToken cancellationToken)
     {
-        return await dbContext.ProductVariants
+        IQueryable<ProductVariant> query = dbContext.ProductVariants
             .AsNoTracking()
             .AsSplitQuery()
             .Include(variant => variant.Product)
                 .ThenInclude(product => product!.Brand)
-            .Include(variant => variant.Product)
-                .ThenInclude(product => product!.Category)
-            .Include(variant => variant.Product)
-                .ThenInclude(product => product!.ProductSpecifications)
-                    .ThenInclude(productSpecification => productSpecification.Specification)
-            .Include(variant => variant.ProductVariantImages)
+            .Include(variant => variant.ProductVariantImages
+                .OrderBy(image => image.Position)
+                .ThenBy(image => image.Id)
+                .Take(1))
             .Include(variant => variant.VariantAttributes)
                 .ThenInclude(variantAttribute => variantAttribute.AttributeOption)
-                    .ThenInclude(option => option!.Attribute)
+                    .ThenInclude(option => option!.Attribute);
+
+        if (includeProductSpecifications)
+        {
+            query = query
+                .Include(variant => variant.Product)
+                    .ThenInclude(product => product!.ProductSpecifications)
+                        .ThenInclude(productSpecification => productSpecification.Specification);
+        }
+
+        return await query
             .Where(variant => variant.IsActive)
             .Where(variant => variant.Product != null && variant.Product.IsActive)
             .Where(variant => variant.Product != null
                 && categoryIds.Contains(variant.Product.CategoryId))
             .ToListAsync(cancellationToken);
+    }
+
+    private async Task<IReadOnlyList<CategoryBrandViewModel>> GetFallbackApplianceBrandsAsync(
+        string categorySlug,
+        CancellationToken cancellationToken)
+    {
+        var allowedSlugs = ApplianceBrandFallbackSlugs.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var brands = await dbContext.Brands
+            .AsNoTracking()
+            .Where(brand => brand.IsActive && allowedSlugs.Contains(brand.Slug))
+            .Select(brand => new
+            {
+                brand.Name,
+                brand.Slug,
+                brand.ImagePath
+            })
+            .ToListAsync(cancellationToken);
+
+        return brands
+            .OrderBy(brand => Array.FindIndex(
+                ApplianceBrandFallbackSlugs,
+                slug => string.Equals(slug, brand.Slug, StringComparison.OrdinalIgnoreCase)))
+            .ThenBy(brand => brand.Name)
+            .Select(brand => new CategoryBrandViewModel
+            {
+                Id = string.IsNullOrWhiteSpace(brand.Slug)
+                    ? Slugify(brand.Name)
+                    : brand.Slug,
+                Label = brand.Name,
+                Url = BuildCatalogUrl(
+                    categorySlug,
+                    string.IsNullOrWhiteSpace(brand.Slug) ? brand.Name : brand.Slug),
+                ImageUrl = NormalizeOptionalImageUrl(brand.ImagePath),
+                ImageAlt = $"Logo {brand.Name}"
+            })
+            .ToList();
     }
 
     private static CategoryPageViewModel BuildFilterListingPage(
@@ -283,6 +394,7 @@ public sealed class DbCategoryPageDataService(EcommerceDbContext dbContext) : IC
         IReadOnlyList<ProductVariant> filteredVariants,
         IReadOnlyList<CategoryBrandViewModel> brands,
         IReadOnlyList<ProductCardViewModel> productCards,
+        int totalProductCount,
         CategoryPageRequest request)
     {
         var directChildren = GetDirectChildren(category.Id, categories);
@@ -302,9 +414,12 @@ public sealed class DbCategoryPageDataService(EcommerceDbContext dbContext) : IC
                 category,
                 categories,
                 filterSourceVariants,
-                productCards.Count,
+                totalProductCount,
                 request),
             Products = productCards,
+            TotalProductCount = totalProductCount,
+            CurrentPage = NormalizePage(request.Page),
+            HasMoreProducts = NormalizePage(request.Page) * InitialProductCount < totalProductCount,
             InitialProductCount = InitialProductCount,
             SeoContent = BuildSeoContent(category),
             QuestionAnswer = BuildQuestionAnswer(category)
@@ -319,6 +434,7 @@ public sealed class DbCategoryPageDataService(EcommerceDbContext dbContext) : IC
         IReadOnlyList<ProductVariant> filteredVariants,
         IReadOnlyList<CategoryBrandViewModel> brands,
         IReadOnlyList<ProductCardViewModel> productCards,
+        int totalProductCount,
         CategoryPageRequest request)
     {
         var directChildren = GetDirectChildren(category.Id, categories);
@@ -326,6 +442,9 @@ public sealed class DbCategoryPageDataService(EcommerceDbContext dbContext) : IC
             category.Slug,
             "phu-kien",
             StringComparison.OrdinalIgnoreCase);
+        var isAudioRoot = IsAudioRoot(category);
+        var isApplianceRoot = IsApplianceRoot(category);
+        var hidesGlobalFilter = isAccessoryDirectory || isApplianceRoot || isAudioRoot;
         var sections = directChildren
             .Select(child => BuildProductSection(
                 child,
@@ -345,15 +464,22 @@ public sealed class DbCategoryPageDataService(EcommerceDbContext dbContext) : IC
             Brands = isAccessoryDirectory ? [] : brands,
             QuickLinks = isAccessoryDirectory
                 ? BuildAccessoryDirectoryLinks(category, categories)
+                : isApplianceRoot
+                    ? []
                 : BuildCategoryQuickLinks(directChildren, allVariants),
             HotSale = BuildHotSale(filteredVariants, request.Sort),
-            Filter = BuildFilter(
-                category,
-                categories,
-                filterSourceVariants,
-                productCards.Count,
-                request),
+            Filter = hidesGlobalFilter
+                ? BuildEmptyFilter(category, totalProductCount, request)
+                : BuildFilter(
+                    category,
+                    categories,
+                    filterSourceVariants,
+                    totalProductCount,
+                    request),
             Products = productCards,
+            TotalProductCount = totalProductCount,
+            CurrentPage = NormalizePage(request.Page),
+            HasMoreProducts = NormalizePage(request.Page) * InitialProductCount < totalProductCount,
             InitialProductCount = InitialProductCount,
             SectionTabs = sections.Select((section, index) => new CategorySectionNavigationItemViewModel
             {
@@ -388,6 +514,29 @@ public sealed class DbCategoryPageDataService(EcommerceDbContext dbContext) : IC
             .ToList();
     }
 
+    private static bool IsApplianceRoot(Category category)
+    {
+        return string.Equals(category.Slug, "do-gia-dung", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsAudioRoot(Category category)
+    {
+        return string.Equals(category.Slug, "am-thanh", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool HidesGlobalFilter(Category category)
+    {
+        return IsApplianceRoot(category)
+            || IsAudioRoot(category)
+            || string.Equals(category.Slug, "phu-kien", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool HasSpecificationFilter(CategoryPageRequest request)
+    {
+        return request.Filters?.Keys.Any(key =>
+            key.StartsWith(SpecificationFilterPrefix, StringComparison.OrdinalIgnoreCase)) == true;
+    }
+
     private static CategoryProductSectionViewModel BuildProductSection(
         Category sectionCategory,
         IReadOnlyList<Category> categories,
@@ -400,6 +549,7 @@ public sealed class DbCategoryPageDataService(EcommerceDbContext dbContext) : IC
                 && sectionCategoryIds.Contains(variant.Product.CategoryId))
             .ToList();
         var subcategories = GetDirectChildren(sectionCategory.Id, categories);
+        var sectionProductCards = BuildProductCards(sectionVariants, request.Sort);
 
         return new CategoryProductSectionViewModel
         {
@@ -413,24 +563,31 @@ public sealed class DbCategoryPageDataService(EcommerceDbContext dbContext) : IC
                 .Select(subcategory => BuildSectionPill(subcategory, sectionVariants))
                 .ToList(),
             SortOptions = BuildSortOptions(sectionCategory.Slug, request.Brand, request.Sort),
-            Products = BuildProductCards(sectionVariants, request.Sort)
+            Products = sectionProductCards.Take(SectionProductLimit).ToList(),
+            TotalProductCount = sectionProductCards.Count
         };
     }
 
     private static CategorySectionBannerViewModel? BuildAccessorySectionBanner(
         Category category)
     {
-        var imageName = category.Slug switch
+        var imageUrl = category.Slug switch
         {
-            "phu-kien-di-dong" => "phu-kien-di-dong.webp",
-            "phu-kien-laptop" => "phu-kien-laptop.webp",
-            "thiet-bi-mang" => "thiet-bi-mang.webp",
-            "thiet-bi-luu-tru" => "thiet-bi-luu-tru.webp",
-            "camera" => "camera.webp",
+            "phu-kien-di-dong" => "/images/banner_phu_kien/phu-kien-di-dong.webp",
+            "phu-kien-laptop" => "/images/banner_phu_kien/phu-kien-laptop.webp",
+            "thiet-bi-mang" => "/images/banner_phu_kien/thiet-bi-mang.webp",
+            "thiet-bi-luu-tru" => "/images/banner_phu_kien/thiet-bi-luu-tru.webp",
+            "camera" => "/images/banner_phu_kien/camera.webp",
+            "thiet-bi-gia-dinh" => "/images/banner_gia_dung/thiet-bi-gia-dinh.webp",
+            "gia-dung-nha-bep" => "/images/banner_gia_dung/gia-dung-nha-bep.webp",
+            "suc-khoe-lam-dep" => "/images/banner_gia_dung/suc-khoe-lam-dep.webp",
+            "tai-nghe" => "/images/banner_am_thanh/tai-nghe.webp",
+            "loa" => "/images/banner_am_thanh/loa.webp",
+            "phu-kien-am-thanh" => "/images/banner_am_thanh/phu-kien-am-thanh.webp",
             _ => null
         };
 
-        if (imageName is null)
+        if (imageUrl is null)
         {
             return null;
         }
@@ -439,7 +596,7 @@ public sealed class DbCategoryPageDataService(EcommerceDbContext dbContext) : IC
         {
             Title = category.Name,
             Subtitle = string.Empty,
-            ImageUrl = $"/images/banner_phu_kien/{imageName}",
+            ImageUrl = imageUrl,
             ImageAlt = $"Ưu đãi {category.Name.ToLowerInvariant()}",
             IsFullWidthImage = true
         };
@@ -588,6 +745,11 @@ public sealed class DbCategoryPageDataService(EcommerceDbContext dbContext) : IC
                     item.Value.Trim(),
                     optionValue.Trim(),
                     StringComparison.OrdinalIgnoreCase)) == true;
+        }
+
+        if (string.Equals(groupKey, ScreenSizeFilterKey, StringComparison.OrdinalIgnoreCase))
+        {
+            return MatchesTvScreenSize(variant, optionValue);
         }
 
         return MatchesPhoneFilter(variant, groupKey, optionValue);
@@ -921,6 +1083,45 @@ public sealed class DbCategoryPageDataService(EcommerceDbContext dbContext) : IC
             : SearchTextNormalizer.Normalize(string.Join(' ', values));
     }
 
+    private static bool MatchesTvScreenSize(ProductVariant variant, string option)
+    {
+        if (!decimal.TryParse(
+                option,
+                NumberStyles.Number,
+                CultureInfo.InvariantCulture,
+                out var targetSize))
+        {
+            return false;
+        }
+
+        var product = variant.Product;
+        var specificationText = product is null
+            ? string.Empty
+            : string.Join(' ', product.ProductSpecifications.Select(item => item.Value));
+        var attributeText = string.Join(
+            ' ',
+            variant.VariantAttributes.Select(item =>
+                item.AttributeOption?.Label ?? item.AttributeOption?.Value));
+        var text = SearchTextNormalizer.Normalize(string.Join(
+            ' ',
+            product?.Name,
+            product?.Description,
+            variant.Code,
+            specificationText,
+            attributeText));
+
+        return Regex.Matches(text, @"\d+(?:[\.,]\d+)?")
+            .Select(match => decimal.TryParse(
+                match.Value.Replace(',', '.'),
+                NumberStyles.Number,
+                CultureInfo.InvariantCulture,
+                out var value)
+                    ? value
+                    : (decimal?)null)
+            .OfType<decimal>()
+            .Any(value => Math.Abs(value - targetSize) <= 0.5m);
+    }
+
     private static bool ContainsSpecificationText(
         ProductVariant variant,
         IReadOnlyCollection<string> specificationKeys,
@@ -1027,6 +1228,18 @@ public sealed class DbCategoryPageDataService(EcommerceDbContext dbContext) : IC
             .ToList();
     }
 
+    private static IReadOnlyList<ProductCardViewModel> GetProductPage(
+        IReadOnlyList<ProductCardViewModel> products,
+        int requestedPage)
+    {
+        var page = NormalizePage(requestedPage);
+
+        return products
+            .Skip((page - 1) * InitialProductCount)
+            .Take(InitialProductCount)
+            .ToList();
+    }
+
     private static string BuildVariantGroupKey(ProductVariant variant)
     {
         var optionIds = variant.VariantAttributes
@@ -1051,6 +1264,26 @@ public sealed class DbCategoryPageDataService(EcommerceDbContext dbContext) : IC
         };
     }
 
+    private static CategoryFilterViewModel BuildEmptyFilter(
+        Category category,
+        int resultCount,
+        CategoryPageRequest request)
+    {
+        return new CategoryFilterViewModel
+        {
+            Title = "Chọn theo tiêu chí",
+            PrimaryItems = [],
+            SecondaryItems = [],
+            Groups = [],
+            SortOptions = BuildSortOptions(category.Slug, request.Brand, request.Sort, request),
+            CategorySlug = category.Slug,
+            Brand = request.Brand,
+            Sort = request.Sort,
+            ActiveSelectionCount = 0,
+            ResultCount = resultCount
+        };
+    }
+
     private static CategoryFilterViewModel BuildFilter(
         Category category,
         IReadOnlyList<Category> categories,
@@ -1069,6 +1302,11 @@ public sealed class DbCategoryPageDataService(EcommerceDbContext dbContext) : IC
             categoryIds,
             filterSourceVariants,
             request.Filters);
+        if (IsTvCategory(category))
+        {
+            groups = [BuildTvScreenSizeFilterGroup(filterSourceVariants, request.Filters), ..groups];
+        }
+
         var activeSelectionCount = (request.Filters?.Sum(item => item.Value.Count) ?? 0)
             + (request.InStockOnly ? 1 : 0)
             + (request.NewArrivalsOnly ? 1 : 0);
@@ -1270,6 +1508,34 @@ public sealed class DbCategoryPageDataService(EcommerceDbContext dbContext) : IC
             && group.Options.Count <= MaxDynamicFilterOptions;
     }
 
+    private static CategoryFilterGroupViewModel BuildTvScreenSizeFilterGroup(
+        IReadOnlyList<ProductVariant> filterSourceVariants,
+        IReadOnlyDictionary<string, IReadOnlyList<string>>? filters)
+    {
+        var selectedValues = filters is not null
+            ? GetSelectedFilterValues(filters, ScreenSizeFilterKey)
+            : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        return new CategoryFilterGroupViewModel
+        {
+            Key = ScreenSizeFilterKey,
+            Label = "Kích thước màn hình",
+            SelectedCount = selectedValues.Count,
+            Options = TvScreenSizeFilterOptions.Select(option =>
+            {
+                var isSelected = selectedValues.Contains(option.Value);
+                return new CategoryFilterOptionViewModel
+                {
+                    Value = option.Value,
+                    Label = option.Label,
+                    IsSelected = isSelected,
+                    IsAvailable = isSelected || filterSourceVariants.Any(variant =>
+                        MatchesTvScreenSize(variant, option.Value))
+                };
+            }).ToList()
+        };
+    }
+
     private static IReadOnlyList<CategoryFilterItemViewModel> BuildFilterStateItems(
         string categorySlug,
         CategoryPageRequest request,
@@ -1410,26 +1676,32 @@ public sealed class DbCategoryPageDataService(EcommerceDbContext dbContext) : IC
         IReadOnlyList<Category> categories,
         IReadOnlyList<ProductVariant> variants)
     {
-        return categories.Select(category =>
-        {
-            var imageUrl = NormalizeImageUrl(category.ImagePath);
-            if (imageUrl == FallbackImageUrl)
-            {
-                imageUrl = variants
-                    .Where(variant => variant.Product?.CategoryId == category.Id)
-                    .Select(GetVariantImageUrl)
-                    .FirstOrDefault(url => url != FallbackImageUrl)
-                    ?? FallbackImageUrl;
-            }
+        return categories
+            .Select(category => BuildCategoryQuickLink(category, variants))
+            .ToList();
+    }
 
-            return new CategoryQuickLinkViewModel
-            {
-                Label = category.Name,
-                Url = BuildCatalogUrl(category.Slug),
-                ImageUrl = imageUrl,
-                ImageAlt = category.Name
-            };
-        }).ToList();
+    private static CategoryQuickLinkViewModel BuildCategoryQuickLink(
+        Category category,
+        IReadOnlyList<ProductVariant> variants)
+    {
+        var imageUrl = NormalizeImageUrl(category.ImagePath);
+        if (imageUrl == FallbackImageUrl)
+        {
+            imageUrl = variants
+                .Where(variant => variant.Product?.CategoryId == category.Id)
+                .Select(GetVariantImageUrl)
+                .FirstOrDefault(url => url != FallbackImageUrl)
+                ?? FallbackImageUrl;
+        }
+
+        return new CategoryQuickLinkViewModel
+        {
+            Label = category.Name,
+            Url = BuildCatalogUrl(category.Slug),
+            ImageUrl = imageUrl,
+            ImageAlt = category.Name
+        };
     }
 
     private static IReadOnlyList<CategoryBreadcrumbViewModel> BuildBreadcrumbs(
@@ -1536,6 +1808,21 @@ public sealed class DbCategoryPageDataService(EcommerceDbContext dbContext) : IC
         return result;
     }
 
+    private static Category? ResolveRequestedCategory(
+        IReadOnlyList<Category> categories,
+        string requestedSlug)
+    {
+        var category = categories.FirstOrDefault(item =>
+            string.Equals(item.Slug, requestedSlug, StringComparison.OrdinalIgnoreCase));
+
+        if (category is not null || !IsTvCategorySlug(requestedSlug))
+        {
+            return category;
+        }
+
+        return categories.FirstOrDefault(item => IsTvCategorySlug(item.Slug));
+    }
+
     private static string GetVariantImageUrl(ProductVariant variant)
     {
         var imagePath = variant.ProductVariantImages
@@ -1562,11 +1849,49 @@ public sealed class DbCategoryPageDataService(EcommerceDbContext dbContext) : IC
             : normalizedSlug;
     }
 
+    private static string BuildCacheKey(CategoryPageRequest request)
+    {
+        var filters = request.Filters is null
+            ? string.Empty
+            : string.Join(
+                ";",
+                request.Filters
+                    .OrderBy(filter => filter.Key, StringComparer.OrdinalIgnoreCase)
+                    .Select(filter => $"{filter.Key}={string.Join(",", filter.Value.OrderBy(value => value, StringComparer.OrdinalIgnoreCase))}"));
+
+        return string.Join(
+            "|",
+            "catalog-page-v2",
+            NormalizeCategorySlug(request.Slug),
+            request.Brand?.Trim().ToLowerInvariant() ?? string.Empty,
+            NormalizeSort(request.Sort),
+            request.InStockOnly,
+            request.NewArrivalsOnly,
+            NormalizePage(request.Page),
+            filters);
+    }
+
+    private static bool IsTvCategory(Category category)
+    {
+        return IsTvCategorySlug(category.Slug);
+    }
+
+    private static bool IsTvCategorySlug(string slug)
+    {
+        return string.Equals(slug, "tv", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(slug, "tivi", StringComparison.OrdinalIgnoreCase);
+    }
+
     private static string NormalizeSort(string? sort)
     {
         return string.IsNullOrWhiteSpace(sort)
             ? "popular"
             : sort.Trim().ToLowerInvariant();
+    }
+
+    private static int NormalizePage(int page)
+    {
+        return Math.Max(1, page);
     }
 
     private static string BuildCatalogUrl(

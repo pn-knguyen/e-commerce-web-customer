@@ -7,7 +7,7 @@
 }
 
 .account-profile-shell {
-  width: min(100%, 1120px);
+  width: min(100%, 1280px);
   margin-inline: auto;
 }
 
@@ -23,7 +23,7 @@
   position: relative;
   display: grid;
   min-height: 100px;
-  grid-template-columns: minmax(250px, 1.25fr) minmax(150px, 200px) minmax(240px, 1fr);
+  grid-template-columns: minmax(250px, 1fr) max-content max-content;
   align-items: center;
   gap: 18px;
   padding: 14px 22px;
@@ -126,6 +126,22 @@
   border-left: 3px solid #e60012;
 }
 
+.ap-stat > div {
+  min-width: 0;
+}
+
+.ap-stat--orders {
+  min-width: 225px;
+}
+
+.ap-stat--spend {
+  min-width: 310px;
+}
+
+.ap-stat--orders p {
+  white-space: nowrap;
+}
+
 .ap-stat-icon {
   display: grid;
   width: 42px;
@@ -200,7 +216,7 @@
 
 .ap-layout {
   display: grid;
-  grid-template-columns: 210px minmax(0, 1fr);
+  grid-template-columns: 280px minmax(0, 1fr);
   gap: 10px;
   margin-top: 10px;
 }
@@ -214,18 +230,21 @@
 
 .ap-side-nav {
   display: grid;
-  padding: 8px 0;
+  padding: 10px 0;
 }
 
 .ap-side-link {
-  min-height: 40px;
-  gap: 9px;
-  padding: 0 16px;
+  min-height: 44px;
+  gap: 10px;
+  padding: 7px 18px;
   border-left: 3px solid transparent;
   color: #030712;
-  font-size: 13px;
+  font-family: inherit;
+  font-size: 14px;
+  font-style: normal;
   font-weight: 650;
-  line-height: 1;
+  line-height: 1.25;
+  letter-spacing: 0;
   transition:
     background-color var(--transition-fast),
     border-color var(--transition-fast),
@@ -233,6 +252,7 @@
 }
 
 a.ap-side-link:hover,
+.ap-side-action:hover,
 .ap-side-link.is-active {
   border-left-color: #e60012;
   background: #ffe6ea;
@@ -245,8 +265,21 @@ a.ap-side-link:hover,
 
 .ap-side-separator {
   height: 1px;
-  margin: 6px 12px;
+  margin: 6px 18px;
   background: #e4e4e7;
+}
+
+.ap-side-action {
+  width: 100%;
+  appearance: none;
+  border-top: 0;
+  border-right: 0;
+  border-bottom: 0;
+  background: transparent;
+  font-family: inherit;
+  justify-content: flex-start;
+  text-align: left;
+  cursor: pointer;
 }
 
 .ap-logout-form {
@@ -290,8 +323,8 @@ a.ap-side-link:hover,
 
 .ap-overview-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 268px;
-  gap: 10px;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
 }
 
 .ap-panel {
@@ -506,12 +539,157 @@ a.ap-side-link:hover,
 }
 
 .ap-offer-panel {
-  min-height: 358px;
+  min-height: 0;
   text-align: center;
 }
 
 .ap-offer-panel h2 {
   text-align: left;
+}
+
+.ap-voucher-list {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.ap-voucher-card {
+  display: grid;
+  min-width: 0;
+  grid-template-rows: auto 1fr auto auto;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #f1c7cd;
+  border-radius: 10px;
+  background:
+    linear-gradient(90deg, #fff5f6 0%, #fff 46%),
+    #fff;
+  text-align: left;
+}
+
+.ap-voucher-card--private {
+  border-color: #fca5a5;
+  background:
+    linear-gradient(90deg, #fff1f2 0%, #fff 50%),
+    #fff;
+}
+
+.ap-voucher-card.is-disabled {
+  opacity: 0.68;
+}
+
+.ap-voucher-badge {
+  display: grid;
+  min-height: 54px;
+  place-items: center;
+  padding: 8px;
+  border: 1px dashed #e60012;
+  border-radius: 9px;
+  background: #fff;
+  color: #e60012;
+  font-size: 14px;
+  font-weight: 950;
+  line-height: 1.2;
+  text-align: center;
+}
+
+.ap-voucher-copy {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 6px;
+}
+
+.ap-voucher-copy > div {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ap-voucher-copy strong {
+  overflow: hidden;
+  color: #030712;
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ap-voucher-copy span {
+  flex: 0 0 auto;
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: #ffe4e6;
+  color: #e60012;
+  font-size: 10px;
+  font-weight: 850;
+  line-height: 1;
+}
+
+.ap-voucher-copy p,
+.ap-voucher-copy small,
+.ap-voucher-meta span {
+  color: #71717a;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.ap-voucher-copy p {
+  display: -webkit-box;
+  overflow: hidden;
+  margin: 0;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.ap-voucher-copy small {
+  color: #3f3f46;
+  font-weight: 750;
+}
+
+.ap-voucher-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.ap-voucher-meta span {
+  padding: 4px 7px;
+  border-radius: 999px;
+  background: #f4f4f5;
+  font-weight: 750;
+}
+
+.ap-voucher-action {
+  display: inline-flex;
+  min-height: 32px;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  justify-self: stretch;
+  padding: 0 12px;
+  border-radius: 8px;
+  background: #e60012;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.ap-voucher-action:hover {
+  color: #fff;
+  filter: brightness(0.96);
+}
+
+.ap-voucher-card.is-disabled .ap-voucher-action {
+  pointer-events: none;
+  background: #d4d4d8;
+  color: #52525b;
 }
 
 .ap-empty-illustration {
@@ -578,6 +756,15 @@ a.ap-side-link:hover,
 .ap-favorite-empty a {
   color: #e60012;
   font-weight: 700;
+}
+
+.ap-offer-panel .ap-voucher-action,
+.ap-offer-panel .ap-voucher-action:hover {
+  color: #fff;
+}
+
+.ap-offer-panel .ap-voucher-card.is-disabled .ap-voucher-action {
+  color: #52525b;
 }
 
 .ap-favorite-panel {
@@ -720,7 +907,42 @@ a.ap-side-link:hover,
 }
 
 .ap-history-panel {
+  position: relative;
   padding: 0 12px 14px;
+}
+
+.ap-history-panel::before {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 2;
+  width: 100%;
+  height: 2px;
+  background: #e60012;
+  content: "";
+  opacity: 0;
+  transform: scaleX(0);
+  transform-origin: left;
+}
+
+.ap-history-panel.is-loading::before {
+  opacity: 1;
+  animation: ap-history-loading 0.7s ease-in-out infinite alternate;
+}
+
+.ap-history-panel.is-loading .ap-order-list {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+@keyframes ap-history-loading {
+  from {
+    transform: scaleX(0.2);
+  }
+
+  to {
+    transform: scaleX(1);
+  }
 }
 
 .ap-order-tabs {
@@ -740,8 +962,29 @@ a.ap-side-link:hover,
   line-height: 1;
 }
 
+.ap-order-tabs a {
+  gap: 4px;
+}
+
+.ap-order-tabs small {
+  display: inline-grid;
+  min-width: 22px;
+  min-height: 18px;
+  place-items: center;
+  border-radius: 999px;
+  background: #f4f4f5;
+  color: #71717a;
+  font-size: 10px;
+  font-weight: 850;
+}
+
 .ap-order-tabs .is-active {
   border-bottom: 2px solid #e60012;
+  color: #e60012;
+}
+
+.ap-order-tabs .is-active small {
+  background: #ffe4e6;
   color: #e60012;
 }
 
@@ -769,6 +1012,73 @@ a.ap-side-link:hover,
 .ap-date-range svg {
   width: 16px;
   height: 16px;
+}
+
+.ap-date-range-form {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.ap-date-range-form label {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border: 1px solid #d4d4d8;
+  border-radius: 8px;
+  background: #fff;
+  color: #52525b;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.ap-date-range-form input {
+  width: 132px;
+  border: 0;
+  outline: 0;
+  color: #030712;
+  font: inherit;
+}
+
+.ap-date-range-form > svg {
+  width: 14px;
+  height: 14px;
+  color: #a1a1aa;
+}
+
+.ap-date-range-form button,
+.ap-date-range-form a {
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
+.ap-date-range-form button {
+  border: 0;
+  background: #e60012;
+  color: #fff;
+  cursor: pointer;
+}
+
+.ap-date-range-form button svg {
+  width: 14px;
+  height: 14px;
+}
+
+.ap-date-range-form a {
+  border: 1px solid #fecaca;
+  color: #e60012;
 }
 
 .ap-account-info-tab {
@@ -869,6 +1179,70 @@ a.ap-side-link:hover,
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   column-gap: 40px;
+}
+
+.ap-info-card > .ap-card-title-row .ap-red-action,
+.ap-info-card .ap-personal-grid,
+.ap-info-bottom-grid {
+  display: none;
+}
+
+.ap-profile-update-form {
+  display: grid;
+  gap: 14px;
+}
+
+.ap-profile-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 16px;
+}
+
+.ap-profile-form-grid label {
+  display: grid;
+  min-width: 0;
+  gap: 7px;
+}
+
+.ap-profile-form-grid span {
+  color: #71717a;
+  font-size: 13px;
+  font-weight: 650;
+  line-height: 1.25;
+}
+
+.ap-profile-form-grid input,
+.ap-profile-form-grid select {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid #dedee4;
+  border-radius: 9px;
+  background: #fff;
+  color: #030712;
+  font-size: 14px;
+  font-weight: 700;
+  outline: 0;
+}
+
+.ap-profile-form-grid input:focus,
+.ap-profile-form-grid select:focus {
+  border-color: #e60012;
+  box-shadow: 0 0 0 3px rgb(230 0 18 / 0.1);
+}
+
+.ap-profile-form-grid input[readonly] {
+  background: #f8f8fa;
+  color: #52525b;
+}
+
+.ap-profile-form-wide {
+  grid-column: 1 / -1;
+}
+
+.ap-profile-form-actions {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .ap-personal-grid div {
@@ -1069,7 +1443,7 @@ a.ap-side-link:hover,
 }
 
 .ap-info-bottom-grid {
-  display: grid;
+  display: none;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
@@ -1184,7 +1558,16 @@ a.ap-side-link:hover,
 
 @media (max-width: 1180px) {
   .ap-member-card {
-    grid-template-columns: minmax(240px, 1fr) minmax(145px, 180px) minmax(210px, 1fr);
+    grid-template-columns: minmax(220px, 1fr) max-content max-content;
+    gap: 12px;
+  }
+
+  .ap-stat--orders {
+    min-width: 215px;
+  }
+
+  .ap-stat--spend {
+    min-width: 280px;
   }
 
   .ap-shortcuts {
@@ -1207,6 +1590,11 @@ a.ap-side-link:hover,
     min-height: 58px;
   }
 
+  .ap-stat--orders,
+  .ap-stat--spend {
+    min-width: 0;
+  }
+
   .ap-layout {
     grid-template-columns: 1fr;
   }
@@ -1219,6 +1607,10 @@ a.ap-side-link:hover,
   .ap-personal-grid,
   .ap-info-bottom-grid {
     grid-template-columns: 1fr;
+  }
+
+  .ap-voucher-list {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .ap-address-prompt {
@@ -1274,6 +1666,38 @@ a.ap-side-link:hover,
     padding: 12px 0;
   }
 
+  .ap-date-range-form {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
+
+  .ap-date-range-form label {
+    width: calc(50% - 12px);
+    min-width: 142px;
+  }
+
+  .ap-date-range-form input {
+    width: 100%;
+  }
+
+  .ap-date-range-form button,
+  .ap-date-range-form a {
+    flex: 1 1 120px;
+  }
+
+  .ap-voucher-card {
+    grid-template-columns: 1fr;
+  }
+
+  .ap-voucher-badge {
+    min-height: 54px;
+  }
+
+  .ap-voucher-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .ap-order-detail-head {
     display: none;
   }
@@ -1321,6 +1745,18 @@ a.ap-side-link:hover,
     grid-template-columns: 1fr;
   }
 
+  .ap-profile-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .ap-profile-form-actions {
+    justify-content: stretch;
+  }
+
+  .ap-profile-form-actions .ap-address-submit {
+    width: 100%;
+  }
+
   .ap-address-form-actions {
     flex-direction: column;
   }
@@ -1362,5 +1798,10 @@ a.ap-side-link:hover,
   .ap-side-link,
   .ap-logout-button {
     transition: none;
+  }
+
+  .ap-history-panel.is-loading::before {
+    animation: none;
+    transform: scaleX(1);
   }
 }

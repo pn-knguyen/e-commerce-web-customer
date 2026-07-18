@@ -5,23 +5,27 @@ using e_commerce_web_customer.Application.Contracts;
 using e_commerce_web_customer.Application.Recommendations.Abstractions;
 using e_commerce_web_customer.Application.Recommendations.Models;
 using e_commerce_web_customer.Data;
+using e_commerce_web_customer.Infrastructure.Caching;
 using e_commerce_web_customer.Models.Constants;
 using e_commerce_web_customer.Models.Entities;
 using e_commerce_web_customer.ViewModels.Product;
 using e_commerce_web_customer.ViewModels.Shared;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace e_commerce_web_customer.Infrastructure.Products.Db;
 
 public sealed class DbProductDetailDataService(
     EcommerceDbContext dbContext,
-    IProductRecommendationService productRecommendationService) : IProductDetailDataService
+    IProductRecommendationService productRecommendationService,
+    IMemoryCache cache,
+    StorefrontDbQueryGate dbQueryGate) : IProductDetailDataService
 {
     private const string FallbackImageUrl = "/images/logo-techstore-icon.svg";
     private const string DefaultSpecGroupName = "Thông tin sản phẩm";
     private static readonly CultureInfo ViCulture = CultureInfo.GetCultureInfo("vi-VN");
 
-    public async Task<ProductDetailViewModel?> CreateProductDetailAsync(
+    public Task<ProductDetailViewModel?> CreateProductDetailAsync(
         string slug,
         string? variantKey = null,
         CancellationToken cancellationToken = default)
@@ -29,48 +33,56 @@ public sealed class DbProductDetailDataService(
         var normalizedSlug = slug.Trim().ToLowerInvariant();
         if (string.IsNullOrWhiteSpace(normalizedSlug))
         {
-            return null;
+            return Task.FromResult<ProductDetailViewModel?>(null);
         }
 
-        var seedProduct = await dbContext.Products
-            .AsNoTracking()
-            .Include(product => product.Brand)
-            .Include(product => product.Category)
-            .FirstOrDefaultAsync(
-                product => product.IsActive && product.Slug == normalizedSlug,
-                cancellationToken);
+        var normalizedVariantKey = variantKey?.Trim().ToLowerInvariant() ?? "default";
+        var cacheKey = $"product-detail-v2:{normalizedSlug}:{normalizedVariantKey}";
 
-        if (seedProduct is null)
-        {
-            return null;
-        }
+        return cache.GetOrCreateExclusiveAsync(
+            cacheKey,
+            () => dbQueryGate.RunAsync(
+                () => CreateProductDetailUncachedAsync(
+                    normalizedSlug,
+                    variantKey,
+                    CancellationToken.None)),
+            new MemoryCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5),
+                SlidingExpiration = TimeSpan.FromMinutes(2)
+            });
+    }
 
-        var familyProducts = await dbContext.Products
+    private async Task<ProductDetailViewModel?> CreateProductDetailUncachedAsync(
+        string normalizedSlug,
+        string? variantKey,
+        CancellationToken cancellationToken)
+    {
+
+        var selectedProduct = await dbContext.Products
             .AsNoTracking()
-            .Where(product =>
-                product.IsActive
-                && product.Id == seedProduct.Id)
+            .Where(product => product.IsActive && product.Slug == normalizedSlug)
             .Include(product => product.Brand)
             .Include(product => product.Category)
                 .ThenInclude(category => category!.CategorySpecifications)
                     .ThenInclude(categorySpecification => categorySpecification.Specification)
             .Include(product => product.ProductSpecifications)
                 .ThenInclude(productSpecification => productSpecification.Specification)
-            .Include(product => product.ProductVariants)
+            .Include(product => product.ProductVariants.Where(variant => variant.IsActive))
                 .ThenInclude(variant => variant.ProductVariantImages)
-            .Include(product => product.ProductVariants)
+            .Include(product => product.ProductVariants.Where(variant => variant.IsActive))
                 .ThenInclude(variant => variant.VariantAttributes)
                     .ThenInclude(variantAttribute => variantAttribute.AttributeOption)
                         .ThenInclude(attributeOption => attributeOption!.Attribute)
             .AsSplitQuery()
-            .OrderBy(product => product.Id)
-            .ToListAsync(cancellationToken);
+            .FirstOrDefaultAsync(cancellationToken);
 
-        var selectedProduct = familyProducts.FirstOrDefault(product => product.Id == seedProduct.Id);
         if (selectedProduct is null)
         {
             return null;
         }
+
+        IReadOnlyList<Product> familyProducts = [selectedProduct];
 
         var activeVariants = familyProducts
             .SelectMany(product => product.ProductVariants.Where(variant => variant.IsActive))

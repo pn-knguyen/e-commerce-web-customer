@@ -1,0 +1,13 @@
+@model SearchResultPageViewModel
+
+<div data-search-product-page
+     data-current-page="@Model.CurrentPage"
+     data-has-more="@Model.HasMoreProducts.ToString().ToLowerInvariant()"
+     data-remaining-count="@Model.RemainingProductCount">
+    @foreach (var product in Model.Products)
+    {
+        <div class="search-result-product-grid__item" data-search-product-item>
+            <partial name="~/Views/Shared/Partials/_ProductCard.cshtml" model="product" />
+        </div>
+    }
+</div>

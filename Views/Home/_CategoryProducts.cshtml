@@ -4,6 +4,7 @@
     var activeTab = Model.Tabs.FirstOrDefault(tab => tab.IsActive && tab.Panel is not null)
         ?? Model.Tabs.First(tab => tab.Panel is not null);
     var activePanelHasBanners = activeTab.Panel!.Banners.Count > 0;
+    var useSimpleHeader = !Model.EnableTabSwitching && Model.Tabs.Count == 1;
 }
 
 <section class="category-products-section"
@@ -41,39 +42,52 @@
                 </aside>
 
                 <div class="category-products-main">
-                    <nav class="category-products-tabs"
-                         aria-label="Nhóm sản phẩm"
-                         role="@(Model.EnableTabSwitching ? "tablist" : null)">
-                        @foreach (var tab in Model.Tabs)
-                        {
-                            var isActive = tab.Id == activeTab.Id;
-                            var panelId = $"{Model.Id}-{tab.Id}-panel";
+                    @if (useSimpleHeader)
+                    {
+                        <div class="category-products-simple-head">
+                            <h2>@activeTab.Label</h2>
+                            <a class="category-view-all category-view-all--head" href="@activeTab.Panel!.ViewAllUrl">
+                                Xem tất cả
+                                <svg aria-hidden="true"><use href="#category-icon-chevron"></use></svg>
+                            </a>
+                        </div>
+                    }
+                    else
+                    {
+                        <nav class="category-products-tabs"
+                             aria-label="Nhóm sản phẩm"
+                             role="@(Model.EnableTabSwitching ? "tablist" : null)">
+                            @foreach (var tab in Model.Tabs)
+                            {
+                                var isActive = tab.Id == activeTab.Id;
+                                var panelId = $"{Model.Id}-{tab.Id}-panel";
 
-                            @if (Model.EnableTabSwitching && tab.Panel is not null)
-                            {
-                                <button class="category-products-tab @(isActive ? "is-active" : null)"
-                                        type="button"
-                                        role="tab"
-                                        id="@($"{Model.Id}-{tab.Id}-tab")"
-                                        aria-controls="@panelId"
-                                        aria-selected="@isActive.ToString().ToLowerInvariant()"
-                                        tabindex="@(isActive ? 0 : -1)"
-                                        data-category-tab
-                                        data-category-panel-id="@panelId"
-                                        data-category-banner-panel-id="@($"{Model.Id}-{tab.Id}-banners")">
-                                    @tab.Label
-                                </button>
+                                @if (Model.EnableTabSwitching && tab.Panel is not null)
+                                {
+                                    <button class="category-products-tab @(isActive ? "is-active" : null)"
+                                            type="button"
+                                            role="tab"
+                                            id="@($"{Model.Id}-{tab.Id}-tab")"
+                                            aria-controls="@panelId"
+                                            aria-selected="@isActive.ToString().ToLowerInvariant()"
+                                            tabindex="@(isActive ? 0 : -1)"
+                                            data-category-tab
+                                            data-category-panel-id="@panelId"
+                                            data-category-banner-panel-id="@($"{Model.Id}-{tab.Id}-banners")">
+                                        @tab.Label
+                                    </button>
+                                }
+                                else
+                                {
+                                    <a class="category-products-tab @(isActive ? "is-active" : null)"
+                                       href="@tab.Url"
+                                       aria-current="@(isActive ? "page" : null)">
+                                        @tab.Label
+                                    </a>
+                                }
                             }
-                            else
-                            {
-                                <a class="category-products-tab @(isActive ? "is-active" : null)"
-                                   href="@tab.Url"
-                                   aria-current="@(isActive ? "page" : null)">
-                                    @tab.Label
-                                </a>
-                            }
-                        }
-                    </nav>
+                        </nav>
+                    }
 
                     @foreach (var tab in Model.Tabs.Where(tab => tab.Panel is not null))
                     {
@@ -119,10 +133,13 @@
                                 {
                                     <span class="category-brand-spacer" aria-hidden="true"></span>
                                 }
-                                <a class="category-view-all" href="@panel.ViewAllUrl">
-                                    Xem tất cả
-                                    <svg aria-hidden="true"><use href="#category-icon-chevron"></use></svg>
-                                </a>
+                                @if (!useSimpleHeader)
+                                {
+                                    <a class="category-view-all" href="@panel.ViewAllUrl">
+                                        Xem tất cả
+                                        <svg aria-hidden="true"><use href="#category-icon-chevron"></use></svg>
+                                    </a>
+                                }
                             </div>
 
                             @if (panel.Products.Count > 0)

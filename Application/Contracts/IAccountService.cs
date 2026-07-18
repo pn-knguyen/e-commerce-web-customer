@@ -38,6 +38,21 @@ public interface IAccountService
     Task<string?> FindEmailByPhoneNumberAsync(
         string phoneNumber,
         CancellationToken cancellationToken = default);
+
+    Task<AccountProfileUpdateResult> UpdateProfileAsync(
+        string? email,
+        AccountProfileUpdateInput input,
+        CancellationToken cancellationToken = default);
 }
 
 public sealed record AccountProfile(string Email, string DisplayName, string? PhoneNumber = null);
+
+public sealed record AccountProfileUpdateInput(
+    string FullName,
+    string? PhoneNumber,
+    string Gender);
+
+public sealed record AccountProfileUpdateResult(
+    bool Success,
+    string Message,
+    AccountProfile? Profile = null);

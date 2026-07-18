@@ -1,0 +1,70 @@
+@model AccountOrderHistoryViewModel
+
+<section class="ap-panel ap-history-panel"
+         aria-labelledby="profile-history-title"
+         aria-live="polite"
+         data-account-order-history>
+    <nav class="ap-order-tabs" aria-label="Lọc đơn hàng">
+        @foreach (var filter in Model.OrderStatusFilters)
+        {
+            <a class="@(filter.IsActive ? "is-active" : null)"
+               href="@filter.Url"
+               aria-current="@(filter.IsActive ? "page" : null)"
+               data-order-status-filter>
+                @filter.Label
+                <small>@filter.Count</small>
+            </a>
+        }
+    </nav>
+
+    <div class="ap-history-toolbar">
+        <h2 id="profile-history-title">Lịch sử mua hàng</h2>
+        <form class="ap-date-range-form"
+              asp-controller="Account"
+              asp-action="Profile"
+              method="get"
+              aria-label="Lọc đơn hàng theo ngày"
+              data-order-history-date-form>
+            <input type="hidden" name="tab" value="@AccountProfileTabs.History" />
+            <input type="hidden" name="status" value="@Model.OrderFilter.Status" />
+
+            <label>
+                <span>Từ ngày</span>
+                <input type="date" name="from" value="@Model.OrderFilter.FromDate" />
+            </label>
+            <svg aria-hidden="true"><use href="#profile-icon-arrow-right"></use></svg>
+            <label>
+                <span>Đến ngày</span>
+                <input type="date" name="to" value="@Model.OrderFilter.ToDate" />
+            </label>
+            <button type="submit">
+                <svg aria-hidden="true"><use href="#profile-icon-calendar"></use></svg>
+                Lọc
+            </button>
+            @if (Model.OrderFilter.HasDateFilter)
+            {
+                <a href="@Url.Action("Profile", "Account", new
+                         {
+                             tab = AccountProfileTabs.History,
+                             status = Model.OrderFilter.Status == AccountOrderStatusFilterKeys.All
+                                 ? null
+                                 : Model.OrderFilter.Status
+                         })"
+                   data-order-status-filter>
+                    Xóa lọc
+                </a>
+            }
+        </form>
+    </div>
+
+    <div class="ap-order-list">
+        @if (Model.Orders.Count == 0)
+        {
+            <div class="ap-empty-order">Bạn chưa có đơn hàng nào.</div>
+        }
+        @foreach (var order in Model.Orders)
+        {
+            <partial name="_ProfileOrderCard" model="order" />
+        }
+    </div>
+</section>

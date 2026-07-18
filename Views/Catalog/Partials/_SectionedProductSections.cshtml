@@ -1,4 +1,10 @@
-﻿@model CategoryPageViewModel
+@model CategoryPageViewModel
+
+@{
+    var showsSectionSort = string.Equals(Model.Slug, "do-gia-dung", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(Model.Slug, "am-thanh", StringComparison.OrdinalIgnoreCase)
+        || Model.IsAccessoryDirectory;
+}
 
 @if (Model.ProductSections.Count > 0)
 {
@@ -80,8 +86,33 @@
                         </a>
                     </div>
 
+                    @if (showsSectionSort && productSection.SortOptions.Count > 0)
+                    {
+                        <div class="catalog-section-sort">
+                            <h3>Sắp xếp theo</h3>
+                            <nav aria-label="@($"Sắp xếp {productSection.Title}")">
+                                @foreach (var option in productSection.SortOptions)
+                                {
+                                    <a class="catalog-sort-chip @(option.IsActive ? "is-active" : null)"
+                                       href="@option.Url"
+                                       data-section-sort-link
+                                       aria-current="@(option.IsActive ? "page" : null)">
+                                        @if (!string.IsNullOrWhiteSpace(option.Icon))
+                                        {
+                                            <svg aria-hidden="true">
+                                                <use href="#catalog-icon-@option.Icon"></use>
+                                            </svg>
+                                        }
+                                        <span>@option.Label</span>
+                                    </a>
+                                }
+                            </nav>
+                        </div>
+                    }
+
                     <div class="catalog-section-product-panel"
                          data-section-product-panel
+                         data-current-category="@productSection.Id.Replace("section-", "")"
                          aria-live="polite"
                          aria-busy="false">
                         <partial name="~/Views/Catalog/Partials/_SectionProductPanel.cshtml"

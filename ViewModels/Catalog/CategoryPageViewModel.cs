@@ -22,6 +22,9 @@ public sealed class CategoryPageViewModel
     public required CategoryFilterViewModel Filter { get; init; }
     public required IReadOnlyList<ProductCardViewModel> Products { get; init; }
     public int InitialProductCount { get; init; } = 20;
+    public int TotalProductCount { get; init; }
+    public int CurrentPage { get; init; } = 1;
+    public bool HasMoreProducts { get; init; }
     public IReadOnlyList<CategorySectionNavigationItemViewModel> SectionTabs { get; init; } = [];
     public IReadOnlyList<CategoryProductSectionViewModel> ProductSections { get; init; } = [];
     public bool IsAccessoryDirectory { get; init; }
@@ -146,6 +149,7 @@ public sealed class CategoryProductSectionViewModel
     public IReadOnlyList<CategorySectionPillViewModel> Subcategories { get; init; } = [];
     public IReadOnlyList<CategorySortOptionViewModel> SortOptions { get; init; } = [];
     public required IReadOnlyList<ProductCardViewModel> Products { get; init; }
+    public int TotalProductCount { get; init; }
 }
 
 public sealed class CategorySectionBannerViewModel

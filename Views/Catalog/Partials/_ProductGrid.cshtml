@@ -2,6 +2,7 @@
 
 <section class="catalog-products" aria-label="Danh sách điện thoại">
     <div class="container">
+        @{ var totalProductCount = Math.Max(Model.TotalProductCount, Model.Products.Count); }
         @if (Model.Products.Count > 0)
         {
             <div class="catalog-product-grid"
@@ -10,22 +11,21 @@
                 @for (var index = 0; index < Model.Products.Count; index++)
                 {
                     <div class="catalog-product-grid__item"
-                         data-product-grid-item
-                         @(index >= Model.InitialProductCount ? "hidden" : null)>
+                         data-product-grid-item>
                         <partial name="~/Views/Shared/Partials/_ProductCard.cshtml"
                                  model="Model.Products[index]" />
                     </div>
                 }
             </div>
 
-            @if (Model.Products.Count > Model.InitialProductCount)
+            @if (Model.HasMoreProducts)
             {
                 <div class="catalog-load-more">
                     <button type="button"
                             data-load-more
-                            data-batch-size="5"
-                            data-remaining-count="@(Model.Products.Count - Model.InitialProductCount)">
-                        <span>Xem thêm @(Model.Products.Count - Model.InitialProductCount) sản phẩm</span>
+                            data-next-page="@(Model.CurrentPage + 1)"
+                            data-total-product-count="@totalProductCount">
+                        <span>Xem thêm @(totalProductCount - Model.Products.Count) sản phẩm</span>
                         <i aria-hidden="true"></i>
                     </button>
                 </div>

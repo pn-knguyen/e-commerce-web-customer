@@ -2,7 +2,8 @@
 
 @{
     var visibleProducts = Model.Products.Take(Model.VisibleProductLimit).ToList();
-    var hasMoreProducts = Model.Products.Count > Model.VisibleProductLimit;
+    var totalProductCount = Math.Max(Model.TotalProductCount, Model.Products.Count);
+    var hasMoreProducts = totalProductCount > visibleProducts.Count;
 }
 
 @if (visibleProducts.Count > 0)
@@ -39,7 +40,7 @@
     {
         <div class="catalog-section-more">
             <a href="@Model.ViewAllUrl">
-                Xem tất cả @Model.Products.Count sản phẩm
+                Xem tất cả @totalProductCount sản phẩm
                 <svg aria-hidden="true"><use href="#hero-icon-chevron"></use></svg>
             </a>
         </div>

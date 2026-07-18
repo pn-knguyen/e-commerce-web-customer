@@ -4,6 +4,7 @@
     var isOverview = string.Equals(Model, AccountProfileTabs.Overview, StringComparison.OrdinalIgnoreCase);
     var isHistory = string.Equals(Model, AccountProfileTabs.History, StringComparison.OrdinalIgnoreCase);
     var isInfo = string.Equals(Model, AccountProfileTabs.Info, StringComparison.OrdinalIgnoreCase);
+    const string ComingSoonMessage = "Chức năng này sẽ được triển khai sau.";
 }
 
 <aside class="ap-sidebar" aria-label="Điều hướng tài khoản">
@@ -17,12 +18,58 @@
             Lịch sử mua hàng
         </a>
 
+        <button class="ap-side-link ap-side-action" type="button" data-profile-coming-soon data-coming-soon-message="@ComingSoonMessage">
+            <svg aria-hidden="true"><use href="#profile-icon-search-shield"></use></svg>
+            Tra cứu bảo hành
+        </button>
+        <button class="ap-side-link ap-side-action" type="button" data-profile-coming-soon data-coming-soon-message="@ComingSoonMessage">
+            <svg aria-hidden="true"><use href="#profile-icon-swap"></use></svg>
+            Lịch sử thu cũ
+        </button>
+
+        <span class="ap-side-separator" aria-hidden="true"></span>
+
+        <a class="ap-side-link"
+           asp-controller="Account"
+           asp-action="Profile"
+           asp-route-tab="@AccountProfileTabs.Overview"
+           asp-fragment="profile-offer-title">
+            <svg aria-hidden="true"><use href="#profile-icon-diamond"></use></svg>
+            Hạng thành viên và ưu đãi
+        </a>
+        <button class="ap-side-link ap-side-action" type="button" data-profile-coming-soon data-coming-soon-message="@ComingSoonMessage">
+            <svg aria-hidden="true"><use href="#profile-icon-briefcase"></use></svg>
+            Ưu đãi và đơn hàng S-Business
+        </button>
+        <button class="ap-side-link ap-side-action" type="button" data-profile-coming-soon data-coming-soon-message="@ComingSoonMessage">
+            <svg aria-hidden="true"><use href="#profile-icon-graduation"></use></svg>
+            Ưu đãi S-Student và S-Teacher
+        </button>
+
+        <span class="ap-side-separator" aria-hidden="true"></span>
+
         <a class="ap-side-link @(isInfo ? "is-active" : null)" asp-controller="Account" asp-action="Profile" asp-route-tab="@AccountProfileTabs.Info">
             <svg aria-hidden="true"><use href="#profile-icon-gear"></use></svg>
             Thông tin tài khoản
         </a>
+        <button class="ap-side-link ap-side-action" type="button" data-profile-coming-soon data-coming-soon-message="@ComingSoonMessage">
+            <svg aria-hidden="true"><use href="#profile-icon-store"></use></svg>
+            Tìm kiếm cửa hàng
+        </button>
+        <button class="ap-side-link ap-side-action" type="button" data-profile-coming-soon data-coming-soon-message="@ComingSoonMessage">
+            <svg aria-hidden="true"><use href="#profile-icon-document"></use></svg>
+            Chính sách bảo hành
+        </button>
+        <button class="ap-side-link ap-side-action" type="button" data-profile-coming-soon data-coming-soon-message="@ComingSoonMessage">
+            <svg aria-hidden="true"><use href="#profile-icon-mail"></use></svg>
+            Góp ý - Phản hồi - Hỗ trợ
+        </button>
+        <button class="ap-side-link ap-side-action" type="button" data-profile-coming-soon data-coming-soon-message="@ComingSoonMessage">
+            <svg aria-hidden="true"><use href="#profile-icon-terms"></use></svg>
+            Điều khoản sử dụng
+        </button>
 
-        <span class="ap-side-separator"></span>
+        <span class="ap-side-separator" aria-hidden="true"></span>
 
         <form asp-controller="Account" asp-action="Logout" method="post" class="ap-logout-form">
             <button class="ap-side-link ap-logout-button" type="submit">

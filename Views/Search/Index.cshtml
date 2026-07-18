@@ -78,20 +78,19 @@
                         @for (var index = 0; index < Model.Products.Count; index++)
                         {
                             <div class="search-result-product-grid__item"
-                                 data-search-product-item
-                                 @(index >= Model.InitialProductCount ? "hidden" : null)>
+                                 data-search-product-item>
                                 <partial name="~/Views/Shared/Partials/_ProductCard.cshtml"
                                          model="Model.Products[index]" />
                             </div>
                         }
                     </div>
 
-                    @if (Model.RemainingProductCount > 0)
+                    @if (Model.HasMoreProducts)
                     {
                         <div class="search-result-load-more">
                             <button type="button"
                                     data-search-load-more
-                                    data-batch-size="5"
+                                    data-next-page="@(Model.CurrentPage + 1)"
                                     data-remaining-count="@Model.RemainingProductCount">
                                 <span>Xem thêm @Model.RemainingProductCount sản phẩm</span>
                                 <i aria-hidden="true"></i>

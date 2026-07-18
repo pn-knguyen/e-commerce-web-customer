@@ -9,5 +9,15 @@ public interface IAccountProfilePageProvider
         string? displayName,
         string? phoneNumber,
         string activeTab,
+        string? orderStatus,
+        string? fromDate,
+        string? toDate,
+        CancellationToken cancellationToken = default);
+
+    Task<AccountOrderHistoryViewModel> GetOrderHistoryAsync(
+        string? email,
+        string? orderStatus,
+        string? fromDate,
+        string? toDate,
         CancellationToken cancellationToken = default);
 }

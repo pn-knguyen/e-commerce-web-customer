@@ -1,4 +1,6 @@
+using System.Security.Claims;
 using System.Text;
+using e_commerce_web_customer.Application.Constants;
 using e_commerce_web_customer.Application.CustomerMessages;
 using e_commerce_web_customer.Application.Services;
 using e_commerce_web_customer.Application.Contracts;
@@ -6,11 +8,14 @@ using e_commerce_web_customer.Infrastructure.DependencyInjection;
 using e_commerce_web_customer.Infrastructure.Web;
 using FirebaseAdmin;
 using Google.Apis.Auth.OAuth2;
+using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddControllersWithViews();
+builder.Services.AddMemoryCache();
+builder.Services.AddResponseCompression(options => options.EnableForHttps = true);
 
 builder.Services.AddRateLimiter(options =>
 {
@@ -62,6 +67,21 @@ builder.Services.AddSession(options =>
     options.Cookie.HttpOnly = true;
     options.Cookie.IsEssential = true;
 });
+builder.Services
+    .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie(options =>
+    {
+        options.Cookie.Name = "TechStore.Customer.Auth";
+        options.Cookie.HttpOnly = true;
+        options.Cookie.IsEssential = true;
+        options.Cookie.SameSite = SameSiteMode.Lax;
+        options.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+        options.LoginPath = "/Account/Login";
+        options.LogoutPath = "/Account/Logout";
+        options.AccessDeniedPath = "/Account/Login";
+        options.ExpireTimeSpan = TimeSpan.FromDays(30);
+        options.SlidingExpiration = true;
+    });
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ISessionStorage, WebSessionStorage>();
 builder.Services.AddScoped<CartSessionService>();
@@ -100,10 +120,26 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-app.UseStaticFiles();
+app.UseResponseCompression();
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = context =>
+    {
+        var versioned = context.Context.Request.Query.ContainsKey("v");
+        context.Context.Response.Headers.CacheControl = versioned
+            ? "public,max-age=31536000,immutable"
+            : "public,max-age=3600";
+    }
+});
 app.UseRouting();
 app.UseRateLimiter();
 app.UseSession();
+app.UseAuthentication();
+app.Use(async (context, next) =>
+{
+    SyncAuthenticatedCustomerSession(context);
+    await next();
+});
 
 app.UseAuthorization();
 
@@ -116,3 +152,38 @@ app.MapControllerRoute(
     .WithStaticAssets();
 
 app.Run();
+
+static void SyncAuthenticatedCustomerSession(HttpContext context)
+{
+    if (context.User?.Identity?.IsAuthenticated != true)
+    {
+        return;
+    }
+
+    SetSessionValue(context, SessionKeys.IsLoggedIn, "true");
+    SetSessionValue(
+        context,
+        SessionKeys.UserEmail,
+        context.User.FindFirstValue(ClaimTypes.Email) ?? context.User.FindFirstValue(ClaimTypes.NameIdentifier));
+    SetSessionValue(context, SessionKeys.UserDisplayName, context.User.FindFirstValue(ClaimTypes.Name));
+    SetSessionValue(context, SessionKeys.UserPhoneNumber, context.User.FindFirstValue(ClaimTypes.MobilePhone));
+}
+
+static void SetSessionValue(HttpContext context, string key, string? value)
+{
+    if (string.IsNullOrWhiteSpace(value))
+    {
+        if (key == SessionKeys.UserPhoneNumber)
+        {
+            context.Session.Remove(key);
+        }
+
+        return;
+    }
+
+    var normalized = value.Trim();
+    if (!string.Equals(context.Session.GetString(key), normalized, StringComparison.Ordinal))
+    {
+        context.Session.SetString(key, normalized);
+    }
+}

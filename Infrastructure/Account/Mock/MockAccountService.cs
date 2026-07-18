@@ -128,4 +128,45 @@ public sealed class MockAccountService : IAccountService
             return Task.FromResult(user?.Email);
         }
     }
+
+    public Task<AccountProfileUpdateResult> UpdateProfileAsync(
+        string? email,
+        AccountProfileUpdateInput input,
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (string.IsNullOrWhiteSpace(email))
+        {
+            return Task.FromResult(new AccountProfileUpdateResult(
+                false,
+                "Không xác định được tài khoản cần cập nhật."));
+        }
+
+        var fullName = input.FullName.Trim();
+        if (string.IsNullOrWhiteSpace(fullName))
+        {
+            return Task.FromResult(new AccountProfileUpdateResult(false, "Vui lòng nhập họ tên."));
+        }
+
+        lock (Lock)
+        {
+            var user = Users.FirstOrDefault(u =>
+                string.Equals(u.Email, email.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (user is null)
+            {
+                return Task.FromResult(new AccountProfileUpdateResult(false, "Không tìm thấy tài khoản."));
+            }
+
+            user.FullName = fullName;
+            user.PhoneNumber = string.IsNullOrWhiteSpace(input.PhoneNumber)
+                ? null
+                : input.PhoneNumber.Trim();
+
+            return Task.FromResult(new AccountProfileUpdateResult(
+                true,
+                "Đã cập nhật thông tin cá nhân.",
+                new AccountProfile(user.Email, user.FullName, user.PhoneNumber)));
+        }
+    }
 }
