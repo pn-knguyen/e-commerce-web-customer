@@ -34,6 +34,7 @@ public sealed class MockAccountOrderDetailProvider : IAccountOrderDetailProvider
             [
                 new()
                 {
+                    OrderItemId = 1,
                     ProductName = "USB 3.2 KINGSTON DATATRAVELER EXODIA DTXM 128GB",
                     ProductImageUrl = "/images/categories/accessories/memory-usb.webp",
                     ProductImageAlt = "USB Kingston DataTraveler Exodia 128GB",
@@ -41,10 +42,12 @@ public sealed class MockAccountOrderDetailProvider : IAccountOrderDetailProvider
                     ColorText = "Đen",
                     VariantText = "128GB - Đen",
                     Quantity = 1,
-                    LineTotalText = "349.000đ"
+                    LineTotalText = "349.000đ",
+                    CanReview = true
                 },
                 new()
                 {
+                    OrderItemId = 2,
                     ProductName = "USB 3.2 KINGSTON DATATRAVELER EXODIA DTXM 64GB",
                     ProductImageUrl = "/images/categories/accessories/memory-usb.webp",
                     ProductImageAlt = "USB Kingston DataTraveler Exodia 64GB",
@@ -52,7 +55,14 @@ public sealed class MockAccountOrderDetailProvider : IAccountOrderDetailProvider
                     ColorText = "Đen",
                     VariantText = "64GB - Đen",
                     Quantity = 1,
-                    LineTotalText = "219.000đ"
+                    LineTotalText = "219.000đ",
+                    CanReview = true,
+                    Review = new AccountOrderItemReviewViewModel
+                    {
+                        Stars = 5,
+                        Comment = "Sản phẩm đúng mô tả, giao nhanh.",
+                        SubmittedAtText = "20/12/2025 16:20"
+                    }
                 }
             ],
             Steps =
@@ -125,6 +135,7 @@ public sealed class MockAccountOrderDetailProvider : IAccountOrderDetailProvider
             [
                 new()
                 {
+                    OrderItemId = 3,
                     ProductName = "USB 3.2 Kingston DataTraveler Exodia DTX 128GB-Đen",
                     ProductImageUrl = "/images/categories/accessories/memory-usb.webp",
                     ProductImageAlt = "USB Kingston DataTraveler Exodia màu đen",

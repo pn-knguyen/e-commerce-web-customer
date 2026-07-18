@@ -7,14 +7,15 @@ public sealed class SearchResultPageViewModel
     public required string Query { get; init; }
     public required int TotalCount { get; init; }
     public int InitialProductCount { get; init; } = 25;
+    public int CurrentPage { get; init; } = 1;
+    public bool HasMoreProducts { get; init; }
     public required IReadOnlyList<SearchResultCategoryViewModel> Categories { get; init; }
     public required IReadOnlyList<SearchResultSortOptionViewModel> SortOptions { get; init; }
     public required IReadOnlyList<ProductCardViewModel> Products { get; init; }
 
     public bool HasQuery => !string.IsNullOrWhiteSpace(Query);
     public bool HasProducts => Products.Count > 0;
-    public int VisibleProductCount => Math.Min(InitialProductCount, Products.Count);
-    public int RemainingProductCount => Math.Max(0, Products.Count - VisibleProductCount);
+    public int RemainingProductCount => Math.Max(0, TotalCount - CurrentPage * InitialProductCount);
 }
 
 public sealed class SearchResultCategoryViewModel

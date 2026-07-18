@@ -5,22 +5,27 @@ using e_commerce_web_customer.Application.Contracts;
 using e_commerce_web_customer.Application.Recommendations.Abstractions;
 using e_commerce_web_customer.Application.Recommendations.Models;
 using e_commerce_web_customer.Data;
+using e_commerce_web_customer.Infrastructure.Caching;
 using e_commerce_web_customer.Models.Constants;
 using e_commerce_web_customer.Models.Entities;
 using e_commerce_web_customer.ViewModels.Product;
 using e_commerce_web_customer.ViewModels.Shared;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace e_commerce_web_customer.Infrastructure.Products.Db;
 
 public sealed class DbProductDetailDataService(
     EcommerceDbContext dbContext,
-    IProductRecommendationService productRecommendationService) : IProductDetailDataService
+    IProductRecommendationService productRecommendationService,
+    IMemoryCache cache,
+    StorefrontDbQueryGate dbQueryGate) : IProductDetailDataService
 {
     private const string FallbackImageUrl = "/images/logo-techstore-icon.svg";
     private const string DefaultSpecGroupName = "Thông tin sản phẩm";
+    private static readonly CultureInfo ViCulture = CultureInfo.GetCultureInfo("vi-VN");
 
-    public async Task<ProductDetailViewModel?> CreateProductDetailAsync(
+    public Task<ProductDetailViewModel?> CreateProductDetailAsync(
         string slug,
         string? variantKey = null,
         CancellationToken cancellationToken = default)
@@ -28,48 +33,56 @@ public sealed class DbProductDetailDataService(
         var normalizedSlug = slug.Trim().ToLowerInvariant();
         if (string.IsNullOrWhiteSpace(normalizedSlug))
         {
-            return null;
+            return Task.FromResult<ProductDetailViewModel?>(null);
         }
 
-        var seedProduct = await dbContext.Products
-            .AsNoTracking()
-            .Include(product => product.Brand)
-            .Include(product => product.Category)
-            .FirstOrDefaultAsync(
-                product => product.IsActive && product.Slug == normalizedSlug,
-                cancellationToken);
+        var normalizedVariantKey = variantKey?.Trim().ToLowerInvariant() ?? "default";
+        var cacheKey = $"product-detail-v2:{normalizedSlug}:{normalizedVariantKey}";
 
-        if (seedProduct is null)
-        {
-            return null;
-        }
+        return cache.GetOrCreateExclusiveAsync(
+            cacheKey,
+            () => dbQueryGate.RunAsync(
+                () => CreateProductDetailUncachedAsync(
+                    normalizedSlug,
+                    variantKey,
+                    CancellationToken.None)),
+            new MemoryCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5),
+                SlidingExpiration = TimeSpan.FromMinutes(2)
+            });
+    }
 
-        var familyProducts = await dbContext.Products
+    private async Task<ProductDetailViewModel?> CreateProductDetailUncachedAsync(
+        string normalizedSlug,
+        string? variantKey,
+        CancellationToken cancellationToken)
+    {
+
+        var selectedProduct = await dbContext.Products
             .AsNoTracking()
-            .Where(product =>
-                product.IsActive
-                && product.Id == seedProduct.Id)
+            .Where(product => product.IsActive && product.Slug == normalizedSlug)
             .Include(product => product.Brand)
             .Include(product => product.Category)
                 .ThenInclude(category => category!.CategorySpecifications)
                     .ThenInclude(categorySpecification => categorySpecification.Specification)
             .Include(product => product.ProductSpecifications)
                 .ThenInclude(productSpecification => productSpecification.Specification)
-            .Include(product => product.ProductVariants)
+            .Include(product => product.ProductVariants.Where(variant => variant.IsActive))
                 .ThenInclude(variant => variant.ProductVariantImages)
-            .Include(product => product.ProductVariants)
+            .Include(product => product.ProductVariants.Where(variant => variant.IsActive))
                 .ThenInclude(variant => variant.VariantAttributes)
                     .ThenInclude(variantAttribute => variantAttribute.AttributeOption)
                         .ThenInclude(attributeOption => attributeOption!.Attribute)
             .AsSplitQuery()
-            .OrderBy(product => product.Id)
-            .ToListAsync(cancellationToken);
+            .FirstOrDefaultAsync(cancellationToken);
 
-        var selectedProduct = familyProducts.FirstOrDefault(product => product.Id == seedProduct.Id);
         if (selectedProduct is null)
         {
             return null;
         }
+
+        IReadOnlyList<Product> familyProducts = [selectedProduct];
 
         var activeVariants = familyProducts
             .SelectMany(product => product.ProductVariants.Where(variant => variant.IsActive))
@@ -103,6 +116,9 @@ public sealed class DbProductDetailDataService(
         var imageVariant = ResolveImageVariant(selectedVariant, colorVariants);
         var selectedImage = GetPrimaryImage(imageVariant);
         var mainImageUrl = NormalizeImageUrl(selectedImage?.ImagePath);
+        var reviewSummary = BuildReviewSummary(
+            detailName,
+            await GetApprovedReviewsAsync(selectedProduct.Id, cancellationToken));
         var accessoryUpsells = await productRecommendationService.GetAccessoryUpsellsAsync(
             new ProductRecommendationRequest
             {
@@ -129,8 +145,8 @@ public sealed class DbProductDetailDataService(
             OldPrice = null,
             IsAvailable = selectedVariant.Quantity > 0,
             StockStatusText = BuildStockStatusText(selectedVariant),
-            Rating = selectedProduct.RatingAverage,
-            ReviewCount = selectedProduct.RatingCount,
+            Rating = reviewSummary.Score,
+            ReviewCount = reviewSummary.TotalReviews,
             Breadcrumbs = BuildBreadcrumbs(selectedProduct, detailName),
             QuickLinks = BuildQuickLinks(),
             GalleryItems = BuildGalleryItems(selectedVariant, colorVariants, detailName),
@@ -165,9 +181,31 @@ public sealed class DbProductDetailDataService(
                 })
                 .ToList(),
             RelatedProductGroups = BuildRelatedProductGroups(activeVariants, selectedProduct, selectedVariant),
-            ReviewSummary = BuildReviewSummary(detailName, selectedProduct.RatingAverage, selectedProduct.RatingCount),
+            ReviewSummary = reviewSummary,
             QuestionAnswerSection = BuildQuestionAnswerSection(detailName)
         };
+    }
+
+    private async Task<IReadOnlyList<Rating>> GetApprovedReviewsAsync(
+        long productId,
+        CancellationToken cancellationToken)
+    {
+        return await dbContext.Ratings
+            .AsNoTracking()
+            .AsSplitQuery()
+            .Include(rating => rating.User)
+            .Include(rating => rating.OrderItem)
+                .ThenInclude(item => item!.ProductVariant)
+                    .ThenInclude(variant => variant!.VariantAttributes)
+                        .ThenInclude(attribute => attribute.AttributeOption)
+                            .ThenInclude(option => option!.Attribute)
+            .Where(rating => rating.IsApproved)
+            .Where(rating => rating.OrderItem != null
+                && rating.OrderItem.ProductVariant != null
+                && rating.OrderItem.ProductVariant.ProductId == productId)
+            .OrderByDescending(rating => rating.UpdatedAt ?? rating.CreatedAt)
+            .ThenByDescending(rating => rating.Id)
+            .ToListAsync(cancellationToken);
     }
 
     private static ProductVariant? ResolveSelectedVariant(
@@ -726,27 +764,119 @@ public sealed class DbProductDetailDataService(
 
     private static ProductReviewSummaryViewModel BuildReviewSummary(
         string detailName,
-        decimal score,
-        int totalReviews)
+        IReadOnlyList<Rating> reviews)
     {
-        var clampedScore = Math.Clamp(score, 0m, 5m);
-        var fiveStarCount = totalReviews > 0 ? totalReviews : 0;
+        var totalReviews = reviews.Count;
+        var score = totalReviews == 0
+            ? 0m
+            : decimal.Round(reviews.Average(review => (decimal)review.Stars), 1, MidpointRounding.AwayFromZero);
 
         return new ProductReviewSummaryViewModel
         {
             Title = $"Đánh giá {detailName}",
-            Score = clampedScore,
+            Score = score,
             TotalReviews = totalReviews,
-            RatingBreakdown =
-            [
-                new() { Stars = 5, Count = fiveStarCount, Percent = fiveStarCount > 0 ? 100 : 0 },
-                new() { Stars = 4, Count = 0, Percent = 0 },
-                new() { Stars = 3, Count = 0, Percent = 0 },
-                new() { Stars = 2, Count = 0, Percent = 0 },
-                new() { Stars = 1, Count = 0, Percent = 0 }
-            ],
+            RatingBreakdown = Enumerable.Range(1, 5)
+                .Reverse()
+                .Select(star =>
+                {
+                    var count = reviews.Count(review => review.Stars == star);
+                    return new ProductRatingBreakdownViewModel
+                    {
+                        Stars = star,
+                        Count = count,
+                        Percent = totalReviews == 0
+                            ? 0
+                            : (int)Math.Round(count * 100m / totalReviews, MidpointRounding.AwayFromZero)
+                    };
+                })
+                .ToList(),
             ExperienceRatings = [],
-            Reviews = []
+            Reviews = reviews
+                .Take(20)
+                .Select(ToReviewViewModel)
+                .ToList()
+        };
+    }
+
+    private static ProductReviewViewModel ToReviewViewModel(Rating rating)
+    {
+        var author = ResolveReviewAuthor(rating.User);
+        var variantLabel = rating.OrderItem?.ProductVariant is null
+            ? string.Empty
+            : BuildCartVariantLabel(rating.OrderItem.ProductVariant);
+
+        var tags = new List<string> { "Đã mua hàng" };
+        if (!string.IsNullOrWhiteSpace(variantLabel))
+        {
+            tags.Add(variantLabel);
+        }
+
+        return new ProductReviewViewModel
+        {
+            Author = author,
+            Initial = ResolveReviewInitial(author),
+            Rating = rating.Stars,
+            RatingText = ResolveRatingText(rating.Stars),
+            Content = string.IsNullOrWhiteSpace(rating.Comment)
+                ? $"Khách hàng đã chấm {rating.Stars}/5 sao cho sản phẩm này."
+                : rating.Comment.Trim(),
+            TimeAgo = FormatReviewTime(rating.UpdatedAt ?? rating.CreatedAt),
+            Tags = tags
+        };
+    }
+
+    private static string ResolveReviewAuthor(User? user)
+    {
+        var name = user?.FullName?.Trim();
+        if (!string.IsNullOrWhiteSpace(name))
+        {
+            return name;
+        }
+
+        var username = user?.Username?.Trim();
+        if (!string.IsNullOrWhiteSpace(username))
+        {
+            return username;
+        }
+
+        var email = user?.Email?.Trim();
+        if (!string.IsNullOrWhiteSpace(email))
+        {
+            return email.Split('@', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? email;
+        }
+
+        return "Khách hàng TechStore";
+    }
+
+    private static string ResolveReviewInitial(string author)
+    {
+        var first = author.Trim().FirstOrDefault(char.IsLetterOrDigit);
+        return first == default
+            ? "T"
+            : first.ToString().ToUpper(ViCulture);
+    }
+
+    private static string ResolveRatingText(int stars) => stars switch
+    {
+        >= 5 => "Tuyệt vời",
+        4 => "Hài lòng",
+        3 => "Ổn",
+        2 => "Chưa hài lòng",
+        _ => "Không hài lòng"
+    };
+
+    private static string FormatReviewTime(DateTime value)
+    {
+        var localDate = value.ToLocalTime().Date;
+        var days = (DateTime.Now.Date - localDate).Days;
+
+        return days switch
+        {
+            <= 0 => "Hôm nay",
+            1 => "Hôm qua",
+            < 30 => $"{days} ngày trước",
+            _ => localDate.ToString("dd/MM/yyyy", ViCulture)
         };
     }
 

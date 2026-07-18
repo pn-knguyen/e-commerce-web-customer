@@ -24,10 +24,10 @@ internal static class HomeAdditionalCategorySectionContent
                 Banner("banner_asus_monitor.png", "Ưu đãi màn hình ASUS", "man-hinh", "brand=asus"),
                 Banner("banner_acer_monitor.png", "Ưu đãi màn hình Acer", "man-hinh", "brand=acer")
             ],
-            "may-in" =>
+            "phu-kien-may-tinh" =>
             [
-                Banner("banner_amd.png", "Linh kiện máy tính AMD nổi bật", "may-in", "brand=amd"),
-                Banner("banner_nvidia.png", "Linh kiện máy tính NVIDIA nổi bật", "may-in", "brand=nvidia")
+                Banner("banner_amd.png", "Linh kiện máy tính AMD nổi bật", "phu-kien-may-tinh", "brand=amd"),
+                Banner("banner_nvidia.png", "Linh kiện máy tính NVIDIA nổi bật", "phu-kien-may-tinh", "brand=nvidia")
             ],
             "dong-ho" =>
             [

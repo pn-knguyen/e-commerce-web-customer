@@ -13,13 +13,29 @@ public sealed class SearchController(
         [FromQuery] string? q,
         [FromQuery] string? sort,
         [FromQuery] string? category,
+        [FromQuery] int page,
         CancellationToken cancellationToken)
     {
         var model = await searchResultProvider.SearchAsync(
-            new SearchResultRequest(q, sort, category),
+            new SearchResultRequest(q, sort, category, page),
             cancellationToken);
 
         return View(model);
+    }
+
+    [HttpGet("products")]
+    public async Task<IActionResult> Products(
+        [FromQuery] string? q,
+        [FromQuery] string? sort,
+        [FromQuery] string? category,
+        [FromQuery] int page,
+        CancellationToken cancellationToken)
+    {
+        var model = await searchResultProvider.SearchAsync(
+            new SearchResultRequest(q, sort, category, page),
+            cancellationToken);
+
+        return PartialView("~/Views/Search/_ProductGridItems.cshtml", model);
     }
 
     [HttpGet("suggest")]

@@ -6,6 +6,8 @@
 
   sections.forEach((section) => {
     const rows = Number.parseInt(section.dataset.categoryRows || '2', 10);
+    const hasActiveBanners = section.classList.contains('has-active-banners');
+    const desktopSlides = hasActiveBanners ? 4 : 5;
     const tabs = Array.from(section.querySelectorAll('[data-category-tab]'));
     const panels = Array.from(section.querySelectorAll('[data-category-panel]'));
     const bannerPanels = Array.from(
@@ -63,8 +65,8 @@
             }
           },
           1024: {
-            slidesPerView: 4,
-            slidesPerGroup: 4,
+            slidesPerView: desktopSlides,
+            slidesPerGroup: desktopSlides,
             grid: {
               rows,
               fill: 'row'

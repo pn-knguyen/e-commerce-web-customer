@@ -1,6 +1,118 @@
 (function () {
   'use strict';
 
+  const historySelector = '[data-account-order-history]';
+  let activeRequest = null;
+
+  if (!document.querySelector(historySelector)) return;
+
+  function buildEndpointUrl(profileUrl) {
+    const endpointUrl = new URL('/account/profile/order-history', window.location.origin);
+    ['status', 'from', 'to'].forEach((key) => {
+      const value = profileUrl.searchParams.get(key);
+      if (value) endpointUrl.searchParams.set(key, value);
+    });
+    return endpointUrl;
+  }
+
+  function setOptimisticStatus(panel, profileUrl) {
+    const nextStatus = profileUrl.searchParams.get('status') || 'all';
+    panel.querySelectorAll('.ap-order-tabs [data-order-status-filter]').forEach((link) => {
+      const linkUrl = new URL(link.href, window.location.origin);
+      const linkStatus = linkUrl.searchParams.get('status') || 'all';
+      const isActive = linkStatus === nextStatus;
+      link.classList.toggle('is-active', isActive);
+      if (isActive) {
+        link.setAttribute('aria-current', 'page');
+      } else {
+        link.removeAttribute('aria-current');
+      }
+    });
+  }
+
+  async function loadOrderHistory(profileUrl, updateBrowserHistory) {
+    const currentPanel = document.querySelector(historySelector);
+    if (!currentPanel) return;
+
+    activeRequest?.abort();
+    activeRequest = new AbortController();
+    setOptimisticStatus(currentPanel, profileUrl);
+    currentPanel.classList.add('is-loading');
+    currentPanel.setAttribute('aria-busy', 'true');
+
+    try {
+      const response = await fetch(buildEndpointUrl(profileUrl), {
+        headers: {
+          Accept: 'text/html',
+          'X-Requested-With': 'XMLHttpRequest'
+        },
+        cache: 'no-store',
+        signal: activeRequest.signal
+      });
+
+      if (response.status === 401) {
+        const returnUrl = profileUrl.pathname + profileUrl.search;
+        window.location.assign(`/Account/Login?returnUrl=${encodeURIComponent(returnUrl)}`);
+        return;
+      }
+
+      if (!response.ok) {
+        throw new Error('Không thể tải lịch sử đơn hàng.');
+      }
+
+      const template = document.createElement('template');
+      template.innerHTML = await response.text();
+      const nextPanel = template.content.querySelector(historySelector);
+      if (!nextPanel) {
+        throw new Error('Dữ liệu lịch sử đơn hàng không hợp lệ.');
+      }
+
+      currentPanel.replaceWith(nextPanel);
+      if (updateBrowserHistory) {
+        window.history.pushState({}, '', profileUrl);
+      }
+    } catch (error) {
+      if (error.name === 'AbortError') return;
+
+      currentPanel.classList.remove('is-loading');
+      currentPanel.removeAttribute('aria-busy');
+      if (typeof window.showToast === 'function') {
+        window.showToast(error.message, 'error');
+      } else {
+        window.alert(error.message);
+      }
+    }
+  }
+
+  document.addEventListener('click', (event) => {
+    const link = event.target.closest('[data-order-status-filter]');
+    if (!link || !link.closest(historySelector)) return;
+
+    event.preventDefault();
+    loadOrderHistory(new URL(link.href, window.location.origin), true);
+  });
+
+  document.addEventListener('submit', (event) => {
+    const form = event.target.closest('[data-order-history-date-form]');
+    if (!form || !form.closest(historySelector)) return;
+
+    event.preventDefault();
+    const profileUrl = new URL(form.action, window.location.origin);
+    profileUrl.search = new URLSearchParams(new FormData(form)).toString();
+    loadOrderHistory(profileUrl, true);
+  });
+
+  window.addEventListener('popstate', () => {
+    const profileUrl = new URL(window.location.href);
+    if (profileUrl.searchParams.get('tab') === 'history') {
+      loadOrderHistory(profileUrl, false);
+    }
+  });
+})();
+
+(function () {
+  'use strict';
+
   const formPanel = document.getElementById('ap-address-form-panel');
   const formOpenButtons = document.querySelectorAll('[data-address-form-open]');
   const formCloseButton = document.querySelector('[data-address-form-close]');

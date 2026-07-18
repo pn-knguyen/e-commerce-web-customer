@@ -1,12 +1,17 @@
+using System.ComponentModel.DataAnnotations;
+
 namespace e_commerce_web_customer.ViewModels.Account;
 
 public sealed class AccountProfilePageViewModel
 {
     public string ActiveTab { get; init; } = AccountProfileTabs.Overview;
     public required AccountProfileSummaryViewModel Summary { get; init; }
+    public AccountProfileOrderFilterViewModel OrderFilter { get; init; } = new();
+    public IReadOnlyList<AccountProfileOrderStatusFilterViewModel> OrderStatusFilters { get; init; } = [];
     public IReadOnlyList<AccountProfileOrderViewModel> RecentOrders { get; init; } = [];
     public IReadOnlyList<AccountProfileOrderViewModel> Orders { get; init; } = [];
     public IReadOnlyList<AccountProfileAddressViewModel> Addresses { get; init; } = [];
+    public IReadOnlyList<AccountProfileVoucherViewModel> Vouchers { get; init; } = [];
     public IReadOnlyList<AccountFavoriteProductViewModel> FavoriteProducts { get; init; } = [];
     public IReadOnlyList<AccountProfileLinkedAccountViewModel> LinkedAccounts { get; init; } =
     [
@@ -18,7 +23,58 @@ public sealed class AccountProfilePageViewModel
     public bool IsHistory => string.Equals(ActiveTab, AccountProfileTabs.History, StringComparison.OrdinalIgnoreCase);
     public bool IsInfo => string.Equals(ActiveTab, AccountProfileTabs.Info, StringComparison.OrdinalIgnoreCase);
     public bool HasAddresses => Addresses.Count > 0;
+    public bool HasVouchers => Vouchers.Count > 0;
     public bool HasFavoriteProducts => FavoriteProducts.Count > 0;
+}
+
+public sealed class AccountOrderHistoryViewModel
+{
+    public AccountProfileOrderFilterViewModel OrderFilter { get; init; } = new();
+    public IReadOnlyList<AccountProfileOrderStatusFilterViewModel> OrderStatusFilters { get; init; } = [];
+    public IReadOnlyList<AccountProfileOrderViewModel> Orders { get; init; } = [];
+}
+
+public sealed class AccountProfileOrderFilterViewModel
+{
+    public string Status { get; init; } = AccountOrderStatusFilterKeys.All;
+    public string FromDate { get; init; } = string.Empty;
+    public string ToDate { get; init; } = string.Empty;
+    public string FromDateText { get; init; } = string.Empty;
+    public string ToDateText { get; init; } = string.Empty;
+    public bool HasDateFilter => !string.IsNullOrWhiteSpace(FromDate)
+        || !string.IsNullOrWhiteSpace(ToDate);
+}
+
+public sealed class AccountProfileOrderStatusFilterViewModel
+{
+    public required string Key { get; init; }
+    public required string Label { get; init; }
+    public required string Url { get; init; }
+    public int Count { get; init; }
+    public bool IsActive { get; init; }
+}
+
+public static class AccountOrderStatusFilterKeys
+{
+    public const string All = "all";
+    public const string Pending = "pending";
+    public const string Processing = "processing";
+    public const string Shipping = "shipping";
+    public const string Completed = "completed";
+    public const string Cancelled = "cancelled";
+
+    public static string Normalize(string? value)
+    {
+        return value?.Trim().ToLowerInvariant() switch
+        {
+            Pending => Pending,
+            Processing => Processing,
+            Shipping => Shipping,
+            Completed => Completed,
+            Cancelled => Cancelled,
+            _ => All
+        };
+    }
 }
 
 public static class AccountProfileTabs
@@ -45,6 +101,7 @@ public sealed class AccountProfileSummaryViewModel
     public string PhoneNumber { get; init; } = string.Empty;
     public string MaskedPhoneNumber { get; init; } = string.Empty;
     public string AvatarUrl { get; init; } = "/images/logo-techstore-icon.svg";
+    public string GenderValue { get; init; } = "unknown";
     public string GenderText { get; init; } = "-";
     public string BirthDateText { get; init; } = "-";
     public string DefaultAddressText { get; init; } = "-";
@@ -55,6 +112,18 @@ public sealed class AccountProfileSummaryViewModel
     public string AccumulationDateText { get; init; } = "Từ 01/01/2025";
 }
 
+public sealed class AccountProfileUpdateViewModel
+{
+    [Required(ErrorMessage = "Vui lòng nhập họ tên.")]
+    [StringLength(255, ErrorMessage = "Họ tên tối đa 255 ký tự.")]
+    public string FullName { get; init; } = string.Empty;
+
+    [StringLength(30, ErrorMessage = "Số điện thoại tối đa 30 ký tự.")]
+    public string? PhoneNumber { get; init; }
+
+    public string Gender { get; init; } = "unknown";
+}
+
 public sealed class AccountProfileAddressViewModel
 {
     public long Id { get; init; }
@@ -62,6 +131,21 @@ public sealed class AccountProfileAddressViewModel
     public string PhoneNumber { get; init; } = string.Empty;
     public string AddressText { get; init; } = string.Empty;
     public bool IsDefault { get; init; }
+}
+
+public sealed class AccountProfileVoucherViewModel
+{
+    public long Id { get; init; }
+    public string Code { get; init; } = string.Empty;
+    public string Title { get; init; } = string.Empty;
+    public string Description { get; init; } = string.Empty;
+    public string DiscountText { get; init; } = string.Empty;
+    public string ConditionText { get; init; } = string.Empty;
+    public string ExpiryText { get; init; } = string.Empty;
+    public string UsageText { get; init; } = string.Empty;
+    public string Tone { get; init; } = "available";
+    public bool IsAvailable { get; init; }
+    public bool IsAssignedToUser { get; init; }
 }
 
 public sealed class AccountProfileLinkedAccountViewModel

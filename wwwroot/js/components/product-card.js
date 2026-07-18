@@ -90,8 +90,12 @@
     return data;
   }
 
-  async function syncInitialWishlistStates() {
-    const buttons = Array.from(document.querySelectorAll('[data-product-wishlist]'));
+  async function syncInitialWishlistStates(root = document) {
+    if (!(root instanceof Document || root instanceof Element)) {
+      root = document;
+    }
+
+    const buttons = Array.from(root.querySelectorAll('[data-product-wishlist]'));
     const productIds = [...new Set(buttons
       .map((button) => button.dataset.productId)
       .filter(Boolean))];
@@ -101,8 +105,18 @@
     }
 
     try {
-      const data = await postWishlist('/wishlist/status', { productIds }, { redirectOnUnauthorized: false });
-      const statuses = data?.statuses || {};
+      const statuses = {};
+      const batchSize = 100;
+
+      for (let start = 0; start < productIds.length; start += batchSize) {
+        const batch = productIds.slice(start, start + batchSize);
+        const data = await postWishlist(
+          '/wishlist/status',
+          { productIds: batch },
+          { redirectOnUnauthorized: false }
+        );
+        Object.assign(statuses, data?.statuses || {});
+      }
       buttons.forEach((button) => {
         const productId = button.dataset.productId;
         if (Object.prototype.hasOwnProperty.call(statuses, productId)) {
@@ -116,6 +130,13 @@
       buttons.forEach((button) => setWishlistIcon(button, getWishlistState(button)));
     }
   }
+
+  document.addEventListener('product:cards-added', (event) => {
+    const root = event.detail?.root;
+    if (root instanceof Element) {
+      syncInitialWishlistStates(root);
+    }
+  });
 
   document.addEventListener('click', async (event) => {
     const button = event.target.closest('[data-product-wishlist]');
@@ -165,7 +186,7 @@
   });
 
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', syncInitialWishlistStates, { once: true });
+    document.addEventListener('DOMContentLoaded', () => syncInitialWishlistStates(), { once: true });
   } else {
     syncInitialWishlistStates();
   }

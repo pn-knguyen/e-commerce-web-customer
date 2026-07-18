@@ -13,6 +13,7 @@
   initializeFilterDropdowns();
   initializeSectionNavigation();
   initializeSectionPills();
+  initializeSectionSorts();
   initializeSectionProductCarousels();
   initializeSectionReveals();
   initializeCountdowns();
@@ -461,7 +462,12 @@
         if (!section) return;
 
         event.preventDefault();
-        loadSectionProducts(section, pill, setActivePill);
+        const selectedUrl = new URL(pill.href, window.location.origin);
+        if (section.dataset.currentSort) {
+          selectedUrl.searchParams.set('sort', section.dataset.currentSort);
+        }
+
+        loadSectionProducts(section, selectedUrl, () => setActivePill(pill));
 
         section.scrollIntoView({
           behavior: reducedMotion ? 'auto' : 'smooth',
@@ -520,18 +526,72 @@
     });
   }
 
-  async function loadSectionProducts(section, pill, setActivePill) {
+  function initializeSectionSorts() {
+    const sortLinks = Array.from(page.querySelectorAll('[data-section-sort-link]'));
+    if (sortLinks.length === 0) return;
+
+    const setActiveSort = (link) => {
+      const sortGroup = link.closest('.catalog-section-sort');
+      if (!sortGroup) return;
+
+      sortGroup.querySelectorAll('[data-section-sort-link]').forEach((item) => {
+        const isActive = item === link;
+
+        item.classList.toggle('is-active', isActive);
+        if (isActive) {
+          item.setAttribute('aria-current', 'page');
+        } else {
+          item.removeAttribute('aria-current');
+        }
+      });
+    };
+
+    sortLinks.forEach((link) => {
+      const section = link.closest('[data-section-target]');
+      if (section && link.classList.contains('is-active')) {
+        const activeUrl = new URL(link.href, window.location.origin);
+        section.dataset.currentSort = activeUrl.searchParams.get('sort') || '';
+      }
+
+      link.addEventListener('click', (event) => {
+        const panel = section?.querySelector('[data-section-product-panel]');
+        if (!section || !panel) return;
+
+        event.preventDefault();
+
+        const selectedUrl = new URL(link.href, window.location.origin);
+        const currentCategory = panel.dataset.currentCategory
+          || getCatalogCategorySlug(selectedUrl);
+
+        if (currentCategory) {
+          selectedUrl.searchParams.set('cat', currentCategory);
+        }
+
+        loadSectionProducts(section, selectedUrl, () => setActiveSort(link), {
+          updateHistory: false
+        });
+      });
+    });
+  }
+
+  async function loadSectionProducts(section, source, activateLink, options = {}) {
     const panel = section.querySelector('[data-section-product-panel]');
     if (!panel) return;
 
-    const selectedUrl = new URL(pill.href, window.location.origin);
+    const selectedUrl = source instanceof URL
+      ? new URL(source.href)
+      : new URL(source.href, window.location.origin);
     const categorySlug = getCatalogCategorySlug(selectedUrl);
     if (!categorySlug) return;
 
-    const currentCategory = panel.dataset.currentCategory || '';
-    if (currentCategory === categorySlug && panel.getAttribute('aria-busy') !== 'true') {
-      setActivePill(pill);
-      updateSectionHistory(selectedUrl, section.id);
+    const requestUrl = buildSectionProductsUrl(selectedUrl);
+    const requestKey = `${requestUrl.pathname}${requestUrl.search}`;
+    const currentRequest = panel.dataset.currentRequest || '';
+    if (currentRequest === requestKey && panel.getAttribute('aria-busy') !== 'true') {
+      activateLink();
+      if (options.updateHistory !== false) {
+        updateSectionHistory(selectedUrl, section.id);
+      }
       return;
     }
 
@@ -541,13 +601,16 @@
     const controller = new AbortController();
     sectionProductRequests.set(section, controller);
 
-    setActivePill(pill);
-    updateSectionHistory(selectedUrl, section.id);
+    activateLink();
+    section.dataset.currentSort = selectedUrl.searchParams.get('sort') || '';
+    if (options.updateHistory !== false) {
+      updateSectionHistory(selectedUrl, section.id);
+    }
     setSectionProductsLoading(section, panel);
 
     try {
       const minimumLoading = wait(reducedMotion ? 60 : 220);
-      const response = await fetch(buildSectionProductsUrl(selectedUrl), {
+      const response = await fetch(requestUrl, {
         headers: {
           'X-Requested-With': 'XMLHttpRequest'
         },
@@ -565,6 +628,7 @@
       destroySectionProductCarousel(panel);
       panel.innerHTML = html;
       panel.dataset.currentCategory = categorySlug;
+      panel.dataset.currentRequest = requestKey;
       panel.setAttribute('aria-busy', 'false');
       section.classList.remove('is-loading-products');
 
@@ -755,42 +819,66 @@
     const grid = page.querySelector('[data-product-grid]');
     if (!button || !grid) return;
 
-    button.addEventListener('click', () => {
+    button.addEventListener('click', async () => {
       if (button.getAttribute('aria-busy') === 'true') return;
-
-      const hiddenItems = Array.from(
-        grid.querySelectorAll('[data-product-grid-item][hidden]')
-      );
-      const batchSize = Number.parseInt(button.dataset.batchSize || '5', 10);
-      const nextItems = hiddenItems.slice(0, batchSize);
-
-      if (!nextItems.length) {
-        button.closest('.catalog-load-more')?.setAttribute('hidden', '');
-        return;
-      }
 
       button.setAttribute('aria-busy', 'true');
       grid.setAttribute('aria-busy', 'true');
       const label = button.querySelector('span');
       if (label) label.textContent = 'Đang tải sản phẩm';
 
-      window.setTimeout(() => {
+      try {
+        const nextPage = Number.parseInt(button.dataset.nextPage || '2', 10);
+        const requestUrl = new URL('/catalog/products', window.location.origin);
+        const currentUrl = new URL(window.location.href);
+        currentUrl.searchParams.forEach((value, key) => requestUrl.searchParams.append(key, value));
+        requestUrl.searchParams.set('page', String(nextPage));
+
+        const response = await fetch(requestUrl, {
+          headers: { 'X-Requested-With': 'XMLHttpRequest' },
+          credentials: 'same-origin'
+        });
+        if (!response.ok) {
+          throw new Error('Không thể tải thêm sản phẩm.');
+        }
+
+        const container = document.createElement('div');
+        container.innerHTML = await response.text();
+        const productPage = container.querySelector('[data-product-grid-page]');
+        const nextItems = productPage
+          ? Array.from(productPage.querySelectorAll('[data-product-grid-item]'))
+          : [];
+        if (!productPage || nextItems.length === 0) {
+          button.closest('.catalog-load-more')?.setAttribute('hidden', '');
+          return;
+        }
+
         nextItems.forEach((item, index) => {
-          item.hidden = false;
           item.style.animationDelay = reducedMotion ? '0ms' : `${index * 35}ms`;
           item.classList.add('is-revealed');
+          grid.append(item);
         });
 
-        const remaining = grid.querySelectorAll('[data-product-grid-item][hidden]').length;
-        button.setAttribute('aria-busy', 'false');
-        grid.setAttribute('aria-busy', 'false');
+        const hasMore = productPage.dataset.hasMore === 'true';
+        const total = Number.parseInt(productPage.dataset.totalProductCount || '0', 10);
+        const remaining = Math.max(0, total - grid.querySelectorAll('[data-product-grid-item]').length);
+        button.dataset.nextPage = String(nextPage + 1);
 
-        if (remaining === 0) {
+        document.dispatchEvent(new CustomEvent('product:cards-added', {
+          detail: { root: grid }
+        }));
+
+        if (!hasMore || remaining === 0) {
           button.closest('.catalog-load-more')?.setAttribute('hidden', '');
         } else if (label) {
           label.textContent = `Xem thêm ${remaining} sản phẩm`;
         }
-      }, reducedMotion ? 0 : 220);
+      } catch (error) {
+        if (label) label.textContent = error.message || 'Không thể tải thêm sản phẩm';
+      } finally {
+        button.setAttribute('aria-busy', 'false');
+        grid.setAttribute('aria-busy', 'false');
+      }
     });
   }
 

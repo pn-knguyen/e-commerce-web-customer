@@ -1361,7 +1361,6 @@
 }
 
 .pd-spec-modal,
-.pd-review-modal,
 .pd-gallery-modal {
   position: fixed;
   inset: 0;
@@ -1381,7 +1380,6 @@
 }
 
 .pd-spec-modal.is-open,
-.pd-review-modal.is-open,
 .pd-gallery-modal.is-open {
   opacity: 1;
   visibility: visible;
@@ -1425,8 +1423,7 @@
   line-height: 1.25;
 }
 
-.pd-spec-modal-head button,
-.pd-review-modal-card header button {
+.pd-spec-modal-head button {
   display: grid;
   width: 26px;
   height: 26px;
@@ -1444,8 +1441,7 @@
     transform var(--transition-fast);
 }
 
-.pd-spec-modal-head button:hover,
-.pd-review-modal-card header button:hover {
+.pd-spec-modal-head button:hover {
   background: #fee2e2;
   color: #d70018;
 }
@@ -1674,8 +1670,7 @@
   font-size: 13px;
 }
 
-.pd-review-write,
-.pd-review-submit {
+.pd-review-write {
   display: inline-flex;
   min-height: 38px;
   align-items: center;
@@ -1693,10 +1688,10 @@
 
 .pd-review-write {
   padding-inline: 16px;
+  text-decoration: none;
 }
 
-.pd-review-write:hover,
-.pd-review-submit:hover {
+.pd-review-write:hover {
   background: #c40016;
 }
 
@@ -2241,74 +2236,6 @@
   white-space: pre-line;
 }
 
-.pd-review-modal {
-  display: grid;
-  place-items: center;
-}
-
-.pd-review-modal-card {
-  display: grid;
-  width: min(calc(100% - 24px), 430px);
-  gap: 14px;
-  padding: 18px;
-  border-radius: 14px;
-  background: #fff;
-  box-shadow: 0 24px 70px rgb(24 24 27 / 0.22);
-  transform: translateY(10px) scale(0.98);
-  transition: transform 0.25s ease;
-}
-
-.pd-review-modal.is-open .pd-review-modal-card {
-  transform: translateY(0) scale(1);
-}
-
-.pd-review-modal-card header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.pd-review-modal-card h2 {
-  margin: 0;
-  color: #27272a;
-  font-size: 18px;
-  font-weight: 800;
-}
-
-.pd-review-modal-stars {
-  display: flex;
-  justify-content: center;
-  gap: 8px;
-}
-
-.pd-review-modal-stars button {
-  display: grid;
-  width: 34px;
-  height: 34px;
-  place-items: center;
-  border: 0;
-  border-radius: 999px;
-  background: #fff7ed;
-  color: #facc15;
-}
-
-.pd-review-modal-stars svg {
-  width: 20px;
-  height: 20px;
-  fill: currentColor;
-}
-
-.pd-review-modal-card textarea {
-  width: 100%;
-  resize: vertical;
-  border: 1px solid #e4e4e7;
-  border-radius: 8px;
-  padding: 10px 12px;
-  color: #27272a;
-  font: inherit;
-}
-
 .pd-gallery-modal {
   display: grid;
   place-items: center;
@@ -2753,12 +2680,9 @@
   .pd-storage-more svg,
   .teleport-modal_main,
   .pd-spec-modal,
-  .pd-review-modal,
-  .pd-review-modal-card,
   .pd-section-head button,
   .pd-related-tab,
   .pd-review-write,
-  .pd-review-submit,
   .pd-review-more button,
   .pd-qa-more button,
   .pd-qa-input-row button,

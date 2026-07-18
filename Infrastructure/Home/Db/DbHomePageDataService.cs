@@ -1,16 +1,23 @@
 using e_commerce_web_customer.Application.Contracts;
 using e_commerce_web_customer.Data;
+using e_commerce_web_customer.Infrastructure.Caching;
 using e_commerce_web_customer.Infrastructure.Home.Content;
 using e_commerce_web_customer.Models.Entities;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using e_commerce_web_customer.ViewModels.Home;
 using e_commerce_web_customer.ViewModels.Shared;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace e_commerce_web_customer.Infrastructure.Home.Db;
 
-public sealed class DbHomePageDataService(EcommerceDbContext dbContext) : IHomePageDataService
+public sealed class DbHomePageDataService(
+    IDbContextFactory<EcommerceDbContext> dbContextFactory,
+    IMemoryCache cache,
+    StorefrontDbQueryGate dbQueryGate,
+    ILogger<DbHomePageDataService> logger) : IHomePageDataService
 {
-    private const int MaxVariantsPerPanel = 20;
+    private const int MaxVariantsPerPanel = 10;
     private const string CategoryFallbackImage = "/images/logo-techstore-icon.svg";
 
     private static readonly string[] PhoneCategorySlugs =
@@ -27,41 +34,88 @@ public sealed class DbHomePageDataService(EcommerceDbContext dbContext) : IHomeP
         "may-tinh-bang"
     ];
 
+    private static readonly string[] TvCategorySlugs =
+    [
+        "tv",
+        "tivi"
+    ];
+
     private static readonly CategorySectionDefinition[] ComputerSectionDefinitions =
     [
         new("laptops", "Laptop", "laptop", true, true),
-        new("desktop-pcs", "PC", "pc"),
-        new("monitors", "Màn hình", "man-hinh"),
-        new("computer-accessories", "Phụ kiện máy tính", "may-in")
+        new("desktop-pcs", "PC", "pc", ShowBrandFilter: true),
+        new("monitors", "Màn hình", "man-hinh", ShowBrandFilter: true),
+        new("computer-accessories", "Phụ kiện máy tính", "phu-kien-may-tinh", ShowBrandFilter: true)
     ];
 
     private static readonly CategorySectionDefinition[] AudioWearableSectionDefinitions =
     [
-        new("watches", "Đồng hồ", "dong-ho", true),
-        new("audio", "Âm thanh", "am-thanh")
+        new("watches", "Đồng hồ", "dong-ho", IsActive: true, ShowBrandFilter: true),
+        new("audio", "Âm thanh", "am-thanh", ShowBrandFilter: true)
     ];
 
-    public async Task<HomeIndexViewModel> CreateHomePageAsync(
+    private static readonly CategorySectionDefinition[] TvSectionDefinitions =
+    [
+        new("tv", "TIVI", "tv", IsActive: true, ShowBrandFilter: true)
+    ];
+
+    public Task<HomeIndexViewModel> CreateHomePageAsync(
         SiteCategoryMenuViewModel categoryMenu,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+
+        return cache.GetOrCreateExclusiveAsync(
+            "home-page-v4",
+            () => CreateHomePageUncachedAsync(categoryMenu, CancellationToken.None),
+            new MemoryCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10),
+                SlidingExpiration = TimeSpan.FromMinutes(5)
+            });
+    }
+
+    private async Task<HomeIndexViewModel> CreateHomePageUncachedAsync(
+        SiteCategoryMenuViewModel categoryMenu,
+        CancellationToken cancellationToken)
+    {
         var categories = await GetActiveCategoriesAsync(cancellationToken);
-        var phoneTabletSection = await CreatePhoneTabletSectionAsync(
+        var phoneTabletSectionTask = CreatePhoneTabletSectionAsync(
             categories,
             cancellationToken);
-        var computerSection = await CreateCategorySectionAsync(
+        var computerSectionTask = CreateCategorySectionAsync(
             "computer-products",
             rows: 2,
             ComputerSectionDefinitions,
             categories,
             cancellationToken);
-        var audioWearableSection = await CreateCategorySectionAsync(
+        var audioWearableSectionTask = CreateCategorySectionAsync(
             "audio-wearable-products",
             rows: 1,
             AudioWearableSectionDefinitions,
             categories,
             cancellationToken);
+        var tvSectionTask = CreateCategorySectionAsync(
+            "tv-products",
+            rows: 1,
+            TvSectionDefinitions,
+            categories,
+            cancellationToken,
+            enableTabSwitching: false);
+        var applianceShowcaseTask = CreateApplianceShowcaseAsync(categories, cancellationToken);
+
+        await Task.WhenAll(
+            phoneTabletSectionTask,
+            computerSectionTask,
+            audioWearableSectionTask,
+            tvSectionTask,
+            applianceShowcaseTask);
+
+        var phoneTabletSection = await phoneTabletSectionTask;
+        var computerSection = await computerSectionTask;
+        var audioWearableSection = await audioWearableSectionTask;
+        var tvSection = await tvSectionTask;
+        var applianceShowcase = await applianceShowcaseTask;
         var accessoryDirectory = CreateAccessoryDirectory(categories);
 
         return new HomeIndexViewModel
@@ -72,8 +126,95 @@ public sealed class DbHomePageDataService(EcommerceDbContext dbContext) : IHomeP
             AdditionalCategorySections =
             [
                 computerSection,
-                audioWearableSection
-            ]
+                audioWearableSection,
+                tvSection
+            ],
+            ApplianceShowcase = applianceShowcase
+        };
+    }
+
+    private async Task<HomeApplianceShowcaseViewModel> CreateApplianceShowcaseAsync(
+        IReadOnlyList<CategoryRecord> categories,
+        CancellationToken cancellationToken)
+    {
+        var brands = await GetBrandsByCategoryAsync(
+            [HomeApplianceShowcaseContent.RootCategorySlug],
+            HomeApplianceShowcaseContent.RootCategorySlug,
+            categories,
+            cancellationToken);
+        var headerLinks = brands
+            .Select(brand => new CategoryDirectoryLinkViewModel
+            {
+                Label = brand.Label,
+                Url = brand.Url
+            })
+            .ToList();
+
+        var columns = HomeApplianceShowcaseContent.Groups
+            .Select(group => CreateApplianceShowcaseColumn(group, categories))
+            .OfType<HomeApplianceShowcaseColumnViewModel>()
+            .ToList();
+
+        return new HomeApplianceShowcaseViewModel
+        {
+            Id = HomeApplianceShowcaseContent.Id,
+            Title = HomeApplianceShowcaseContent.Title,
+            ViewAllUrl = BuildCatalogUrl(HomeApplianceShowcaseContent.RootCategorySlug),
+            HeaderLinks = headerLinks,
+            Columns = columns
+        };
+    }
+
+    private static HomeApplianceShowcaseColumnViewModel? CreateApplianceShowcaseColumn(
+        HomeApplianceShowcaseGroupDefinition group,
+        IReadOnlyList<CategoryRecord> categories)
+    {
+        var sectionCategories = group.SectionSlugs
+            .Select(slug => categories.FirstOrDefault(category =>
+                string.Equals(category.Slug, slug, StringComparison.OrdinalIgnoreCase)))
+            .OfType<CategoryRecord>()
+            .ToList();
+        if (sectionCategories.Count == 0)
+        {
+            return null;
+        }
+
+        var sectionIds = sectionCategories
+            .Select(category => category.Id)
+            .ToHashSet();
+        var items = categories
+            .Where(category => category.ParentId.HasValue && sectionIds.Contains(category.ParentId.Value))
+            .OrderBy(category => category.Position)
+            .ThenBy(category => category.Id)
+            .Select(category => new CategoryDirectoryItemViewModel
+            {
+                Label = category.Name,
+                Url = BuildCatalogUrl(category.Slug),
+                ImageUrl = NormalizeCategoryImage(category.ImagePath),
+                ImageAlt = category.Name
+            })
+            .ToList();
+        if (items.Count == 0)
+        {
+            return null;
+        }
+
+        var primarySection = sectionCategories[0];
+        var viewAllUrl = sectionCategories.Count == 1
+            ? BuildCatalogUrl(primarySection.Slug)
+            : BuildCatalogUrl(HomeApplianceShowcaseContent.RootCategorySlug);
+
+        return new HomeApplianceShowcaseColumnViewModel
+        {
+            Id = group.Id,
+            Title = group.Title,
+            ViewAllUrl = viewAllUrl,
+            BannerUrl = BuildCatalogUrl(primarySection.Slug),
+            BannerImageUrl = group.BannerImageUrl,
+            BannerImageAlt = group.Title,
+            Items = items
+                .Take(HomeApplianceShowcaseContent.VisibleItemCount)
+                .ToList()
         };
     }
 
@@ -118,24 +259,35 @@ public sealed class DbHomePageDataService(EcommerceDbContext dbContext) : IHomeP
         IReadOnlyList<CategoryRecord> categories,
         CancellationToken cancellationToken)
     {
-        var phoneProducts = await GetVariantCardsByCategoryAsync(
+        var phoneProductsTask = GetVariantCardsByCategoryAsync(
             PhoneCategorySlugs,
             categories,
             cancellationToken);
-        var tabletProducts = await GetVariantCardsByCategoryAsync(
+        var tabletProductsTask = GetVariantCardsByCategoryAsync(
             TabletCategorySlugs,
             categories,
             cancellationToken);
-        var phoneBrands = await GetBrandsByCategoryAsync(
+        var phoneBrandsTask = GetBrandsByCategoryAsync(
             PhoneCategorySlugs,
             "phone",
             categories,
             cancellationToken);
-        var tabletBrands = await GetBrandsByCategoryAsync(
+        var tabletBrandsTask = GetBrandsByCategoryAsync(
             TabletCategorySlugs,
             "tablet",
             categories,
             cancellationToken);
+
+        await Task.WhenAll(
+            phoneProductsTask,
+            tabletProductsTask,
+            phoneBrandsTask,
+            tabletBrandsTask);
+
+        var phoneProducts = await phoneProductsTask;
+        var tabletProducts = await tabletProductsTask;
+        var phoneBrands = await phoneBrandsTask;
+        var tabletBrands = await tabletBrandsTask;
 
         return new CategoryProductsViewModel
         {
@@ -183,26 +335,48 @@ public sealed class DbHomePageDataService(EcommerceDbContext dbContext) : IHomeP
         int rows,
         IReadOnlyList<CategorySectionDefinition> definitions,
         IReadOnlyList<CategoryRecord> categories,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool enableTabSwitching = true)
     {
-        var tabs = new List<CategoryTabViewModel>(definitions.Count);
-
-        foreach (var definition in definitions)
+        var tabTasks = definitions.Select(async definition =>
         {
-            var categorySlugs = new[] { definition.CategorySlug };
-            var products = await GetVariantCardsByCategoryAsync(
+            var categorySlugs = IsTvCategory(definition.CategorySlug)
+                ? TvCategorySlugs
+                : [definition.CategorySlug];
+            var productsTask = GetVariantCardsByCategoryAsync(
                 categorySlugs,
                 categories,
                 cancellationToken);
-            var brands = definition.ShowBrandFilter
-                ? await GetBrandsByCategoryAsync(
+            var brandsTask = definition.ShowBrandFilter
+                ? GetBrandsByCategoryAsync(
                     categorySlugs,
                     definition.CategorySlug,
                     categories,
                     cancellationToken)
-                : [];
+                : Task.FromResult<IReadOnlyList<CategoryBrandViewModel>>([]);
 
-            tabs.Add(new CategoryTabViewModel
+            await Task.WhenAll(productsTask, brandsTask);
+
+            var products = await productsTask;
+            var brands = await brandsTask;
+            var quickLinks = BuildCategoryQuickLinks(
+                definition.CategorySlug,
+                categories);
+
+            if (IsTvCategory(definition.CategorySlug))
+            {
+                if (products.Count == 0)
+                {
+                    products = HomeTvCategorySectionContent.CreateProducts();
+                }
+
+                if (brands.Count == 0)
+                {
+                    brands = HomeTvCategorySectionContent.CreateBrands();
+                }
+            }
+
+            return new CategoryTabViewModel
             {
                 Id = definition.Id,
                 Label = definition.Label,
@@ -213,20 +387,19 @@ public sealed class DbHomePageDataService(EcommerceDbContext dbContext) : IHomeP
                     ViewAllUrl = BuildCatalogUrl(definition.CategorySlug),
                     Banners = HomeAdditionalCategorySectionContent.CreateBanners(
                         definition.CategorySlug),
-                    QuickLinks = BuildLevelTwoCategoryLinks(
-                        definition.CategorySlug,
-                        categories),
+                    QuickLinks = quickLinks,
                     Brands = brands,
                     Products = products
                 }
-            });
-        }
+            };
+        }).ToArray();
+        var tabs = await Task.WhenAll(tabTasks);
 
         return new CategoryProductsViewModel
         {
             Id = sectionId,
             Rows = rows,
-            EnableTabSwitching = true,
+            EnableTabSwitching = enableTabSwitching,
             ShowPagination = false,
             Tabs = tabs
         };
@@ -237,36 +410,111 @@ public sealed class DbHomePageDataService(EcommerceDbContext dbContext) : IHomeP
         IReadOnlyList<CategoryRecord> categories,
         CancellationToken cancellationToken)
     {
+        var cacheKey = $"home-product-cards-v3:{string.Join(',', categorySlugs.OrderBy(slug => slug, StringComparer.OrdinalIgnoreCase))}";
+
+        try
+        {
+            var cards = await cache.GetOrCreateExclusiveAsync(
+                cacheKey,
+                () => LoadVariantCardsByCategoryAsync(
+                    categorySlugs,
+                    categories,
+                    CancellationToken.None),
+                new MemoryCacheEntryOptions
+                {
+                    AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(15),
+                    SlidingExpiration = TimeSpan.FromMinutes(10)
+                });
+
+            return cards ?? [];
+        }
+        catch (Exception exception) when (ContainsSqlTimeout(exception))
+        {
+            logger.LogWarning(
+                exception,
+                "Timed out while loading homepage products for {CategorySlugs}. Returning an empty panel instead of failing the page.",
+                string.Join(", ", categorySlugs));
+            return [];
+        }
+    }
+
+    private async Task<IReadOnlyList<ProductCardViewModel>> LoadVariantCardsByCategoryAsync(
+        IReadOnlyCollection<string> categorySlugs,
+        IReadOnlyList<CategoryRecord> categories,
+        CancellationToken cancellationToken)
+    {
         var categoryIds = GetCategoryTreeIds(categorySlugs, categories);
         if (categoryIds.Count == 0)
         {
             return [];
         }
 
-        var variants = await dbContext.ProductVariants
-            .AsNoTracking()
-            .AsSplitQuery()
-            .Include(variant => variant.Product)
-                .ThenInclude(product => product!.Brand)
-            .Include(variant => variant.ProductVariantImages)
-            .Include(variant => variant.VariantAttributes)
-                .ThenInclude(attribute => attribute.AttributeOption)
-                    .ThenInclude(option => option!.Attribute)
-            .Where(variant => variant.IsActive)
-            .Where(variant => variant.Product != null && variant.Product.IsActive)
-            .Where(variant => categoryIds.Contains(variant.Product!.CategoryId))
-            .OrderByDescending(variant => variant.Product!.IsFeatured)
-            .ThenByDescending(variant => variant.SoldCount)
-            .ThenByDescending(variant => variant.Product!.TotalSoldCount)
-            .ThenByDescending(variant => variant.IsDefault)
-            .ThenByDescending(variant => variant.CreatedAt)
-            .Take(MaxVariantsPerPanel)
-            .ToListAsync(cancellationToken);
+        await dbQueryGate.WaitAsync(cancellationToken);
+        try
+        {
+            await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+            var variants = await dbContext.ProductVariants
+                .AsNoTracking()
+                .Include(variant => variant.Product)
+                .Where(variant => variant.IsActive)
+                .Where(variant => variant.Product != null && variant.Product.IsActive)
+                .Where(variant => categoryIds.Contains(variant.Product!.CategoryId))
+                .OrderByDescending(variant => variant.Product!.IsFeatured)
+                .ThenByDescending(variant => variant.SoldCount)
+                .ThenByDescending(variant => variant.Product!.TotalSoldCount)
+                .ThenByDescending(variant => variant.IsDefault)
+                .ThenByDescending(variant => variant.CreatedAt)
+                .Take(MaxVariantsPerPanel)
+                .ToListAsync(cancellationToken);
 
-        return variants
-            .Select(DbHomeProductCardMapper.ToProductCard)
-            .OfType<ProductCardViewModel>()
-            .ToList();
+            var variantIds = variants
+                .Select(variant => variant.Id)
+                .ToArray();
+            if (variantIds.Length == 0)
+            {
+                return [];
+            }
+
+            // Keep the homepage query small: collection data is fetched only for the ten selected variants.
+            var images = await dbContext.ProductVariantImages
+                .AsNoTracking()
+                .Where(image => variantIds.Contains(image.ProductVariantId))
+                .OrderBy(image => image.ProductVariantId)
+                .ThenBy(image => image.Position)
+                .ThenBy(image => image.Id)
+                .ToListAsync(cancellationToken);
+            var attributes = await dbContext.VariantAttributes
+                .AsNoTracking()
+                .Where(attribute => variantIds.Contains(attribute.ProductVariantId))
+                .Include(attribute => attribute.AttributeOption)
+                    .ThenInclude(option => option!.Attribute)
+                .ToListAsync(cancellationToken);
+            var firstImageByVariantId = images
+                .GroupBy(image => image.ProductVariantId)
+                .ToDictionary(group => group.Key, group => group.First());
+            var attributesByVariantId = attributes
+                .GroupBy(attribute => attribute.ProductVariantId)
+                .ToDictionary(group => group.Key, group => (ICollection<VariantAttribute>)group.ToList());
+
+            foreach (var variant in variants)
+            {
+                variant.ProductVariantImages = firstImageByVariantId.TryGetValue(variant.Id, out var image)
+                    ? [image]
+                    : [];
+                variant.VariantAttributes = attributesByVariantId.TryGetValue(variant.Id, out var variantAttributes)
+                    ? variantAttributes
+                    : [];
+            }
+
+            return variants
+                .Select(DbHomeProductCardMapper.ToProductCard)
+                .OfType<ProductCardViewModel>()
+                .ToList();
+        }
+        finally
+        {
+            dbQueryGate.Release();
+        }
     }
 
     private async Task<IReadOnlyList<CategoryBrandViewModel>> GetBrandsByCategoryAsync(
@@ -281,46 +529,64 @@ public sealed class DbHomePageDataService(EcommerceDbContext dbContext) : IHomeP
             return [];
         }
 
-        var brands = await dbContext.Products
-            .AsNoTracking()
-            .Where(product => product.IsActive)
-            .Where(product => categoryIds.Contains(product.CategoryId))
-            .Where(product => product.Brand != null && product.Brand.IsActive)
-            .Where(product => product.ProductVariants.Any(variant => variant.IsActive))
-            .Select(product => new
-            {
-                product.Brand!.Name,
-                product.Brand.Slug
-            })
-            .Distinct()
-            .OrderBy(brand => brand.Name)
-            .ToListAsync(cancellationToken);
+        await dbQueryGate.WaitAsync(cancellationToken);
+        try
+        {
+            await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+            var brands = await dbContext.Products
+                .AsNoTracking()
+                .Where(product => product.IsActive)
+                .Where(product => categoryIds.Contains(product.CategoryId))
+                .Where(product => product.Brand != null && product.Brand.IsActive)
+                .Where(product => product.ProductVariants.Any(variant => variant.IsActive))
+                .Select(product => new
+                {
+                    product.Brand!.Name,
+                    product.Brand.Slug
+                })
+                .Distinct()
+                .OrderBy(brand => brand.Name)
+                .ToListAsync(cancellationToken);
 
-        return brands
-            .Select(brand => new CategoryBrandViewModel
-            {
-                Label = brand.Name,
-                Url = $"/catalog?cat={categoryQueryValue}&brand={Uri.EscapeDataString(GetBrandUrlValue(brand.Slug, brand.Name))}"
-            })
-            .ToList();
+            return brands
+                .Select(brand => new CategoryBrandViewModel
+                {
+                    Label = brand.Name,
+                    Url = $"/catalog?cat={categoryQueryValue}&brand={Uri.EscapeDataString(GetBrandUrlValue(brand.Slug, brand.Name))}"
+                })
+                .ToList();
+        }
+        finally
+        {
+            dbQueryGate.Release();
+        }
     }
 
     private async Task<IReadOnlyList<CategoryRecord>> GetActiveCategoriesAsync(
         CancellationToken cancellationToken)
     {
-        return await dbContext.Categories
-            .AsNoTracking()
-            .Where(category => category.IsActive)
-            .OrderBy(category => category.Position)
-            .ThenBy(category => category.Id)
-            .Select(category => new CategoryRecord(
-                category.Id,
-                category.ParentId,
-                category.Name,
-                category.Slug,
-                category.ImagePath,
-                category.Position))
-            .ToListAsync(cancellationToken);
+        await dbQueryGate.WaitAsync(cancellationToken);
+        try
+        {
+            await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+            return await dbContext.Categories
+                .AsNoTracking()
+                .Where(category => category.IsActive)
+                .OrderBy(category => category.Position)
+                .ThenBy(category => category.Id)
+                .Select(category => new CategoryRecord(
+                    category.Id,
+                    category.ParentId,
+                    category.Name,
+                    category.Slug,
+                    category.ImagePath,
+                    category.Position))
+                .ToListAsync(cancellationToken);
+        }
+        finally
+        {
+            dbQueryGate.Release();
+        }
     }
 
     private static IReadOnlyList<CategoryQuickLinkViewModel> BuildLevelTwoCategoryLinks(
@@ -349,6 +615,21 @@ public sealed class DbHomePageDataService(EcommerceDbContext dbContext) : IHomeP
                 ImageUrl = NormalizeCategoryImage(category.ImagePath)
             })
             .ToList();
+    }
+
+    private static bool ContainsSqlTimeout(Exception exception)
+    {
+        return exception is SqlException { Number: -2 }
+            || exception.InnerException is not null && ContainsSqlTimeout(exception.InnerException);
+    }
+
+    private static IReadOnlyList<CategoryQuickLinkViewModel> BuildCategoryQuickLinks(
+        string rootCategorySlug,
+        IReadOnlyList<CategoryRecord> categories)
+    {
+        return IsTvCategory(rootCategorySlug)
+            ? HomeTvCategorySectionContent.CreateQuickLinks()
+            : BuildLevelTwoCategoryLinks(rootCategorySlug, categories);
     }
 
     private static HashSet<long> GetCategoryTreeIds(
@@ -406,6 +687,12 @@ public sealed class DbHomePageDataService(EcommerceDbContext dbContext) : IHomeP
         return string.IsNullOrWhiteSpace(slug)
             ? name.ToLowerInvariant()
             : slug;
+    }
+
+    private static bool IsTvCategory(string categorySlug)
+    {
+        return string.Equals(categorySlug, "tv", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(categorySlug, "tivi", StringComparison.OrdinalIgnoreCase);
     }
 
     private sealed record CategorySectionDefinition(

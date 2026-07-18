@@ -20,6 +20,7 @@ public sealed class SiteCategoryMenuGroupViewModel
 {
     public required string Title { get; init; }
     public required IReadOnlyList<SiteCategoryMenuLinkViewModel> Links { get; init; }
+    public string? CssClass { get; init; }
 }
 
 public sealed class SiteCategoryMenuLinkViewModel
@@ -29,6 +30,7 @@ public sealed class SiteCategoryMenuLinkViewModel
     public string? Badge { get; init; }
     public string? ImageUrl { get; init; }
     public string? ImageAlt { get; init; }
+    public bool ImageOnly { get; init; }
 }
 
 public sealed class SiteCategoryMegaPanelsViewModel

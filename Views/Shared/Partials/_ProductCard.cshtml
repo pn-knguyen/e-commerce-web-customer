@@ -1,28 +1,7 @@
-@using e_commerce_web_customer.Application.Constants
-@using e_commerce_web_customer.Application.Contracts
-@using Microsoft.AspNetCore.Http
-@inject IWishlistService WishlistService
 @model ProductCardViewModel
 
 @{
     var isWishlisted = Model.IsWishlisted;
-
-    if (!isWishlisted && Model.ShowWishlistAction)
-    {
-        var isLoggedIn = Context.Session.GetString(SessionKeys.IsLoggedIn) == "true";
-        var userEmail = Context.Session.GetString(SessionKeys.UserEmail)?.Trim().ToLowerInvariant();
-
-        if (isLoggedIn && !string.IsNullOrWhiteSpace(userEmail) && !string.IsNullOrWhiteSpace(Model.Id))
-        {
-            var variantKey = Model.Id.Trim();
-            var statuses = await WishlistService.GetStatusesAsync(
-                userEmail,
-                [variantKey],
-                Context.RequestAborted);
-
-            isWishlisted = statuses.TryGetValue(variantKey, out var status) && status;
-        }
-    }
 
     var wishlistLabel = isWishlisted ? "Đã thích" : "Yêu thích";
     var wishlistAriaLabel = isWishlisted

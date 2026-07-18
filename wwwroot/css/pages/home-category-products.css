@@ -16,6 +16,24 @@
   min-width: 0;
 }
 
+.category-products-simple-head {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 0 10px;
+}
+
+.category-products-simple-head h2 {
+  margin: 0;
+  color: #18181b;
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.2;
+  text-transform: uppercase;
+}
+
 .category-banner-rail {
   display: none;
   min-width: 0;
@@ -261,6 +279,10 @@
 .category-view-all svg {
   width: 16px;
   height: 16px;
+}
+
+.category-view-all--head {
+  padding-inline: 0;
 }
 
 .category-products-carousel {
@@ -520,6 +542,10 @@
     font-size: 13px;
     scroll-snap-align: start;
     white-space: nowrap;
+  }
+
+  .category-products-simple-head h2 {
+    font-size: 18px;
   }
 
   .category-quick-links {

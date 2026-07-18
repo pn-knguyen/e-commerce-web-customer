@@ -1,6 +1,7 @@
 using e_commerce_web_customer.Application.Contracts;
 using e_commerce_web_customer.Data;
 using e_commerce_web_customer.Models.Entities;
+using e_commerce_web_customer.Models.Enums;
 using e_commerce_web_customer.ViewModels.Account;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -109,6 +110,44 @@ public sealed class DbAccountService(
         return user?.Email;
     }
 
+    public async Task<AccountProfileUpdateResult> UpdateProfileAsync(
+        string? email,
+        AccountProfileUpdateInput input,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedEmail = NormalizeEmail(email ?? string.Empty);
+        if (string.IsNullOrWhiteSpace(normalizedEmail))
+        {
+            return new AccountProfileUpdateResult(false, "Không xác định được tài khoản cần cập nhật.");
+        }
+
+        var fullName = input.FullName.Trim();
+        if (string.IsNullOrWhiteSpace(fullName))
+        {
+            return new AccountProfileUpdateResult(false, "Vui lòng nhập họ tên.");
+        }
+
+        var user = await FindUserByEmailAsync(normalizedEmail, asTracking: true, cancellationToken);
+        if (user is null)
+        {
+            return new AccountProfileUpdateResult(false, "Không tìm thấy tài khoản.");
+        }
+
+        user.FullName = fullName;
+        user.Phone = string.IsNullOrWhiteSpace(input.PhoneNumber)
+            ? null
+            : input.PhoneNumber.Trim();
+        user.Gender = ParseGender(input.Gender);
+        user.UpdatedAt = DateTime.UtcNow;
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+
+        return new AccountProfileUpdateResult(
+            true,
+            "Đã cập nhật thông tin cá nhân.",
+            new AccountProfile(user.Email, ResolveDisplayName(user), user.Phone));
+    }
+
     private Task<User?> FindUserByEmailAsync(
         string normalizedEmail,
         bool asTracking,
@@ -189,5 +228,16 @@ public sealed class DbAccountService(
         return string.IsNullOrWhiteSpace(email)
             ? string.Empty
             : email.Trim();
+    }
+
+    private static Gender ParseGender(string? value)
+    {
+        return value?.Trim().ToLowerInvariant() switch
+        {
+            "male" => Gender.Male,
+            "female" => Gender.Female,
+            "other" => Gender.Other,
+            _ => Gender.Unknown
+        };
     }
 }

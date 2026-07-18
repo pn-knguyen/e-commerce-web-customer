@@ -46,6 +46,10 @@
 
   widgets.forEach(widget => widget.bootstrap());
 
+  document.querySelectorAll('[data-open-chat-widget]').forEach(button => {
+    button.addEventListener('click', () => switchToWidget(button.dataset.openChatWidget));
+  });
+
   function switchToWidget(kind) {
     const target = widgets.find(widget => widget.kind === kind);
     target?.open();

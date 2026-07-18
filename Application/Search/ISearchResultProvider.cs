@@ -12,4 +12,5 @@ public interface ISearchResultProvider
 public sealed record SearchResultRequest(
     string? Query,
     string? Sort,
-    string? Category = null);
+    string? Category = null,
+    int Page = 1);

@@ -15,4 +15,5 @@ public sealed record CategoryPageRequest(
     string? Sort = null,
     IReadOnlyDictionary<string, IReadOnlyList<string>>? Filters = null,
     bool InStockOnly = false,
-    bool NewArrivalsOnly = false);
+    bool NewArrivalsOnly = false,
+    int Page = 1);

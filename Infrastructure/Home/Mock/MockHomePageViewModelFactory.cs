@@ -27,8 +27,10 @@ public sealed class MockHomePageViewModelFactory : IHomePageViewModelFactory
             AdditionalCategorySections =
             [
                 ComputerCategorySectionFactory.Create(),
-                AudioWearablesCategorySectionFactory.Create()
-            ]
+                AudioWearablesCategorySectionFactory.Create(),
+                TvCategorySectionFactory.Create()
+            ],
+            ApplianceShowcase = HomeApplianceShowcaseContent.CreateMock()
         };
     }
 }

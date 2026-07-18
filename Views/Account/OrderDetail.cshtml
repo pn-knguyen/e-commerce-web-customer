@@ -3,6 +3,9 @@
 @{
     ViewData["Title"] = $"Chi tiết đơn hàng {Model.OrderCode}";
     ViewData["MetaDescription"] = $"Theo dõi thông tin chi tiết của đơn hàng {Model.OrderCode}.";
+    var reviewItems = Model.Items
+        .Where(item => item.CanReview || item.HasReview)
+        .ToList();
 }
 
 <section class="account-profile-page">
@@ -29,6 +32,16 @@
                             <svg aria-hidden="true" style="width: 20px; height: 20px; display: inline-block; vertical-align: text-bottom; margin-right: 6px;" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
                             @paymentError
                         </div>
+                    }
+
+                    @if (TempData["ReviewSuccess"] is string reviewSuccess)
+                    {
+                        <div class="od-flash od-flash--success" role="status">@reviewSuccess</div>
+                    }
+
+                    @if (TempData["ReviewError"] is string reviewError)
+                    {
+                        <div class="od-flash od-flash--error" role="alert">@reviewError</div>
                     }
 
                     <section class="od-card od-overview" aria-labelledby="order-overview-title">
@@ -73,6 +86,25 @@
                             </div>
                         }
                     </section>
+
+                    @if (reviewItems.Count > 0)
+                    {
+                        <section id="order-reviews" class="od-card od-review-card" aria-labelledby="order-review-title">
+                            <div class="od-review-head">
+                                <span class="od-section-kicker">Đánh giá sau mua</span>
+                                <h2 id="order-review-title">Đánh giá sản phẩm đã nhận</h2>
+                                <p>Đánh giá được gắn với đúng biến thể trong đơn hàng này và hiển thị trên trang sản phẩm sau khi lưu.</p>
+                            </div>
+
+                            <div class="od-review-list">
+                                @foreach (var item in reviewItems)
+                                {
+                                    <partial name="_OrderItemReviewForm"
+                                             model="@(new AccountOrderItemReviewEntryViewModel { OrderCode = Model.OrderCode, Item = item })" />
+                                }
+                            </div>
+                        </section>
+                    }
 
                     <section class="od-card od-shipment-card" aria-labelledby="order-shipment-title">
                         <div class="od-shipment-header">

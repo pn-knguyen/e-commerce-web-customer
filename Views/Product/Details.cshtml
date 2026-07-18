@@ -502,7 +502,10 @@
                         }
                     </div>
                     <p>@Model.ReviewSummary.TotalReviews lượt đánh giá</p>
-                    <button class="pd-review-write" type="button" data-review-open>Viết đánh giá</button>
+                    <a class="pd-review-write"
+                       asp-controller="Account"
+                       asp-action="Profile"
+                       asp-route-tab="@AccountProfileTabs.History">Viết đánh giá</a>
                 </div>
 
                 <div class="boxReview-star">
@@ -665,29 +668,6 @@
                  data-upsell-modal-variants></div>
 
             <button class="pd-upsell-confirm" type="button" data-upsell-confirm disabled>Thêm vào giỏ</button>
-        </div>
-    </div>
-
-    <div class="pd-review-modal" data-review-modal hidden>
-        <div class="pd-review-modal-card" role="dialog" aria-modal="true" aria-labelledby="pd-review-modal-title">
-            <header>
-                <h2 id="pd-review-modal-title">Viết đánh giá</h2>
-                <button type="button" data-review-close aria-label="Đóng đánh giá">
-                    <span aria-hidden="true">×</span>
-                </button>
-            </header>
-
-            <div class="pd-review-modal-stars" aria-label="Chọn 5 sao">
-                @for (var star = 0; star < 5; star++)
-                {
-                    <button type="button">
-                        <svg aria-hidden="true"><use href="#product-card-icon-star"></use></svg>
-                    </button>
-                }
-            </div>
-
-            <textarea rows="5" placeholder="Chia sẻ trải nghiệm của bạn về sản phẩm"></textarea>
-            <button class="pd-review-submit" type="button">Gửi đánh giá</button>
         </div>
     </div>
 

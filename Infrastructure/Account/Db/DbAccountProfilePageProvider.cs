@@ -18,16 +18,22 @@ public sealed class DbAccountProfilePageProvider(EcommerceDbContext dbContext) :
         string? displayName,
         string? phoneNumber,
         string activeTab,
+        string? orderStatus,
+        string? fromDate,
+        string? toDate,
         CancellationToken cancellationToken = default)
     {
         var normalizedEmail = email?.Trim() ?? string.Empty;
-        var emailLower = normalizedEmail.ToLowerInvariant();
-        var user = string.IsNullOrWhiteSpace(emailLower)
+        var normalizedActiveTab = AccountProfileTabs.Normalize(activeTab);
+        var normalizedOrderStatus = AccountOrderStatusFilterKeys.Normalize(orderStatus);
+        var (fromDateValue, toDateValue) = ParseDateRange(fromDate, toDate);
+
+        var user = string.IsNullOrWhiteSpace(normalizedEmail)
             ? null
             : await dbContext.Users
                 .AsNoTracking()
                 .FirstOrDefaultAsync(
-                    item => item.Email.ToLower() == emailLower,
+                    item => item.Email == normalizedEmail,
                     cancellationToken);
 
         if (user is null)
@@ -36,7 +42,10 @@ public sealed class DbAccountProfilePageProvider(EcommerceDbContext dbContext) :
                 normalizedEmail,
                 displayName,
                 phoneNumber,
-                activeTab);
+                normalizedActiveTab,
+                normalizedOrderStatus,
+                fromDateValue,
+                toDateValue);
         }
 
         var summaryData = await dbContext.Orders
@@ -51,47 +60,56 @@ public sealed class DbAccountProfilePageProvider(EcommerceDbContext dbContext) :
             })
             .FirstOrDefaultAsync(cancellationToken);
 
-        var orders = await dbContext.Orders
-            .AsNoTracking()
-            .AsSplitQuery()
-            .Include(order => order.OrderItems)
-                .ThenInclude(item => item.ProductVariant)
+        var orderHistory = string.Equals(
+            normalizedActiveTab,
+            AccountProfileTabs.Info,
+            StringComparison.OrdinalIgnoreCase)
+            ? CreateEmptyOrderHistory(normalizedOrderStatus, fromDateValue, toDateValue)
+            : await LoadOrderHistoryAsync(
+                user.Id,
+                normalizedOrderStatus,
+                fromDateValue,
+                toDateValue,
+                string.Equals(
+                    normalizedActiveTab,
+                    AccountProfileTabs.Overview,
+                    StringComparison.OrdinalIgnoreCase)
+                    ? 3
+                    : 20,
+                cancellationToken);
+
+        IReadOnlyList<UserAddress> addresses = [];
+        if (!string.Equals(normalizedActiveTab, AccountProfileTabs.History, StringComparison.OrdinalIgnoreCase))
+        {
+            addresses = await dbContext.UserAddresses
+                .AsNoTracking()
+                .Where(address => address.UserId == user.Id && !address.IsDeleted)
+                .OrderByDescending(address => address.IsDefault)
+                .ThenByDescending(address => address.UpdatedAt ?? address.CreatedAt)
+                .ToListAsync(cancellationToken);
+        }
+
+        IReadOnlyList<Models.Entities.Wishlist> favoriteProducts = [];
+        IReadOnlyList<AccountProfileVoucherViewModel> vouchers = [];
+        if (string.Equals(normalizedActiveTab, AccountProfileTabs.Overview, StringComparison.OrdinalIgnoreCase))
+        {
+            favoriteProducts = await dbContext.Wishlists
+                .AsNoTracking()
+                .AsSplitQuery()
+                .Include(item => item.ProductVariant)
                     .ThenInclude(variant => variant!.Product)
-            .Include(order => order.OrderItems)
-                .ThenInclude(item => item.ProductVariant)
+                .Include(item => item.ProductVariant)
                     .ThenInclude(variant => variant!.ProductVariantImages)
-            .Include(order => order.OrderItems)
-                .ThenInclude(item => item.ProductVariant)
+                .Include(item => item.ProductVariant)
                     .ThenInclude(variant => variant!.VariantAttributes)
-                        .ThenInclude(item => item.AttributeOption)
+                        .ThenInclude(attribute => attribute.AttributeOption)
                             .ThenInclude(option => option!.Attribute)
-            .Where(order => order.UserId == user.Id)
-            .OrderByDescending(order => order.CreatedAt)
-            .Take(20)
-            .ToListAsync(cancellationToken);
+                .Where(item => item.UserId == user.Id)
+                .OrderByDescending(item => item.CreatedAt)
+                .ToListAsync(cancellationToken);
+            vouchers = await GetProfileVouchersAsync(user.Id, cancellationToken);
+        }
 
-        var addresses = await dbContext.UserAddresses
-            .AsNoTracking()
-            .Where(address => address.UserId == user.Id && !address.IsDeleted)
-            .OrderByDescending(address => address.IsDefault)
-            .ThenByDescending(address => address.UpdatedAt ?? address.CreatedAt)
-            .ToListAsync(cancellationToken);
-        var favoriteProducts = await dbContext.Wishlists
-            .AsNoTracking()
-            .AsSplitQuery()
-            .Include(item => item.ProductVariant)
-                .ThenInclude(variant => variant!.Product)
-            .Include(item => item.ProductVariant)
-                .ThenInclude(variant => variant!.ProductVariantImages)
-            .Include(item => item.ProductVariant)
-                .ThenInclude(variant => variant!.VariantAttributes)
-                    .ThenInclude(attribute => attribute.AttributeOption)
-                        .ThenInclude(option => option!.Attribute)
-            .Where(item => item.UserId == user.Id)
-            .OrderByDescending(item => item.CreatedAt)
-            .ToListAsync(cancellationToken);
-
-        var orderItems = orders.Select(ToOrderViewModel).ToList();
         var addressItems = addresses.Select(ToAddressViewModel).ToList();
         var favoriteItems = favoriteProducts
             .Select(ToFavoriteProductViewModel)
@@ -113,6 +131,7 @@ public sealed class DbAccountProfilePageProvider(EcommerceDbContext dbContext) :
             PhoneNumber = resolvedPhone,
             MaskedPhoneNumber = MaskPhoneNumber(resolvedPhone),
             AvatarUrl = NormalizeImageUrl(user.AvatarImage),
+            GenderValue = GetGenderValue(user.Gender),
             GenderText = GetGenderText(user.Gender),
             DefaultAddressText = defaultAddress?.AddressText ?? "-",
             PasswordUpdatedAtText = FormatDateTime(user.UpdatedAt ?? user.CreatedAt),
@@ -122,25 +141,127 @@ public sealed class DbAccountProfilePageProvider(EcommerceDbContext dbContext) :
 
         return new AccountProfilePageViewModel
         {
-            ActiveTab = AccountProfileTabs.Normalize(activeTab),
+            ActiveTab = normalizedActiveTab,
             Summary = summary,
-            RecentOrders = orderItems.Take(3).ToList(),
-            Orders = orderItems,
+            OrderFilter = orderHistory.OrderFilter,
+            OrderStatusFilters = orderHistory.OrderStatusFilters,
+            RecentOrders = orderHistory.Orders.Take(3).ToList(),
+            Orders = orderHistory.Orders,
             Addresses = addressItems,
+            Vouchers = vouchers,
             FavoriteProducts = favoriteItems
         };
     }
+
+    public async Task<AccountOrderHistoryViewModel> GetOrderHistoryAsync(
+        string? email,
+        string? orderStatus,
+        string? fromDate,
+        string? toDate,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedEmail = email?.Trim() ?? string.Empty;
+        var normalizedStatus = AccountOrderStatusFilterKeys.Normalize(orderStatus);
+        var (fromDateValue, toDateValue) = ParseDateRange(fromDate, toDate);
+
+        if (string.IsNullOrWhiteSpace(normalizedEmail))
+        {
+            return CreateEmptyOrderHistory(normalizedStatus, fromDateValue, toDateValue);
+        }
+
+        var userId = await dbContext.Users
+            .AsNoTracking()
+            .Where(user => user.Email == normalizedEmail)
+            .Select(user => (long?)user.Id)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        return userId.HasValue
+            ? await LoadOrderHistoryAsync(
+                userId.Value,
+                normalizedStatus,
+                fromDateValue,
+                toDateValue,
+                20,
+                cancellationToken)
+            : CreateEmptyOrderHistory(normalizedStatus, fromDateValue, toDateValue);
+    }
+
+    private async Task<AccountOrderHistoryViewModel> LoadOrderHistoryAsync(
+        long userId,
+        string orderStatus,
+        DateTime? fromDate,
+        DateTime? toDate,
+        int take,
+        CancellationToken cancellationToken)
+    {
+        var ordersByAccount = ApplyOrderDateFilter(
+            dbContext.Orders
+                .AsNoTracking()
+                .Where(order => order.UserId == userId),
+            fromDate,
+            toDate);
+        var statusCounts = await ordersByAccount
+            .GroupBy(order => order.OrderStatus)
+            .Select(group => new OrderStatusCount(group.Key, group.Count()))
+            .ToListAsync(cancellationToken);
+
+        var orders = await ApplyOrderStatusFilter(ordersByAccount, orderStatus)
+            .AsSingleQuery()
+            .Include(order => order.OrderItems)
+                .ThenInclude(item => item.ProductVariant)
+                    .ThenInclude(variant => variant!.Product)
+            .Include(order => order.OrderItems)
+                .ThenInclude(item => item.ProductVariant)
+                    .ThenInclude(variant => variant!.ProductVariantImages
+                        .OrderBy(image => image.Position)
+                        .ThenBy(image => image.Id)
+                        .Take(1))
+            .Include(order => order.OrderItems)
+                .ThenInclude(item => item.ProductVariant)
+                    .ThenInclude(variant => variant!.VariantAttributes)
+                        .ThenInclude(item => item.AttributeOption)
+                            .ThenInclude(option => option!.Attribute)
+            .OrderByDescending(order => order.CreatedAt)
+            .Take(take)
+            .ToListAsync(cancellationToken);
+
+        return new AccountOrderHistoryViewModel
+        {
+            OrderFilter = BuildOrderFilter(orderStatus, fromDate, toDate),
+            OrderStatusFilters = BuildOrderStatusFilters(orderStatus, fromDate, toDate, statusCounts),
+            Orders = orders.Select(ToOrderViewModel).ToList()
+        };
+    }
+
+    private static AccountOrderHistoryViewModel CreateEmptyOrderHistory(
+        string orderStatus,
+        DateTime? fromDate,
+        DateTime? toDate) => new()
+    {
+        OrderFilter = BuildOrderFilter(orderStatus, fromDate, toDate),
+        OrderStatusFilters = BuildOrderStatusFilters(orderStatus, fromDate, toDate, []),
+        Orders = []
+    };
 
     private static AccountProfilePageViewModel CreateFallbackPage(
         string email,
         string? displayName,
         string? phoneNumber,
-        string activeTab)
+        string activeTab,
+        string orderStatus,
+        DateTime? fromDate,
+        DateTime? toDate)
     {
         var resolvedPhone = phoneNumber?.Trim() ?? string.Empty;
         return new AccountProfilePageViewModel
         {
             ActiveTab = AccountProfileTabs.Normalize(activeTab),
+            OrderFilter = BuildOrderFilter(orderStatus, fromDate, toDate),
+            OrderStatusFilters = BuildOrderStatusFilters(
+                orderStatus,
+                fromDate,
+                toDate,
+                []),
             Summary = new AccountProfileSummaryViewModel
             {
                 FullName = string.IsNullOrWhiteSpace(displayName) ? "Thành viên TechStore" : displayName.Trim(),
@@ -150,6 +271,250 @@ public sealed class DbAccountProfilePageProvider(EcommerceDbContext dbContext) :
                 PasswordUpdatedAtText = "-"
             }
         };
+    }
+
+    private async Task<IReadOnlyList<AccountProfileVoucherViewModel>> GetProfileVouchersAsync(
+        long userId,
+        CancellationToken cancellationToken)
+    {
+        var now = DateTime.UtcNow;
+        var vouchers = await dbContext.Vouchers
+            .AsNoTracking()
+            .AsSplitQuery()
+            .Include(voucher => voucher.VoucherUsers)
+            .Include(voucher => voucher.VoucherUsages)
+            .Include(voucher => voucher.VoucherTargets)
+            .Where(voucher => voucher.IsActive)
+            .Where(voucher => voucher.StartDate <= now && voucher.EndDate >= now)
+            .Where(voucher => !voucher.MaxUses.HasValue || voucher.UsedCount < voucher.MaxUses.Value)
+            .Where(voucher => voucher.VoucherUsers.Count == 0
+                || voucher.VoucherUsers.Any(item => item.UserId == userId))
+            .OrderByDescending(voucher => voucher.VoucherUsers.Any(item => item.UserId == userId))
+            .ThenByDescending(voucher => voucher.Priority)
+            .ThenBy(voucher => voucher.EndDate)
+            .Take(5)
+            .ToListAsync(cancellationToken);
+
+        return vouchers
+            .Select(voucher => ToVoucherViewModel(voucher, userId, now))
+            .ToList();
+    }
+
+    private static AccountProfileVoucherViewModel ToVoucherViewModel(
+        Voucher voucher,
+        long userId,
+        DateTime now)
+    {
+        var assignedVoucher = voucher.VoucherUsers.FirstOrDefault(item => item.UserId == userId);
+        var userUsageCount = Math.Max(
+            assignedVoucher?.UsedCount ?? 0,
+            voucher.VoucherUsages.Count(item => item.UserId == userId));
+        var perUserLimit = assignedVoucher?.MaxUses ?? voucher.MaxUsesPerUser;
+        var remainingUses = perUserLimit.HasValue
+            ? Math.Max(0, perUserLimit.Value - userUsageCount)
+            : (int?)null;
+        var isAvailable = voucher.IsActive
+            && voucher.StartDate <= now
+            && voucher.EndDate >= now
+            && (!voucher.MaxUses.HasValue || voucher.UsedCount < voucher.MaxUses.Value)
+            && (!perUserLimit.HasValue || remainingUses > 0);
+        var discountText = FormatVoucherDiscount(voucher);
+
+        return new AccountProfileVoucherViewModel
+        {
+            Id = voucher.Id,
+            Code = voucher.Code,
+            Title = discountText,
+            Description = string.IsNullOrWhiteSpace(voucher.Description)
+                ? "Ưu đãi dành cho đơn hàng TechStore của bạn."
+                : voucher.Description.Trim(),
+            DiscountText = discountText,
+            ConditionText = BuildVoucherConditionText(voucher),
+            ExpiryText = $"HSD {voucher.EndDate.ToLocalTime():dd/MM/yyyy}",
+            UsageText = BuildVoucherUsageText(remainingUses, perUserLimit, assignedVoucher is not null),
+            Tone = !isAvailable
+                ? "used"
+                : assignedVoucher is not null
+                    ? "private"
+                    : "available",
+            IsAvailable = isAvailable,
+            IsAssignedToUser = assignedVoucher is not null
+        };
+    }
+
+    private static AccountProfileOrderFilterViewModel BuildOrderFilter(
+        string orderStatus,
+        DateTime? fromDate,
+        DateTime? toDate)
+    {
+        return new AccountProfileOrderFilterViewModel
+        {
+            Status = AccountOrderStatusFilterKeys.Normalize(orderStatus),
+            FromDate = FormatDateInput(fromDate),
+            ToDate = FormatDateInput(toDate),
+            FromDateText = fromDate.HasValue ? FormatDate(fromDate.Value) : "Từ ngày",
+            ToDateText = toDate.HasValue ? FormatDate(toDate.Value) : "Đến ngày"
+        };
+    }
+
+    private static IReadOnlyList<AccountProfileOrderStatusFilterViewModel> BuildOrderStatusFilters(
+        string activeStatus,
+        DateTime? fromDate,
+        DateTime? toDate,
+        IReadOnlyList<OrderStatusCount> statusCounts)
+    {
+        var normalizedStatus = AccountOrderStatusFilterKeys.Normalize(activeStatus);
+        var allCount = statusCounts.Sum(item => item.Count);
+
+        return
+        [
+            OrderStatusFilter(AccountOrderStatusFilterKeys.All, "Tất cả", allCount),
+            OrderStatusFilter(
+                AccountOrderStatusFilterKeys.Pending,
+                "Chờ xác nhận",
+                CountStatuses(statusCounts, OrderStatus.Pending)),
+            OrderStatusFilter(
+                AccountOrderStatusFilterKeys.Processing,
+                "Đang xử lý",
+                CountStatuses(statusCounts, OrderStatus.Confirmed, OrderStatus.Processing)),
+            OrderStatusFilter(
+                AccountOrderStatusFilterKeys.Shipping,
+                "Đang vận chuyển",
+                CountStatuses(statusCounts, OrderStatus.Shipping)),
+            OrderStatusFilter(
+                AccountOrderStatusFilterKeys.Completed,
+                "Đã nhận hàng",
+                CountStatuses(statusCounts, OrderStatus.Completed)),
+            OrderStatusFilter(
+                AccountOrderStatusFilterKeys.Cancelled,
+                "Đã hủy",
+                CountStatuses(statusCounts, OrderStatus.Cancelled, OrderStatus.Returned))
+        ];
+
+        AccountProfileOrderStatusFilterViewModel OrderStatusFilter(
+            string key,
+            string label,
+            int count)
+        {
+            return new AccountProfileOrderStatusFilterViewModel
+            {
+                Key = key,
+                Label = label,
+                Count = count,
+                Url = BuildProfileHistoryUrl(key, fromDate, toDate),
+                IsActive = string.Equals(key, normalizedStatus, StringComparison.OrdinalIgnoreCase)
+            };
+        }
+    }
+
+    private static IQueryable<Order> ApplyOrderDateFilter(
+        IQueryable<Order> query,
+        DateTime? fromDate,
+        DateTime? toDate)
+    {
+        if (fromDate.HasValue)
+        {
+            var fromUtc = ToVietnamDateStartUtc(fromDate.Value);
+            query = query.Where(order => order.CreatedAt >= fromUtc);
+        }
+
+        if (toDate.HasValue)
+        {
+            var toExclusiveUtc = ToVietnamDateStartUtc(toDate.Value.AddDays(1));
+            query = query.Where(order => order.CreatedAt < toExclusiveUtc);
+        }
+
+        return query;
+    }
+
+    private static IQueryable<Order> ApplyOrderStatusFilter(
+        IQueryable<Order> query,
+        string orderStatus)
+    {
+        return AccountOrderStatusFilterKeys.Normalize(orderStatus) switch
+        {
+            AccountOrderStatusFilterKeys.Pending => query.Where(order =>
+                order.OrderStatus == OrderStatus.Pending),
+            AccountOrderStatusFilterKeys.Processing => query.Where(order =>
+                order.OrderStatus == OrderStatus.Confirmed
+                || order.OrderStatus == OrderStatus.Processing),
+            AccountOrderStatusFilterKeys.Shipping => query.Where(order =>
+                order.OrderStatus == OrderStatus.Shipping),
+            AccountOrderStatusFilterKeys.Completed => query.Where(order =>
+                order.OrderStatus == OrderStatus.Completed),
+            AccountOrderStatusFilterKeys.Cancelled => query.Where(order =>
+                order.OrderStatus == OrderStatus.Cancelled
+                || order.OrderStatus == OrderStatus.Returned),
+            _ => query
+        };
+    }
+
+    private static int CountStatuses(
+        IReadOnlyList<OrderStatusCount> statusCounts,
+        params OrderStatus[] statuses)
+    {
+        return statusCounts
+            .Where(item => statuses.Contains(item.Status))
+            .Sum(item => item.Count);
+    }
+
+    private static string BuildProfileHistoryUrl(
+        string status,
+        DateTime? fromDate,
+        DateTime? toDate)
+    {
+        var query = new List<string> { "tab=history" };
+        var normalizedStatus = AccountOrderStatusFilterKeys.Normalize(status);
+        if (!string.Equals(normalizedStatus, AccountOrderStatusFilterKeys.All, StringComparison.OrdinalIgnoreCase))
+        {
+            query.Add($"status={Uri.EscapeDataString(normalizedStatus)}");
+        }
+
+        if (fromDate.HasValue)
+        {
+            query.Add($"from={Uri.EscapeDataString(FormatDateInput(fromDate))}");
+        }
+
+        if (toDate.HasValue)
+        {
+            query.Add($"to={Uri.EscapeDataString(FormatDateInput(toDate))}");
+        }
+
+        return "/Account/Profile?" + string.Join('&', query);
+    }
+
+    private static DateTime? ParseDateFilter(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return null;
+        }
+
+        var formats = new[] { "yyyy-MM-dd", "dd/MM/yyyy", "d/M/yyyy" };
+        return DateTime.TryParseExact(
+            value.Trim(),
+            formats,
+            ViCulture,
+            DateTimeStyles.None,
+            out var parsed)
+            ? parsed.Date
+            : null;
+    }
+
+    private static (DateTime? FromDate, DateTime? ToDate) ParseDateRange(
+        string? fromDate,
+        string? toDate)
+    {
+        var fromDateValue = ParseDateFilter(fromDate);
+        var toDateValue = ParseDateFilter(toDate);
+        if (fromDateValue.HasValue
+            && toDateValue.HasValue
+            && fromDateValue.Value > toDateValue.Value)
+        {
+            (fromDateValue, toDateValue) = (toDateValue, fromDateValue);
+        }
+
+        return (fromDateValue, toDateValue);
     }
 
     private static AccountProfileAddressViewModel ToAddressViewModel(UserAddress address) => new()
@@ -308,6 +673,14 @@ public sealed class DbAccountProfilePageProvider(EcommerceDbContext dbContext) :
         _ => "-"
     };
 
+    private static string GetGenderValue(Gender gender) => gender switch
+    {
+        Gender.Male => "male",
+        Gender.Female => "female",
+        Gender.Other => "other",
+        _ => "unknown"
+    };
+
     private static string FormatAddress(UserAddress address)
     {
         if (!string.IsNullOrWhiteSpace(address.FormattedAddress))
@@ -331,6 +704,63 @@ public sealed class DbAccountProfilePageProvider(EcommerceDbContext dbContext) :
 
     private static string FormatCurrency(decimal value) =>
         value.ToString("N0", ViCulture) + "đ";
+
+    private static string FormatVoucherDiscount(Voucher voucher)
+    {
+        if (voucher.DiscountType == DiscountType.Percentage)
+        {
+            var discount = $"Giảm {voucher.DiscountValue:N0}%";
+            return voucher.MaxDiscountValue.HasValue && voucher.MaxDiscountValue.Value > 0
+                ? $"{discount} tối đa {FormatCurrency(voucher.MaxDiscountValue.Value)}"
+                : discount;
+        }
+
+        return $"Giảm {FormatCurrency(voucher.DiscountValue)}";
+    }
+
+    private static string BuildVoucherConditionText(Voucher voucher)
+    {
+        var parts = new List<string>();
+        if (voucher.MinOrderValue > 0)
+        {
+            parts.Add($"Đơn từ {FormatCurrency(voucher.MinOrderValue)}");
+        }
+        else
+        {
+            parts.Add("Không yêu cầu giá trị đơn");
+        }
+
+        if (voucher.VoucherTargets.Count > 0)
+        {
+            parts.Add("Áp dụng cho sản phẩm phù hợp");
+        }
+
+        return string.Join(" · ", parts);
+    }
+
+    private static string BuildVoucherUsageText(
+        int? remainingUses,
+        int? perUserLimit,
+        bool isAssignedToUser)
+    {
+        if (remainingUses.HasValue && perUserLimit.HasValue)
+        {
+            return remainingUses.Value > 0
+                ? $"Còn {remainingUses.Value}/{perUserLimit.Value} lượt"
+                : "Đã dùng hết lượt";
+        }
+
+        return isAssignedToUser ? "Dành riêng cho bạn" : "Còn hiệu lực";
+    }
+
+    private static string FormatDateInput(DateTime? value) =>
+        value.HasValue ? value.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : string.Empty;
+
+    private static string FormatDate(DateTime value) =>
+        value.ToString("dd/MM/yyyy", ViCulture);
+
+    private static DateTime ToVietnamDateStartUtc(DateTime date) =>
+        DateTime.SpecifyKind(date.Date.AddHours(-7), DateTimeKind.Utc);
 
     private static string BuildOrderDetailUrl(string orderCode) =>
         "/account/orders/" + Uri.EscapeDataString(orderCode.TrimStart('#'));
@@ -365,4 +795,6 @@ public sealed class DbAccountProfilePageProvider(EcommerceDbContext dbContext) :
 
         return "/" + imagePath.TrimStart('/');
     }
+
+    private sealed record OrderStatusCount(OrderStatus Status, int Count);
 }

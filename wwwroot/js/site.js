@@ -118,6 +118,21 @@
     }, duration);
   };
 
+  document.addEventListener('click', (event) => {
+    const target = event.target instanceof Element ? event.target : null;
+    const trigger = target?.closest('[data-profile-coming-soon]');
+    if (!trigger) return;
+
+    event.preventDefault();
+    const message = trigger.getAttribute('data-coming-soon-message') || 'Chức năng này sẽ được triển khai sau.';
+    if (typeof window.showToast === 'function') {
+      window.showToast(message, 'default');
+      return;
+    }
+
+    window.alert(message);
+  });
+
   // ============================================================
   // HELPER: Escape HTML for user input
   // ============================================================

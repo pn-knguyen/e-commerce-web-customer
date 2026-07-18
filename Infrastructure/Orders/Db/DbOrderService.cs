@@ -18,6 +18,9 @@ public sealed class DbOrderService(EcommerceDbContext dbContext) : IOrderService
     {
         ValidateRequest(request);
 
+        var strategy = dbContext.Database.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync(async () =>
+        {
         await using var transaction = await dbContext.Database.BeginTransactionAsync(
             IsolationLevel.Serializable,
             cancellationToken);
@@ -139,6 +142,7 @@ public sealed class DbOrderService(EcommerceDbContext dbContext) : IOrderService
             throw new OrderPlacementException(
                 "Đặt hàng chưa thành công. Vui lòng thử lại sau.");
         }
+        });
     }
 
     public async Task UpdatePaymentStatusAsync(

@@ -25,37 +25,13 @@
             <div class="ap-main">
                 @if (Model.IsHistory)
                 {
-                    <section class="ap-panel ap-history-panel" aria-labelledby="profile-history-title">
-                        <nav class="ap-order-tabs" aria-label="Lọc đơn hàng">
-                            <a class="is-active" href="#profile-history-title">Tất cả</a>
-                            <span>Chờ xác nhận</span>
-                            <span>Đang xử lý</span>
-                            <span>Đang vận chuyển</span>
-                            <span>Đã nhận hàng</span>
-                            <span>Đã hủy</span>
-                        </nav>
-
-                        <div class="ap-history-toolbar">
-                            <h2 id="profile-history-title">Lịch sử mua hàng</h2>
-                            <div class="ap-date-range" aria-label="Khoảng thời gian">
-                                <span>01/12/2020</span>
-                                <svg aria-hidden="true"><use href="#profile-icon-arrow-right"></use></svg>
-                                <span>15/06/2026</span>
-                                <svg aria-hidden="true"><use href="#profile-icon-calendar"></use></svg>
-                            </div>
-                        </div>
-
-                        <div class="ap-order-list">
-                            @if (Model.Orders.Count == 0)
-                            {
-                                <div class="ap-empty-order">Bạn chưa có đơn hàng nào.</div>
-                            }
-                            @foreach (var order in Model.Orders)
-                            {
-                                <partial name="_ProfileOrderCard" model="order" />
-                            }
-                        </div>
-                    </section>
+                    <partial name="_AccountOrderHistory"
+                             model="@(new AccountOrderHistoryViewModel
+                             {
+                                 OrderFilter = Model.OrderFilter,
+                                 OrderStatusFilters = Model.OrderStatusFilters,
+                                 Orders = Model.Orders
+                             })" />
                 }
                 else if (Model.IsInfo)
                 {
@@ -109,6 +85,51 @@
                                     <dd>@Model.Summary.DefaultAddressText</dd>
                                 </div>
                             </dl>
+
+                            <form asp-controller="Account"
+                                  asp-action="UpdateProfile"
+                                  method="post"
+                                  class="ap-profile-update-form">
+                                @Html.AntiForgeryToken()
+                                <div class="ap-profile-form-grid">
+                                    <label>
+                                        <span>Họ và tên</span>
+                                        <input name="FullName"
+                                               maxlength="255"
+                                               required
+                                               autocomplete="name"
+                                               value="@Model.Summary.FullName" />
+                                    </label>
+                                    <label>
+                                        <span>Số điện thoại</span>
+                                        <input name="PhoneNumber"
+                                               maxlength="30"
+                                               type="tel"
+                                               autocomplete="tel"
+                                               value="@Model.Summary.PhoneNumber" />
+                                    </label>
+                                    <label>
+                                        <span>Giới tính</span>
+                                        <select name="Gender">
+                                            <option value="unknown" selected="@(Model.Summary.GenderValue == "unknown")">Chưa cập nhật</option>
+                                            <option value="male" selected="@(Model.Summary.GenderValue == "male")">Nam</option>
+                                            <option value="female" selected="@(Model.Summary.GenderValue == "female")">Nữ</option>
+                                            <option value="other" selected="@(Model.Summary.GenderValue == "other")">Khác</option>
+                                        </select>
+                                    </label>
+                                    <label>
+                                        <span>Email</span>
+                                        <input value="@emailValue" readonly />
+                                    </label>
+                                    <label class="ap-profile-form-wide">
+                                        <span>Địa chỉ mặc định</span>
+                                        <input value="@Model.Summary.DefaultAddressText" readonly />
+                                    </label>
+                                </div>
+                                <div class="ap-profile-form-actions">
+                                    <button class="ap-address-submit" type="submit">Lưu thay đổi</button>
+                                </div>
+                            </form>
                         </section>
 
                         <section class="ap-panel ap-address-card" aria-labelledby="profile-address-title">
@@ -269,10 +290,40 @@
 
                         <section class="ap-panel ap-offer-panel" aria-labelledby="profile-offer-title">
                             <h2 id="profile-offer-title">Ưu đãi của bạn</h2>
-                            <div class="ap-empty-illustration">
-                                <span class="ap-empty-bag">S</span>
-                            </div>
-                            <p>Bạn chưa có ưu đãi nào. <a href="/deals">Xem sản phẩm</a></p>
+                            @if (Model.HasVouchers)
+                            {
+                                <div class="ap-voucher-list">
+                                    @foreach (var voucher in Model.Vouchers.Take(5))
+                                    {
+                                        <article class="ap-voucher-card ap-voucher-card--@voucher.Tone @(voucher.IsAvailable ? null : "is-disabled")">
+                                            <div class="ap-voucher-badge">@voucher.DiscountText</div>
+                                            <div class="ap-voucher-copy">
+                                                <div>
+                                                    <strong>@voucher.Code</strong>
+                                                    @if (voucher.IsAssignedToUser)
+                                                    {
+                                                        <span>Dành riêng</span>
+                                                    }
+                                                </div>
+                                                <p>@voucher.Description</p>
+                                                <small>@voucher.ConditionText</small>
+                                            </div>
+                                            <div class="ap-voucher-meta">
+                                                <span>@voucher.ExpiryText</span>
+                                                <span>@voucher.UsageText</span>
+                                            </div>
+                                            <a class="ap-voucher-action" href="/catalog">Mua sắm</a>
+                                        </article>
+                                    }
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="ap-empty-illustration">
+                                    <span class="ap-empty-bag">S</span>
+                                </div>
+                                <p>Bạn chưa có ưu đãi nào. <a href="/deals">Xem sản phẩm</a></p>
+                            }
                         </section>
                     </div>
 

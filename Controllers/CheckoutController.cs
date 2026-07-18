@@ -66,6 +66,8 @@ public sealed class CheckoutController(
             return RedirectToAction("Index", "Cart");
         }
 
+        NormalizeSubmittedCheckoutModelState();
+
         if (!ModelState.IsValid)
         {
             RestoreOrderSummary(model, orderSnapshot);
@@ -551,6 +553,25 @@ public sealed class CheckoutController(
             LineTotalText = CheckoutViewModel.FormatPrice(
                 item.UnitPrice * item.Quantity)
         }).ToList();
+    }
+
+    private void NormalizeSubmittedCheckoutModelState()
+    {
+        string[] displayOnlyPrefixes =
+        [
+            nameof(CheckoutViewModel.Items),
+            nameof(CheckoutViewModel.PaymentMethods),
+            nameof(CheckoutViewModel.Vouchers)
+        ];
+
+        foreach (var key in ModelState.Keys
+            .Where(key => displayOnlyPrefixes.Any(prefix =>
+                string.Equals(key, prefix, StringComparison.Ordinal)
+                || key.StartsWith(prefix + "[", StringComparison.Ordinal)))
+            .ToList())
+        {
+            ModelState.Remove(key);
+        }
     }
 
     private static void RestoreOrderSummary(

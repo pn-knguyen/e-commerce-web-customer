@@ -10,43 +10,66 @@
 
   if (!grid || !button) return;
 
-  button.addEventListener('click', () => {
+  button.addEventListener('click', async () => {
     if (button.getAttribute('aria-busy') === 'true') return;
-
-    const hiddenItems = Array.from(
-      grid.querySelectorAll('[data-search-product-item][hidden]')
-    );
-    const batchSize = Number.parseInt(button.dataset.batchSize || '5', 10);
-    const nextItems = hiddenItems.slice(0, batchSize);
-
-    if (nextItems.length === 0) {
-      button.closest('.search-result-load-more')?.setAttribute('hidden', '');
-      return;
-    }
 
     button.setAttribute('aria-busy', 'true');
     grid.setAttribute('aria-busy', 'true');
     updateButtonLabel('Đang tải sản phẩm');
 
-    window.setTimeout(() => {
+    try {
+      const nextPage = Number.parseInt(button.dataset.nextPage || '2', 10);
+      const requestUrl = new URL('/search/products', window.location.origin);
+      const currentUrl = new URL(window.location.href);
+      currentUrl.searchParams.forEach((value, key) => requestUrl.searchParams.append(key, value));
+      requestUrl.searchParams.set('page', String(nextPage));
+
+      const response = await fetch(requestUrl, {
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+        credentials: 'same-origin'
+      });
+      if (!response.ok) {
+        throw new Error('Không thể tải thêm sản phẩm');
+      }
+
+      const container = document.createElement('div');
+      container.innerHTML = await response.text();
+      const productPage = container.querySelector('[data-search-product-page]');
+      const nextItems = productPage
+        ? Array.from(productPage.querySelectorAll('[data-search-product-item]'))
+        : [];
+      if (!productPage || nextItems.length === 0) {
+        button.closest('.search-result-load-more')?.setAttribute('hidden', '');
+        return;
+      }
+
       nextItems.forEach((item, index) => {
-        item.hidden = false;
         item.style.animationDelay = reducedMotion ? '0ms' : `${index * 35}ms`;
         item.classList.add('is-revealed');
+        grid.append(item);
       });
 
-      const remaining = grid.querySelectorAll('[data-search-product-item][hidden]').length;
+      const hasMore = productPage.dataset.hasMore === 'true';
+      const remaining = Number.parseInt(productPage.dataset.remainingCount || '0', 10);
+      button.dataset.nextPage = String(nextPage + 1);
       button.dataset.remainingCount = String(remaining);
-      button.setAttribute('aria-busy', 'false');
-      grid.setAttribute('aria-busy', 'false');
 
-      if (remaining === 0) {
+      document.dispatchEvent(new CustomEvent('product:cards-added', {
+        detail: { root: grid }
+      }));
+
+      if (!hasMore || remaining === 0) {
         button.closest('.search-result-load-more')?.setAttribute('hidden', '');
         return;
       }
 
       updateButtonLabel(`Xem thêm ${remaining} sản phẩm`);
-    }, reducedMotion ? 0 : 180);
+    } catch (error) {
+      updateButtonLabel(error.message || 'Không thể tải thêm sản phẩm');
+    } finally {
+      button.setAttribute('aria-busy', 'false');
+      grid.setAttribute('aria-busy', 'false');
+    }
   });
 
   function updateButtonLabel(text) {

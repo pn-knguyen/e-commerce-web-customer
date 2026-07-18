@@ -22,31 +22,68 @@
                     {
                         var megaPanelId = $"header-{category.Id}-mega";
                         var labelId = $"header-{category.Id}-menu-label";
-                        var labelParts = category.Label.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+                        IReadOnlyList<SiteCategoryMenuLinkViewModel> categoryLinks = category.CategoryLinks.Count > 0
+                            ? category.CategoryLinks
+                            : new[]
+                            {
+                                new SiteCategoryMenuLinkViewModel
+                                {
+                                    Label = category.Label,
+                                    Url = category.Url
+                                }
+                            };
+                        var isSplitItem = categoryLinks.Count > 1;
 
                         <div class="site-category-entry"
                              data-category-entry
                              data-category-mega-panel-id="@megaPanelId">
-                            <a class="site-category-item"
-                               href="@category.Url"
-                               aria-label="@category.Label"
-                               aria-haspopup="true"
-                               aria-expanded="false"
-                               aria-controls="@megaPanelId"
-                               data-category-link>
-                                <svg class="site-category-icon" aria-hidden="true">
-                                    <use href="@($"#hero-icon-{category.Icon}")"></use>
-                                </svg>
-                                <span class="site-category-label" id="@labelId">
-                                    @foreach (var labelPart in labelParts)
-                                    {
-                                        <span class="site-category-label-part">@labelPart</span>
-                                    }
-                                </span>
-                                <svg class="site-category-chevron" aria-hidden="true">
-                                    <use href="#hero-icon-chevron"></use>
-                                </svg>
-                            </a>
+                            @if (isSplitItem)
+                            {
+                                <div class="site-category-item site-category-item--split"
+                                     role="group"
+                                     tabindex="-1"
+                                     aria-label="@category.Label"
+                                     aria-haspopup="true"
+                                     aria-expanded="false"
+                                     aria-controls="@megaPanelId"
+                                     data-category-link>
+                                    <svg class="site-category-icon" aria-hidden="true">
+                                        <use href="@($"#hero-icon-{category.Icon}")"></use>
+                                    </svg>
+                                    <span class="site-category-label" id="@labelId">
+                                        @foreach (var categoryLink in categoryLinks)
+                                        {
+                                            <a class="site-category-label-part site-category-label-link"
+                                               href="@categoryLink.Url">@categoryLink.Label</a>
+                                        }
+                                    </span>
+                                    <svg class="site-category-chevron" aria-hidden="true">
+                                        <use href="#hero-icon-chevron"></use>
+                                    </svg>
+                                </div>
+                            }
+                            else
+                            {
+                                var categoryLink = categoryLinks[0];
+
+                                <a class="site-category-item"
+                                   href="@categoryLink.Url"
+                                   aria-label="@category.Label"
+                                   aria-haspopup="true"
+                                   aria-expanded="false"
+                                   aria-controls="@megaPanelId"
+                                   data-category-link>
+                                    <svg class="site-category-icon" aria-hidden="true">
+                                        <use href="@($"#hero-icon-{category.Icon}")"></use>
+                                    </svg>
+                                    <span class="site-category-label" id="@labelId">
+                                        <span class="site-category-label-part">@categoryLink.Label</span>
+                                    </span>
+                                    <svg class="site-category-chevron" aria-hidden="true">
+                                        <use href="#hero-icon-chevron"></use>
+                                    </svg>
+                                </a>
+                            }
                         </div>
                     }
                 </nav>

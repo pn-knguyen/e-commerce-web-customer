@@ -2,53 +2,97 @@ using e_commerce_web_customer.Application.Contracts;
 using e_commerce_web_customer.Application.Products;
 using e_commerce_web_customer.Application.Search;
 using e_commerce_web_customer.Data;
+using e_commerce_web_customer.Infrastructure.Caching;
 using e_commerce_web_customer.Models.Entities;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace e_commerce_web_customer.Infrastructure.Products.Db;
 
-public sealed class DbProductCatalog(EcommerceDbContext dbContext) : IProductCatalog
+public sealed class DbProductCatalog(
+    EcommerceDbContext dbContext,
+    IMemoryCache cache,
+    StorefrontDbQueryGate dbQueryGate) : IProductCatalog
 {
-    private const string SearchCollation = "Vietnamese_CI_AI";
     private const int MaxSuggestionCandidates = 100;
     private const int MaxSearchTerms = 8;
 
-    public async Task<IReadOnlyList<ProductReadModel>> SearchAsync(
+    public Task<IReadOnlyList<ProductReadModel>> SearchAsync(
         ProductCatalogSearchRequest request,
         CancellationToken cancellationToken = default)
     {
         var query = NormalizeQuery(request.Query);
+        var effectiveLimit = request.Limit is > 0
+            ? Math.Clamp(request.Limit.Value, 1, MaxSuggestionCandidates)
+            : MaxSuggestionCandidates;
+        var normalizedRequest = request with
+        {
+            Query = query,
+            Limit = effectiveLimit
+        };
+        var cacheKey = $"product-search-v4:{normalizedRequest.Scope}:{effectiveLimit}:{query}";
+
+        return cache.GetOrCreateExclusiveAsync(
+            cacheKey,
+            () => dbQueryGate.RunAsync(
+                () => SearchUncachedAsync(normalizedRequest, CancellationToken.None)),
+            new MemoryCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10),
+                SlidingExpiration = TimeSpan.FromMinutes(5)
+            });
+    }
+
+    private async Task<IReadOnlyList<ProductReadModel>> SearchUncachedAsync(
+        ProductCatalogSearchRequest request,
+        CancellationToken cancellationToken)
+    {
+        var query = NormalizeQuery(request.Query);
         var terms = BuildSearchTerms(query);
         var candidateLimit = GetCandidateLimit(request.Limit);
-        var products = BuildActiveProductQuery();
+        var searchIndex = await GetSearchIndexAsync();
+        IEnumerable<ProductSearchIndexEntry> matchingEntries = searchIndex;
 
         foreach (var term in terms)
         {
-            products = ApplyTermFilter(products, EscapeLikePattern(term));
+            matchingEntries = matchingEntries.Where(entry =>
+                entry.SearchText.Contains(term, StringComparison.Ordinal));
         }
 
-        IQueryable<Product> candidateQuery = products
-            .OrderByDescending(product => product.IsFeatured)
-            .ThenByDescending(product => product.TotalSoldCount)
-            .ThenByDescending(product => product.ViewsCount)
-            .ThenBy(product => product.Id);
+        var candidateIds = matchingEntries
+            .OrderByDescending(entry => entry.IsFeatured)
+            .ThenByDescending(entry => entry.TotalSoldCount)
+            .ThenByDescending(entry => entry.ViewsCount)
+            .ThenBy(entry => entry.Id)
+            .Take(candidateLimit ?? MaxSuggestionCandidates)
+            .Select(entry => entry.Id)
+            .ToList();
 
-        if (candidateLimit.HasValue)
+        if (candidateIds.Count == 0)
         {
-            candidateQuery = candidateQuery.Take(candidateLimit.Value);
+            return [];
         }
 
-        var candidates = await candidateQuery
+        IQueryable<Product> candidateDetails = BuildActiveProductQuery()
+            .Where(product => candidateIds.Contains(product.Id))
             .Include(product => product.Brand)
             .Include(product => product.Category)
-            .Include(product => product.ProductSpecifications)
-                .ThenInclude(specification => specification.Specification)
             .Include(product => product.ProductVariants.Where(variant => variant.IsActive))
-                .ThenInclude(variant => variant.ProductVariantImages)
-            .Include(product => product.ProductVariants.Where(variant => variant.IsActive))
+                .ThenInclude(variant => variant.ProductVariantImages
+                    .OrderBy(image => image.Position)
+                    .ThenBy(image => image.Id)
+                    .Take(1));
+
+        if (request.Scope == ProductCatalogSearchScope.Variants)
+        {
+            candidateDetails = candidateDetails
+                .Include(product => product.ProductVariants.Where(variant => variant.IsActive))
                 .ThenInclude(variant => variant.VariantAttributes)
                 .ThenInclude(attribute => attribute.AttributeOption)
-                    .ThenInclude(option => option!.Attribute)
+                    .ThenInclude(option => option!.Attribute);
+        }
+
+        var candidates = await candidateDetails
             .AsSplitQuery()
             .ToListAsync(cancellationToken);
 
@@ -68,15 +112,98 @@ public sealed class DbProductCatalog(EcommerceDbContext dbContext) : IProductCat
         return searchResults.ToList();
     }
 
-    public async Task<ProductReadModel?> GetByIdAsync(
+    private Task<IReadOnlyList<ProductSearchIndexEntry>> GetSearchIndexAsync()
+    {
+        return cache.GetOrCreateExclusiveAsync(
+            "product-search-index-v1",
+            () => LoadSearchIndexAsync(CancellationToken.None),
+            new MemoryCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(30),
+                SlidingExpiration = TimeSpan.FromMinutes(15)
+            });
+    }
+
+    private async Task<IReadOnlyList<ProductSearchIndexEntry>> LoadSearchIndexAsync(
+        CancellationToken cancellationToken)
+    {
+        var rows = await dbContext.ProductVariants
+            .AsNoTracking()
+            .Where(variant => variant.IsActive
+                && variant.Product != null
+                && variant.Product.IsActive
+                && variant.Product.Brand != null
+                && variant.Product.Brand.IsActive
+                && variant.Product.Category != null
+                && variant.Product.Category.IsActive)
+            .Select(variant => new ProductSearchIndexRow(
+                variant.Product!.Id,
+                variant.Product.Name,
+                variant.Product.Slug,
+                variant.Product.Brand!.Name,
+                variant.Product.Brand.Slug,
+                variant.Product.Category!.Name,
+                variant.Product.Category.Slug,
+                variant.Product.IsFeatured,
+                variant.Product.TotalSoldCount,
+                variant.Product.ViewsCount,
+                variant.Code,
+                variant.ColorName))
+            .ToListAsync(cancellationToken);
+
+        return rows
+            .GroupBy(row => row.ProductId)
+            .Select(group =>
+            {
+                var product = group.First();
+                return new ProductSearchIndexEntry(
+                product.ProductId,
+                product.IsFeatured,
+                product.TotalSoldCount,
+                product.ViewsCount,
+                SearchTextNormalizer.Normalize(string.Join(
+                    ' ',
+                    new[]
+                    {
+                        product.Name,
+                        product.Slug,
+                        product.BrandName,
+                        product.BrandSlug,
+                        product.CategoryName,
+                        product.CategorySlug
+                    }
+                    .Concat(group.SelectMany(row => new[] { row.Code, row.ColorName }))
+                    .Where(value => !string.IsNullOrWhiteSpace(value)))));
+            })
+            .ToList();
+    }
+
+    public Task<ProductReadModel?> GetByIdAsync(
         string id,
         CancellationToken cancellationToken = default)
     {
         var normalizedId = id.Trim();
         if (string.IsNullOrWhiteSpace(normalizedId))
         {
-            return null;
+            return Task.FromResult<ProductReadModel?>(null);
         }
+
+        var cacheKey = $"product-read-model-v2:{normalizedId.ToLowerInvariant()}";
+        return cache.GetOrCreateExclusiveAsync(
+            cacheKey,
+            () => dbQueryGate.RunAsync(
+                () => GetByIdUncachedAsync(normalizedId, CancellationToken.None)),
+            new MemoryCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10),
+                SlidingExpiration = TimeSpan.FromMinutes(5)
+            });
+    }
+
+    private async Task<ProductReadModel?> GetByIdUncachedAsync(
+        string normalizedId,
+        CancellationToken cancellationToken)
+    {
 
         var products = BuildActiveProductQuery();
         if (long.TryParse(normalizedId, out var numericId))
@@ -95,14 +222,11 @@ public sealed class DbProductCatalog(EcommerceDbContext dbContext) : IProductCat
         var product = await products
             .Include(item => item.Brand)
             .Include(item => item.Category)
-            .Include(item => item.ProductSpecifications)
-                .ThenInclude(specification => specification.Specification)
             .Include(item => item.ProductVariants.Where(variant => variant.IsActive))
-                .ThenInclude(variant => variant.ProductVariantImages)
-            .Include(item => item.ProductVariants.Where(variant => variant.IsActive))
-                .ThenInclude(variant => variant.VariantAttributes)
-                .ThenInclude(attribute => attribute.AttributeOption)
-                    .ThenInclude(option => option!.Attribute)
+                .ThenInclude(variant => variant.ProductVariantImages
+                    .OrderBy(image => image.Position)
+                    .ThenBy(image => image.Id)
+                    .Take(1))
             .AsSplitQuery()
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -164,106 +288,6 @@ public sealed class DbProductCatalog(EcommerceDbContext dbContext) : IProductCat
             .Select(item => item.Result);
     }
 
-    private static IQueryable<Product> ApplyTermFilter(
-        IQueryable<Product> products,
-        string escapedTerm)
-    {
-        var pattern = $"%{escapedTerm}%";
-        return products.Where(product =>
-            EF.Functions.Like(
-                EF.Functions.Collate(product.Name, SearchCollation),
-                pattern,
-                "\\")
-            || EF.Functions.Like(
-                EF.Functions.Collate(product.Slug, SearchCollation),
-                pattern,
-                "\\")
-            || EF.Functions.Like(
-                EF.Functions.Collate(
-                    product.Description ?? string.Empty,
-                    SearchCollation),
-                pattern,
-                "\\")
-            || EF.Functions.Like(
-                EF.Functions.Collate(product.Brand!.Name, SearchCollation),
-                pattern,
-                "\\")
-            || EF.Functions.Like(
-                EF.Functions.Collate(product.Brand.Slug, SearchCollation),
-                pattern,
-                "\\")
-            || EF.Functions.Like(
-                EF.Functions.Collate(product.Category!.Name, SearchCollation),
-                pattern,
-                "\\")
-            || EF.Functions.Like(
-                EF.Functions.Collate(product.Category.Slug, SearchCollation),
-                pattern,
-                "\\")
-            || product.ProductSpecifications.Any(specification =>
-                EF.Functions.Like(
-                    EF.Functions.Collate(specification.Value, SearchCollation),
-                    pattern,
-                    "\\")
-                || EF.Functions.Like(
-                    EF.Functions.Collate(
-                        specification.Specification!.Name,
-                        SearchCollation),
-                    pattern,
-                    "\\"))
-            || product.ProductVariants.Any(variant =>
-                variant.IsActive
-                && (EF.Functions.Like(
-                    EF.Functions.Collate(variant.Code, SearchCollation),
-                    pattern,
-                    "\\")
-                || EF.Functions.Like(
-                    EF.Functions.Collate(
-                        variant.Code
-                            .Replace("-", string.Empty)
-                            .Replace("_", string.Empty),
-                        SearchCollation),
-                    pattern,
-                    "\\")
-                || EF.Functions.Like(
-                    EF.Functions.Collate(
-                        variant.ColorName ?? string.Empty,
-                        SearchCollation),
-                    pattern,
-                    "\\")
-                || variant.VariantAttributes.Any(attribute =>
-                    EF.Functions.Like(
-                        EF.Functions.Collate(
-                            attribute.AttributeOption!.Label,
-                            SearchCollation),
-                        pattern,
-                        "\\")
-                    || EF.Functions.Like(
-                        EF.Functions.Collate(
-                            attribute.AttributeOption.Value,
-                            SearchCollation),
-                        pattern,
-                        "\\")
-                    || EF.Functions.Like(
-                        EF.Functions.Collate(
-                            attribute.AttributeOption.Label.Replace(" ", string.Empty),
-                            SearchCollation),
-                        pattern,
-                        "\\")
-                    || EF.Functions.Like(
-                        EF.Functions.Collate(
-                            attribute.AttributeOption.Value.Replace(" ", string.Empty),
-                            SearchCollation),
-                        pattern,
-                        "\\")
-                    || EF.Functions.Like(
-                        EF.Functions.Collate(
-                            attribute.AttributeOption.Attribute!.Name,
-                            SearchCollation),
-                        pattern,
-                        "\\")))));
-    }
-
     private static string NormalizeQuery(string? query)
     {
         return SearchTextNormalizer.CleanQuery(query);
@@ -290,13 +314,24 @@ public sealed class DbProductCatalog(EcommerceDbContext dbContext) : IProductCat
             Math.Max(resultLimit * 4, 24));
     }
 
-    private static string EscapeLikePattern(string value)
-    {
-        return value
-            .Replace("\\", "\\\\", StringComparison.Ordinal)
-            .Replace("%", "\\%", StringComparison.Ordinal)
-            .Replace("_", "\\_", StringComparison.Ordinal)
-            .Replace("[", "\\[", StringComparison.Ordinal);
-    }
+    private sealed record ProductSearchIndexRow(
+        long ProductId,
+        string Name,
+        string Slug,
+        string BrandName,
+        string BrandSlug,
+        string CategoryName,
+        string CategorySlug,
+        bool IsFeatured,
+        int TotalSoldCount,
+        int ViewsCount,
+        string Code,
+        string? ColorName);
 
+    private sealed record ProductSearchIndexEntry(
+        long Id,
+        bool IsFeatured,
+        int TotalSoldCount,
+        int ViewsCount,
+        string SearchText);
 }

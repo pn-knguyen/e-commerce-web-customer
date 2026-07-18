@@ -1,0 +1,13 @@
+@model CategoryPageViewModel
+
+<div data-product-grid-page
+     data-current-page="@Model.CurrentPage"
+     data-has-more="@Model.HasMoreProducts.ToString().ToLowerInvariant()"
+     data-total-product-count="@Math.Max(Model.TotalProductCount, Model.Products.Count)">
+    @foreach (var product in Model.Products)
+    {
+        <div class="catalog-product-grid__item" data-product-grid-item>
+            <partial name="~/Views/Shared/Partials/_ProductCard.cshtml" model="product" />
+        </div>
+    }
+</div>

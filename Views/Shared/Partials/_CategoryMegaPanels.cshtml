@@ -6,6 +6,10 @@
     {
         var megaPanelId = $"{Model.IdPrefix}-{category.Id}-mega";
         var labelId = $"{Model.IdPrefix}-{category.Id}-menu-label";
+        var isApplianceGrid = category.Groups.Any(group => HasGroupClass(group, "appliance"));
+        var gridClass = isApplianceGrid
+            ? "site-category-mega-grid site-category-mega-grid--appliance"
+            : "site-category-mega-grid";
 
         <section class="site-category-mega-panel"
                  id="@megaPanelId"
@@ -13,48 +17,247 @@
                  aria-hidden="true"
                  data-category-mega-panel
                  hidden>
-            <header class="site-category-mega-header">
-                <h3>@category.Label</h3>
-                <a href="@category.Url">
-                    Xem tất cả
-                    <svg aria-hidden="true">
-                        <use href="#hero-icon-chevron"></use>
-                    </svg>
-                </a>
-            </header>
-
-            <div class="site-category-mega-grid">
-                @foreach (var group in category.Groups)
+            <div class="@gridClass">
+                @if (isApplianceGrid)
                 {
-                    <section class="site-category-mega-group">
-                        <h4>@group.Title</h4>
-                        <div class="site-category-mega-links">
-                            @foreach (var link in group.Links)
-                            {
-                                <a class="site-category-mega-link" href="@link.Url">
-                                    @if (!string.IsNullOrWhiteSpace(link.ImageUrl))
-                                    {
-                                        <img src="@link.ImageUrl"
-                                             alt="@(link.ImageAlt ?? string.Empty)"
-                                             width="76"
-                                             height="28"
-                                             loading="lazy" />
-                                    }
-                                    else
-                                    {
-                                        <span>@link.Label</span>
-                                    }
+                    var homeGroup = category.Groups.FirstOrDefault(group => HasGroupClass(group, "appliance-home"));
+                    var kitchenGroup = category.Groups.FirstOrDefault(group => HasGroupClass(group, "appliance-kitchen"));
+                    var beautyGroup = category.Groups.FirstOrDefault(group => HasGroupClass(group, "appliance-beauty"));
+                    var priceGroup = category.Groups.FirstOrDefault(group => HasGroupClass(group, "appliance-price"));
+                    var brandGroup = category.Groups.FirstOrDefault(group => HasGroupClass(group, "appliance-brands"));
+                    var arrangedGroups = new[] { homeGroup, kitchenGroup, beautyGroup, priceGroup, brandGroup }
+                        .Where(group => group is not null)
+                        .ToHashSet();
+                    var remainingGroups = category.Groups
+                        .Where(group => !arrangedGroups.Contains(group))
+                        .ToList();
 
-                                    @if (!string.IsNullOrWhiteSpace(link.Badge))
+                    <div class="site-category-mega-column site-category-mega-column--appliance-main">
+                        @foreach (var group in new[] { homeGroup, kitchenGroup }.Where(group => group is not null))
+                        {
+                            <section class="@BuildGroupClass(group!)">
+                                <h4>@group!.Title</h4>
+                                <div class="site-category-mega-links">
+                                    @foreach (var link in group.Links)
                                     {
-                                        <small>@link.Badge</small>
+                                        <a class="@BuildLinkClass(link)" href="@link.Url">
+                                            @if (!string.IsNullOrWhiteSpace(link.ImageUrl))
+                                            {
+                                                <img src="@link.ImageUrl"
+                                                     alt="@(link.ImageAlt ?? string.Empty)"
+                                                     width="76"
+                                                     height="28"
+                                                     loading="lazy" />
+
+                                                @if (!link.ImageOnly)
+                                                {
+                                                    <span>@link.Label</span>
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <span>@link.Label</span>
+                                            }
+
+                                            @if (!string.IsNullOrWhiteSpace(link.Badge))
+                                            {
+                                                <small>@link.Badge</small>
+                                            }
+                                        </a>
                                     }
-                                </a>
-                            }
-                        </div>
-                    </section>
+                                </div>
+                            </section>
+                        }
+                    </div>
+
+                    <div class="site-category-mega-column site-category-mega-column--appliance-beauty">
+                        @foreach (var group in new[] { beautyGroup, priceGroup }.Where(group => group is not null))
+                        {
+                            <section class="@BuildGroupClass(group!)">
+                                <h4>@group!.Title</h4>
+                                <div class="site-category-mega-links">
+                                    @foreach (var link in group.Links)
+                                    {
+                                        <a class="@BuildLinkClass(link)" href="@link.Url">
+                                            @if (!string.IsNullOrWhiteSpace(link.ImageUrl))
+                                            {
+                                                <img src="@link.ImageUrl"
+                                                     alt="@(link.ImageAlt ?? string.Empty)"
+                                                     width="76"
+                                                     height="28"
+                                                     loading="lazy" />
+
+                                                @if (!link.ImageOnly)
+                                                {
+                                                    <span>@link.Label</span>
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <span>@link.Label</span>
+                                            }
+
+                                            @if (!string.IsNullOrWhiteSpace(link.Badge))
+                                            {
+                                                <small>@link.Badge</small>
+                                            }
+                                        </a>
+                                    }
+                                </div>
+                            </section>
+                        }
+                    </div>
+
+                    <div class="site-category-mega-column site-category-mega-column--appliance-brands">
+                        @if (brandGroup is not null)
+                        {
+                            <section class="@BuildGroupClass(brandGroup)">
+                                <h4>@brandGroup.Title</h4>
+                                <div class="site-category-mega-links">
+                                    @foreach (var link in brandGroup.Links)
+                                    {
+                                        <a class="@BuildLinkClass(link)" href="@link.Url">
+                                            @if (!string.IsNullOrWhiteSpace(link.ImageUrl))
+                                            {
+                                                <img src="@link.ImageUrl"
+                                                     alt="@(link.ImageAlt ?? string.Empty)"
+                                                     width="76"
+                                                     height="28"
+                                                     loading="lazy" />
+
+                                                @if (!link.ImageOnly)
+                                                {
+                                                    <span>@link.Label</span>
+                                                }
+                                            }
+                                            else
+                                            {
+                                                <span>@link.Label</span>
+                                            }
+
+                                            @if (!string.IsNullOrWhiteSpace(link.Badge))
+                                            {
+                                                <small>@link.Badge</small>
+                                            }
+                                        </a>
+                                    }
+                                </div>
+                            </section>
+                        }
+                    </div>
+
+                    @foreach (var group in remainingGroups)
+                    {
+                        <section class="@BuildGroupClass(group)">
+                            <h4>@group.Title</h4>
+                            <div class="site-category-mega-links">
+                                @foreach (var link in group.Links)
+                                {
+                                    <a class="@BuildLinkClass(link)" href="@link.Url">
+                                        @if (!string.IsNullOrWhiteSpace(link.ImageUrl))
+                                        {
+                                            <img src="@link.ImageUrl"
+                                                 alt="@(link.ImageAlt ?? string.Empty)"
+                                                 width="76"
+                                                 height="28"
+                                                 loading="lazy" />
+
+                                            @if (!link.ImageOnly)
+                                            {
+                                                <span>@link.Label</span>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <span>@link.Label</span>
+                                        }
+
+                                        @if (!string.IsNullOrWhiteSpace(link.Badge))
+                                        {
+                                            <small>@link.Badge</small>
+                                        }
+                                    </a>
+                                }
+                            </div>
+                        </section>
+                    }
+                }
+                else
+                {
+                    @foreach (var group in category.Groups)
+                    {
+                        <section class="@BuildGroupClass(group)">
+                            <h4>@group.Title</h4>
+                            <div class="site-category-mega-links">
+                                @foreach (var link in group.Links)
+                                {
+                                    <a class="@BuildLinkClass(link)" href="@link.Url">
+                                        @if (!string.IsNullOrWhiteSpace(link.ImageUrl))
+                                        {
+                                            <img src="@link.ImageUrl"
+                                                 alt="@(link.ImageAlt ?? string.Empty)"
+                                                 width="76"
+                                                 height="28"
+                                                 loading="lazy" />
+
+                                            @if (!link.ImageOnly)
+                                            {
+                                                <span>@link.Label</span>
+                                            }
+                                        }
+                                        else
+                                        {
+                                            <span>@link.Label</span>
+                                        }
+
+                                        @if (!string.IsNullOrWhiteSpace(link.Badge))
+                                        {
+                                            <small>@link.Badge</small>
+                                        }
+                                    </a>
+                                }
+                            </div>
+                        </section>
+                    }
                 }
             </div>
         </section>
     }
 </div>
+
+@functions {
+    private static bool HasGroupClass(
+        SiteCategoryMenuGroupViewModel group,
+        string className)
+    {
+        return !string.IsNullOrWhiteSpace(group.CssClass)
+            && group.CssClass.Contains(className, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string BuildGroupClass(SiteCategoryMenuGroupViewModel group)
+    {
+        var groupClass = "site-category-mega-group";
+        if (!string.IsNullOrWhiteSpace(group.CssClass))
+        {
+            groupClass += $" {group.CssClass}";
+        }
+
+        return groupClass;
+    }
+
+    private static string BuildLinkClass(SiteCategoryMenuLinkViewModel link)
+    {
+        var linkClass = "site-category-mega-link";
+        if (!string.IsNullOrWhiteSpace(link.ImageUrl))
+        {
+            linkClass += " site-category-mega-link--media";
+        }
+
+        if (link.ImageOnly)
+        {
+            linkClass += " site-category-mega-link--logo";
+        }
+
+        return linkClass;
+    }
+}

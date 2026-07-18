@@ -14,9 +14,10 @@ public sealed class CatalogController(ICategoryPageViewModelFactory categoryPage
         [FromQuery] string? sort,
         [FromQuery] bool inStock,
         [FromQuery] bool isNew,
+        [FromQuery] int page,
         CancellationToken cancellationToken)
     {
-        return RenderCategoryAsync(cat, brand, sort, inStock, isNew, cancellationToken);
+        return RenderCategoryAsync(cat, brand, sort, inStock, isNew, page, cancellationToken);
     }
 
     [HttpGet("{slug}")]
@@ -26,9 +27,39 @@ public sealed class CatalogController(ICategoryPageViewModelFactory categoryPage
         [FromQuery] string? sort,
         [FromQuery] bool inStock,
         [FromQuery] bool isNew,
+        [FromQuery] int page,
         CancellationToken cancellationToken)
     {
-        return RenderCategoryAsync(slug, brand, sort, inStock, isNew, cancellationToken);
+        return RenderCategoryAsync(slug, brand, sort, inStock, isNew, page, cancellationToken);
+    }
+
+    [HttpGet("products")]
+    public async Task<IActionResult> Products(
+        [FromQuery] string? cat,
+        [FromQuery] string? brand,
+        [FromQuery] string? sort,
+        [FromQuery] bool inStock,
+        [FromQuery] bool isNew,
+        [FromQuery] int page = 1,
+        CancellationToken cancellationToken = default)
+    {
+        var normalizedSlug = string.IsNullOrWhiteSpace(cat)
+            ? "phone"
+            : cat.Trim().ToLowerInvariant();
+        var model = await categoryPageFactory.CreateAsync(
+            new CategoryPageRequest(
+                normalizedSlug,
+                brand,
+                sort,
+                GetCatalogFiltersFromQuery(),
+                inStock,
+                isNew,
+                page),
+            cancellationToken);
+
+        return model is null
+            ? NotFound()
+            : PartialView("~/Views/Catalog/Partials/_ProductGridItems.cshtml", model);
     }
 
     [HttpGet("section-products")]
@@ -81,6 +112,7 @@ public sealed class CatalogController(ICategoryPageViewModelFactory categoryPage
         string? sort,
         bool inStock,
         bool isNew,
+        int page,
         CancellationToken cancellationToken)
     {
         var normalizedSlug = string.IsNullOrWhiteSpace(slug)
@@ -96,7 +128,8 @@ public sealed class CatalogController(ICategoryPageViewModelFactory categoryPage
                 sort,
                 filters,
                 inStock,
-                isNew),
+                isNew,
+                page),
             cancellationToken);
 
         return model is null ? NotFound() : View("Category", model);

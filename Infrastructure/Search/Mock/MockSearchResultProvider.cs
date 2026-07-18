@@ -9,7 +9,7 @@ public sealed class MockSearchResultProvider(
     IProductCatalog productCatalog) : ISearchResultProvider
 {
     private const string DefaultQuery = "samsung";
-    private const int SamsungMockTotalCount = 4918;
+    private const int PageSize = 25;
 
     public async Task<SearchResultPageViewModel> SearchAsync(
         SearchResultRequest request,
@@ -22,14 +22,14 @@ public sealed class MockSearchResultProvider(
         var products = await productCatalog.SearchAsync(
             new ProductCatalogSearchRequest(
                 query,
-                Scope: ProductCatalogSearchScope.Variants),
+                Scope: ProductCatalogSearchScope.Products),
             cancellationToken);
         if (products.Count == 0 && IsSamsungQuery(query))
         {
             products = await productCatalog.SearchAsync(
                 new ProductCatalogSearchRequest(
                     DefaultQuery,
-                    Scope: ProductCatalogSearchScope.Variants),
+                    Scope: ProductCatalogSearchScope.Products),
                 cancellationToken);
         }
 
@@ -39,15 +39,23 @@ public sealed class MockSearchResultProvider(
             "price-asc" => products.OrderBy(product => product.CurrentPrice).ToList(),
             _ => products
         };
+        var page = Math.Max(1, request.Page);
+        var totalCount = products.Count;
+        var pageProducts = products
+            .Skip((page - 1) * PageSize)
+            .Take(PageSize)
+            .ToList();
 
         return new SearchResultPageViewModel
         {
             Query = query,
-            TotalCount = IsSamsungQuery(query) ? SamsungMockTotalCount : products.Count,
-            InitialProductCount = 25,
+            TotalCount = totalCount,
+            InitialProductCount = PageSize,
+            CurrentPage = page,
+            HasMoreProducts = page * PageSize < totalCount,
             Categories = CreateCategories(query),
             SortOptions = CreateSortOptions(query, sort),
-            Products = products.Select(ProductViewModelMapper.ToProductCard).ToList()
+            Products = pageProducts.Select(ProductViewModelMapper.ToProductCard).ToList()
         };
     }
 
