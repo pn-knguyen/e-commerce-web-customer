@@ -1,7 +1,8 @@
 @model CategoryPageViewModel
 
 @{
-    var isApplianceRoot = string.Equals(Model.Slug, "do-gia-dung", StringComparison.OrdinalIgnoreCase);
+    var isApplianceRoot = string.Equals(Model.Slug, "do-gia-dung", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(Model.Slug, "dien-may", StringComparison.OrdinalIgnoreCase);
 }
 
 <section class="catalog-sectioned-discovery" aria-labelledby="catalog-title">
@@ -102,7 +103,7 @@
                 {
                     <section class="catalog-sectioned-brand-section" aria-labelledby="catalog-sectioned-brand-title">
                         <h2 id="catalog-sectioned-brand-title">Thương hiệu</h2>
-                        <nav class="catalog-brand-list catalog-sectioned-brands" aria-label="Thương hiệu sản phẩm">
+                        <nav class="catalog-brand-list catalog-sectioned-brands catalog-brand-list--two-lines" aria-label="Thương hiệu sản phẩm">
                             @foreach (var brand in Model.Brands)
                             {
                                 <a href="@brand.Url" data-brand="@brand.Id">

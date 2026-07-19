@@ -365,6 +365,219 @@
   gap: 18px 28px;
 }
 
+.site-category-mega-grid--computer {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+  gap: 16px 20px;
+}
+
+.site-category-mega-grid--computer .site-category-mega-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.site-category-mega-grid--computer .site-category-mega-link {
+  width: fit-content;
+  min-width: 0;
+  min-height: 42px;
+  flex: 0 1 auto;
+  white-space: normal;
+}
+
+.site-category-mega-grid--computer .site-category-mega-link--media:not(.site-category-mega-link--logo) {
+  max-width: 196px;
+  min-height: 52px;
+  justify-content: flex-start;
+  padding: 8px 10px;
+}
+
+.site-category-mega-grid--computer .site-category-mega-link span {
+  max-width: 128px;
+  white-space: normal;
+}
+
+.site-category-mega-grid--computer .site-category-mega-link--media:not(.site-category-mega-link--logo) img {
+  width: 42px;
+  max-width: 42px;
+  height: 34px;
+}
+
+.site-category-mega-grid--computer .site-category-mega-link--logo {
+  width: fit-content;
+  min-height: 48px;
+  min-width: 0;
+  padding-inline: 10px;
+}
+
+.site-category-mega-grid--computer .site-category-mega-link--logo img {
+  max-width: 98px;
+  height: 30px;
+}
+
+.site-category-mega-panel--audio {
+  inset: 0 0 0 8px;
+  width: auto;
+  padding: 18px 18px 20px;
+}
+
+.site-category-mega-grid--audio {
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1fr) minmax(0, 0.95fr);
+  min-height: 100%;
+  align-items: start;
+  gap: 12px 16px;
+}
+
+.site-category-mega-column--audio {
+  gap: 10px;
+}
+
+.site-category-mega-grid--audio .site-category-mega-group h4 {
+  margin-bottom: 6px;
+}
+
+.site-category-mega-grid--audio .site-category-mega-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.site-category-mega-grid--audio .site-category-mega-link {
+  width: fit-content;
+  min-width: 0;
+  min-height: 32px;
+  flex: 0 1 auto;
+  padding: 6px 9px;
+  font-weight: 600;
+  white-space: normal;
+}
+
+.site-category-mega-grid--audio .site-category-mega-link--media:not(.site-category-mega-link--logo) {
+  max-width: 190px;
+  min-height: 42px;
+  justify-content: flex-start;
+  padding: 6px 9px;
+}
+
+.site-category-mega-grid--audio .site-category-mega-link span {
+  max-width: 124px;
+  white-space: normal;
+}
+
+.site-category-mega-grid--audio .site-category-mega-link--media:not(.site-category-mega-link--logo) img {
+  width: 38px;
+  max-width: 38px;
+  height: 30px;
+}
+
+.site-category-mega-grid--audio .site-category-mega-link--logo {
+  width: fit-content;
+  min-height: 40px;
+  min-width: 0;
+  padding-inline: 10px;
+}
+
+.site-category-mega-grid--audio .site-category-mega-link--logo img {
+  max-width: 92px;
+  height: 27px;
+}
+
+.site-category-mega-group--audio-headphone-brands .site-category-mega-link,
+.site-category-mega-group--audio-speaker-brands .site-category-mega-link,
+.site-category-mega-group--audio-price .site-category-mega-link {
+  min-height: 32px;
+  padding-inline: 9px;
+}
+
+.site-category-mega-panel--laptop {
+  bottom: 0;
+  padding: 14px 16px 16px;
+}
+
+.site-category-mega-grid--laptop {
+  grid-template-columns: minmax(235px, 0.98fr) minmax(225px, 0.9fr) minmax(270px, 1.12fr);
+  min-height: 100%;
+  align-items: start;
+  gap: 14px 18px;
+}
+
+.site-category-mega-column--laptop {
+  gap: 14px;
+}
+
+.site-category-mega-grid--laptop .site-category-mega-group h4 {
+  margin-bottom: 7px;
+}
+
+.site-category-mega-grid--laptop .site-category-mega-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 7px;
+}
+
+.site-category-mega-grid--laptop .site-category-mega-link {
+  width: fit-content;
+  min-width: 0;
+  min-height: 34px;
+  flex: 0 1 auto;
+  padding: 6px 10px;
+  font-weight: 600;
+  white-space: normal;
+}
+
+.site-category-mega-grid--laptop .site-category-mega-link--media:not(.site-category-mega-link--logo) {
+  max-width: 210px;
+  min-height: 46px;
+  justify-content: flex-start;
+  padding: 7px 9px;
+}
+
+.site-category-mega-grid--laptop .site-category-mega-link span {
+  max-width: 138px;
+  white-space: normal;
+}
+
+.site-category-mega-grid--laptop .site-category-mega-link--media:not(.site-category-mega-link--logo) img {
+  width: 38px;
+  max-width: 38px;
+  height: 30px;
+}
+
+.site-category-mega-group--laptop-chip .site-category-mega-link,
+.site-category-mega-group--laptop-screen .site-category-mega-link,
+.site-category-mega-group--laptop-price .site-category-mega-link {
+  min-height: 32px;
+  padding-inline: 9px;
+}
+
+.site-category-mega-group--laptop-brands .site-category-mega-link {
+  font-weight: 650;
+}
+
+.site-category-mega-group--computer-categories .site-category-mega-links {
+  gap: 9px 10px;
+}
+
+.site-category-mega-group--computer-categories .site-category-mega-link {
+  align-self: flex-start;
+}
+
+.site-category-mega-group--computer-brands .site-category-mega-link {
+  font-weight: 650;
+}
+
+.site-category-mega-group--computer-price .site-category-mega-link {
+  min-width: 0;
+  min-height: 36px;
+  justify-content: center;
+  padding-inline: 10px;
+  color: #3f3f46;
+  font-weight: 600;
+}
+
 .site-category-mega-column {
   display: flex;
   min-width: 0;
@@ -479,6 +692,21 @@ body.site-category-menu-open {
     grid-template-rows: auto;
   }
 
+  .site-category-mega-grid--computer {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+  }
+
+  .site-category-mega-grid--audio {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px 16px;
+  }
+
+  .site-category-mega-grid--laptop {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px 16px;
+  }
+
   .site-category-mega-group--appliance-home,
   .site-category-mega-group--appliance-kitchen,
   .site-category-mega-group--appliance-beauty,
@@ -489,6 +717,11 @@ body.site-category-menu-open {
 
   .site-category-mega-group--appliance-brands .site-category-mega-links {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .site-category-mega-grid--computer .site-category-mega-links {
+    display: flex;
+    flex-wrap: wrap;
   }
 }
 

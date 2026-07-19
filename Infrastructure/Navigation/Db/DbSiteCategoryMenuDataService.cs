@@ -52,6 +52,14 @@ public sealed class DbSiteCategoryMenuDataService(EcommerceDbContext dbContext) 
         new("Trên 30 triệu", "over-30m")
     ];
 
+    private static readonly FilterLinkDefinition[] LaptopScreenSizeRanges =
+    [
+        new("Laptop 13 inch", "13"),
+        new("Laptop 14 inch", "14"),
+        new("Laptop 15.6 inch", "15.6"),
+        new("Laptop 16 inch", "16")
+    ];
+
     private static readonly FilterLinkDefinition[] AudioPriceRanges =
     [
         new("Tai nghe dưới 200K", "under-200k"),
@@ -71,6 +79,33 @@ public sealed class DbSiteCategoryMenuDataService(EcommerceDbContext dbContext) 
         new("Trên 10 triệu", "over-10m")
     ];
 
+    private static readonly FilterLinkDefinition[] ComputerPriceRanges =
+    [
+        new("Dưới 10 triệu", "under-10"),
+        new("Từ 10 - 20 triệu", "10-20"),
+        new("Từ 20 - 30 triệu", "20-30"),
+        new("Trên 30 triệu", "over-30")
+    ];
+
+    private static readonly FilterLinkDefinition[] PeripheralPriceRanges =
+    [
+        new("Dưới 1 triệu", "under-1m"),
+        new("Từ 1 - 3 triệu", "1m-3m"),
+        new("Từ 3 - 5 triệu", "3m-5m"),
+        new("Từ 5 - 10 triệu", "5m-10m"),
+        new("Trên 10 triệu", "over-10m")
+    ];
+
+    private static readonly FilterLinkDefinition[] ComponentPriceRanges =
+    [
+        new("Dưới 1 triệu", "under-1m"),
+        new("Từ 1 - 3 triệu", "1m-3m"),
+        new("Từ 3 - 5 triệu", "3m-5m"),
+        new("Từ 5 - 10 triệu", "5m-10m"),
+        new("Từ 10 - 20 triệu", "10m-20m"),
+        new("Trên 20 triệu", "over-20m")
+    ];
+
     private static readonly string[] LaptopChipFallbacks =
     [
         "Laptop Core i3",
@@ -80,6 +115,9 @@ public sealed class DbSiteCategoryMenuDataService(EcommerceDbContext dbContext) 
         "Laptop Core U5",
         "Laptop Core U7",
         "Intel Core Ultra",
+        "Apple M1 Series",
+        "Apple M2 Series",
+        "Apple M3 Series",
         "Apple M4 Series",
         "Apple M5 Series",
         "AMD Ryzen"
@@ -303,21 +341,34 @@ public sealed class DbSiteCategoryMenuDataService(EcommerceDbContext dbContext) 
         else if (HasCategory(rowCategories, "laptop"))
         {
             var categoryIds = GetCategoryTreeIds(rowCategories, categories);
-            AddIfNotNull(groups, BuildBrandGroup("Thương hiệu", firstSlug, categoryIds, brandRecords, take: 12));
-            AddIfNotNull(groups, BuildChildCategoryGroup(
-                "Nhu cầu sử dụng",
-                rowCategories,
-                categories,
-                includeImages: true,
-                take: 8));
-            AddIfNotNull(groups, BuildChipGroup(firstSlug, laptopChipValues));
-            AddIfNotNull(groups, BuildFilterGroup("Phân khúc giá", firstSlug, "price", LaptopPriceRanges));
+            AddIfNotNull(groups, WithGroupClass(
+                BuildBrandGroup("Thương hiệu", firstSlug, categoryIds, brandRecords, take: 12),
+                "site-category-mega-group--laptop site-category-mega-group--laptop-brands"));
+            AddIfNotNull(groups, WithGroupClass(
+                BuildChildCategoryGroup(
+                    "Nhu cầu sử dụng",
+                    rowCategories,
+                    categories,
+                    includeImages: true,
+                    take: 8),
+                "site-category-mega-group--laptop site-category-mega-group--laptop-usage"));
+            AddIfNotNull(groups, WithGroupClass(
+                BuildChipGroup(firstSlug, laptopChipValues),
+                "site-category-mega-group--laptop site-category-mega-group--laptop-chip"));
+            AddIfNotNull(groups, WithGroupClass(
+                BuildFilterGroup("Kích thước màn hình", firstSlug, "screen-size", LaptopScreenSizeRanges),
+                "site-category-mega-group--laptop site-category-mega-group--laptop-screen"));
+            AddIfNotNull(groups, WithGroupClass(
+                BuildFilterGroup("Phân khúc giá", firstSlug, "price", LaptopPriceRanges),
+                "site-category-mega-group--laptop site-category-mega-group--laptop-price"));
         }
         else if (HasCategory(rowCategories, "am-thanh", "audio", "mic", "tai-nghe", "loa"))
         {
             AddAudioGroups(groups, rowCategories, categories);
-            AddBrandGroupsForRows(groups, rowCategories, categories, brandRecords, "Hãng");
-            AddIfNotNull(groups, BuildFilterGroup("Chọn theo giá", firstSlug, "price", AudioPriceRanges));
+            AddAudioBrandGroups(groups, rowCategories, categories, brandRecords);
+            AddIfNotNull(groups, WithGroupClass(
+                BuildFilterGroup("Chọn theo giá", firstSlug, "price", AudioPriceRanges),
+                "site-category-mega-group--audio site-category-mega-group--audio-price"));
         }
         else if (HasCategory(rowCategories, "dong-ho", "watch", "smartwatch", "camera", "may-anh"))
         {
@@ -342,14 +393,17 @@ public sealed class DbSiteCategoryMenuDataService(EcommerceDbContext dbContext) 
 
             AddApplianceGroups(groups, rowCategories, categories, brandGroup, priceGroup);
         }
+        else if (HasCategory(rowCategories, "phu-kien-may-tinh", "linh-kien-may-tinh", "computer-accessories"))
+        {
+            AddComputerAccessoryGroups(groups, rowCategories, categories, brandRecords);
+        }
         else if (HasCategory(rowCategories, "phu-kien", "accessory", "cable", "cap-sac"))
         {
             AddAccessoryGroups(groups, rowCategories, categories);
         }
         else if (HasCategory(rowCategories, "pc", "desktop", "may-tinh", "man-hinh", "monitor", "may-in", "printer"))
         {
-            AddCategoryGroupsForRows(groups, rowCategories, categories, includeImages: true, take: 12);
-            AddBrandGroupsForRows(groups, rowCategories, categories, brandRecords, "Thương hiệu");
+            AddPcMonitorPrinterGroups(groups, rowCategories, categories, brandRecords);
         }
         else if (HasCategory(rowCategories, "tivi", "tv", "dien-may", "home-electronics", "dien-lanh"))
         {
@@ -442,7 +496,125 @@ public sealed class DbSiteCategoryMenuDataService(EcommerceDbContext dbContext) 
     {
         foreach (var group in BuildNestedCategoryGroups(rowCategories, categories))
         {
-            groups.Add(group.Group);
+            groups.Add(WithGroupClass(
+                group.Group,
+                $"site-category-mega-group--audio {ResolveAudioGroupClass(group.LevelTwoCategory)}")!);
+        }
+    }
+
+    private static void AddAudioBrandGroups(
+        ICollection<SiteCategoryMenuGroupViewModel> groups,
+        IReadOnlyList<CategoryRecord> rowCategories,
+        IReadOnlyList<CategoryRecord> categories,
+        IReadOnlyList<BrandCategoryRecord> brandRecords)
+    {
+        AddAudioBrandGroup(
+            groups,
+            "Hãng tai nghe",
+            "tai-nghe",
+            rowCategories,
+            categories,
+            brandRecords,
+            "site-category-mega-group--audio-headphone-brands");
+        AddAudioBrandGroup(
+            groups,
+            "Hãng loa",
+            "loa",
+            rowCategories,
+            categories,
+            brandRecords,
+            "site-category-mega-group--audio-speaker-brands");
+    }
+
+    private static void AddAudioBrandGroup(
+        ICollection<SiteCategoryMenuGroupViewModel> groups,
+        string title,
+        string categorySlug,
+        IReadOnlyList<CategoryRecord> rowCategories,
+        IReadOnlyList<CategoryRecord> categories,
+        IReadOnlyList<BrandCategoryRecord> brandRecords,
+        string cssClass)
+    {
+        var category = ResolveAudioCategory(rowCategories, categories, categorySlug);
+        if (category is null)
+        {
+            return;
+        }
+
+        AddIfNotNull(groups, WithGroupClass(
+            BuildBrandGroup(
+                title,
+                category.Slug,
+                GetCategoryTreeIds([category], categories),
+                brandRecords,
+                take: 12),
+            $"site-category-mega-group--audio {cssClass}"));
+    }
+
+    private static void AddComputerAccessoryGroups(
+        ICollection<SiteCategoryMenuGroupViewModel> groups,
+        IReadOnlyList<CategoryRecord> rowCategories,
+        IReadOnlyList<CategoryRecord> categories,
+        IReadOnlyList<BrandCategoryRecord> brandRecords)
+    {
+        var categoryIds = GetCategoryTreeIds(rowCategories, categories);
+        var categorySlug = rowCategories[0].Slug;
+
+        AddIfNotNull(groups, WithGroupClass(
+            BuildChildCategoryGroup(
+                "Danh mục phụ kiện máy tính",
+                rowCategories,
+                categories,
+                includeImages: true,
+                take: 12),
+            "site-category-mega-group--computer site-category-mega-group--computer-categories"));
+        AddIfNotNull(groups, WithGroupClass(
+            BuildBrandGroup("Thương hiệu", categorySlug, categoryIds, brandRecords, take: 12),
+            "site-category-mega-group--computer site-category-mega-group--computer-brands"));
+        AddIfNotNull(groups, WithGroupClass(
+            BuildFilterGroup("Mức giá", categorySlug, "price", ComponentPriceRanges),
+            "site-category-mega-group--computer site-category-mega-group--computer-price"));
+    }
+
+    private static void AddPcMonitorPrinterGroups(
+        ICollection<SiteCategoryMenuGroupViewModel> groups,
+        IReadOnlyList<CategoryRecord> rowCategories,
+        IReadOnlyList<CategoryRecord> categories,
+        IReadOnlyList<BrandCategoryRecord> brandRecords)
+    {
+        foreach (var rowCategory in rowCategories)
+        {
+            AddIfNotNull(groups, WithGroupClass(
+                BuildChildCategoryGroup(
+                    ResolveChildGroupTitle(rowCategory),
+                    [rowCategory],
+                    categories,
+                    includeImages: true,
+                    take: 10),
+                "site-category-mega-group--computer site-category-mega-group--computer-categories"));
+        }
+
+        foreach (var rowCategory in rowCategories)
+        {
+            AddIfNotNull(groups, WithGroupClass(
+                BuildBrandGroup(
+                    ResolveBrandGroupTitle(rowCategory),
+                    rowCategory.Slug,
+                    GetCategoryTreeIds([rowCategory], categories),
+                    brandRecords,
+                    take: 12),
+                "site-category-mega-group--computer site-category-mega-group--computer-brands"));
+        }
+
+        foreach (var rowCategory in rowCategories)
+        {
+            AddIfNotNull(groups, WithGroupClass(
+                BuildFilterGroup(
+                    ResolvePriceGroupTitle(rowCategory),
+                    rowCategory.Slug,
+                    "price",
+                    ResolveComputerPriceRanges(rowCategory)),
+                "site-category-mega-group--computer site-category-mega-group--computer-price"));
         }
     }
 
@@ -627,13 +799,17 @@ public sealed class DbSiteCategoryMenuDataService(EcommerceDbContext dbContext) 
         string categorySlug,
         IReadOnlyList<string> chipValues)
     {
-        var links = (chipValues.Count > 0 ? chipValues : LaptopChipFallbacks)
+        var links = (chipValues.Count > 0
+                ? chipValues.Concat(LaptopChipFallbacks)
+                : LaptopChipFallbacks)
             .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Take(12)
+            .OrderBy(GetChipSortRank)
+            .ThenBy(chip => chip, StringComparer.CurrentCultureIgnoreCase)
+            .Take(16)
             .Select(chip => new SiteCategoryMenuLinkViewModel
             {
                 Label = chip,
-                Url = BuildCatalogUrl(categorySlug, ("chip", Slugify(chip)))
+                Url = BuildCatalogUrl(categorySlug, ("f_chip", Slugify(chip)))
             })
             .ToList();
 
@@ -656,7 +832,7 @@ public sealed class DbSiteCategoryMenuDataService(EcommerceDbContext dbContext) 
             .Select(definition => new SiteCategoryMenuLinkViewModel
             {
                 Label = definition.Label,
-                Url = BuildCatalogUrl(categorySlug, (queryKey, definition.Value))
+                Url = BuildCatalogUrl(categorySlug, ($"f_{queryKey}", definition.Value))
             })
             .ToList();
 
@@ -740,6 +916,41 @@ public sealed class DbSiteCategoryMenuDataService(EcommerceDbContext dbContext) 
         return result;
     }
 
+    private static CategoryRecord? ResolveAudioCategory(
+        IReadOnlyList<CategoryRecord> rowCategories,
+        IReadOnlyList<CategoryRecord> categories,
+        string slug)
+    {
+        var rootIds = rowCategories.Select(category => category.Id).ToHashSet();
+        return rowCategories
+            .Concat(categories.Where(category =>
+                category.ParentId is long parentId && rootIds.Contains(parentId)))
+            .FirstOrDefault(category =>
+                string.Equals(category.Slug, slug, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string ResolveAudioGroupClass(CategoryRecord category)
+    {
+        var text = $"{category.Slug} {category.Name}";
+
+        if (ContainsAny(text, "tai-nghe", "headphone", "earphone"))
+        {
+            return "site-category-mega-group--audio-headphones";
+        }
+
+        if (ContainsAny(text, "loa", "speaker"))
+        {
+            return "site-category-mega-group--audio-speakers";
+        }
+
+        if (ContainsAny(text, "mic", "microphone"))
+        {
+            return "site-category-mega-group--audio-microphones";
+        }
+
+        return "site-category-mega-group--audio-other";
+    }
+
     private static string ResolveChildGroupTitle(CategoryRecord category)
     {
         var text = $"{category.Slug} {category.Name}";
@@ -795,6 +1006,59 @@ public sealed class DbSiteCategoryMenuDataService(EcommerceDbContext dbContext) 
         }
 
         return category.Name;
+    }
+
+    private static string ResolveBrandGroupTitle(CategoryRecord category)
+    {
+        var text = $"{category.Slug} {category.Name}";
+
+        if (ContainsAny(text, "pc", "desktop", "may-tinh-de-ban"))
+        {
+            return "Thương hiệu PC";
+        }
+
+        if (ContainsAny(text, "man-hinh", "monitor"))
+        {
+            return "Thương hiệu màn hình";
+        }
+
+        if (ContainsAny(text, "may-in", "printer"))
+        {
+            return "Thương hiệu máy in";
+        }
+
+        return $"Thương hiệu {category.Name.ToLowerInvariant()}";
+    }
+
+    private static string ResolvePriceGroupTitle(CategoryRecord category)
+    {
+        var text = $"{category.Slug} {category.Name}";
+
+        if (ContainsAny(text, "pc", "desktop", "may-tinh-de-ban"))
+        {
+            return "Mức giá PC";
+        }
+
+        if (ContainsAny(text, "man-hinh", "monitor"))
+        {
+            return "Mức giá màn hình";
+        }
+
+        if (ContainsAny(text, "may-in", "printer"))
+        {
+            return "Mức giá máy in";
+        }
+
+        return "Mức giá";
+    }
+
+    private static IReadOnlyList<FilterLinkDefinition> ResolveComputerPriceRanges(CategoryRecord category)
+    {
+        var text = $"{category.Slug} {category.Name}";
+
+        return ContainsAny(text, "pc", "desktop", "may-tinh-de-ban")
+            ? ComputerPriceRanges
+            : PeripheralPriceRanges;
     }
 
     private static int GetMenuSortRank(CategoryRecord category)
@@ -998,6 +1262,9 @@ public sealed class DbSiteCategoryMenuDataService(EcommerceDbContext dbContext) 
         AddWhenContains("Laptop Core i7", "core i7");
         AddWhenContains("Laptop Core i9", "core i9");
         AddWhenContains("Intel Core Ultra", "core ultra");
+        AddWhenContains("Apple M1 Series", "m1");
+        AddWhenContains("Apple M2 Series", "m2");
+        AddWhenContains("Apple M3 Series", "m3");
         AddWhenContains("Apple M4 Series", "m4");
         AddWhenContains("Apple M5 Series", "m5");
         AddWhenContains("AMD Ryzen", "ryzen");

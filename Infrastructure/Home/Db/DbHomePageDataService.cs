@@ -59,14 +59,16 @@ public sealed class DbHomePageDataService(
         new("tv", "TIVI", "tv", IsActive: true, ShowBrandFilter: true)
     ];
 
-    public Task<HomeIndexViewModel> CreateHomePageAsync(
+    public async Task<HomeIndexViewModel> CreateHomePageAsync(
         SiteCategoryMenuViewModel categoryMenu,
         CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        return cache.GetOrCreateExclusiveAsync(
-            "home-page-v4",
+        var categoryCacheToken = await GetCategoryCacheTokenAsync(cancellationToken);
+
+        return await cache.GetOrCreateExclusiveAsync(
+            $"home-page-v5:{categoryCacheToken}",
             () => CreateHomePageUncachedAsync(categoryMenu, CancellationToken.None),
             new MemoryCacheEntryOptions
             {
@@ -121,22 +123,52 @@ public sealed class DbHomePageDataService(
         return new HomeIndexViewModel
         {
             Hero = HomeHeroViewModelFactory.Create(categoryMenu.Items),
-            FeaturedCategorySections = [phoneTabletSection],
+            FeaturedCategorySections = new[] { phoneTabletSection }
+                .Where(HasRenderableTabs)
+                .ToList(),
             AccessoryDirectory = accessoryDirectory,
-            AdditionalCategorySections =
-            [
-                computerSection,
-                audioWearableSection,
-                tvSection
-            ],
+            AdditionalCategorySections = new[]
+                {
+                    computerSection,
+                    audioWearableSection,
+                    tvSection
+                }
+                .Where(HasRenderableTabs)
+                .ToList(),
             ApplianceShowcase = applianceShowcase
         };
+    }
+
+    private async Task<string> GetCategoryCacheTokenAsync(CancellationToken cancellationToken)
+    {
+        await dbQueryGate.WaitAsync(cancellationToken);
+        try
+        {
+            await using var dbContext = await dbContextFactory.CreateDbContextAsync(cancellationToken);
+            return await CategoryCacheTokenBuilder.CreateAsync(dbContext, cancellationToken);
+        }
+        finally
+        {
+            dbQueryGate.Release();
+        }
     }
 
     private async Task<HomeApplianceShowcaseViewModel> CreateApplianceShowcaseAsync(
         IReadOnlyList<CategoryRecord> categories,
         CancellationToken cancellationToken)
     {
+        if (!HasActiveCategory([HomeApplianceShowcaseContent.RootCategorySlug], categories))
+        {
+            return new HomeApplianceShowcaseViewModel
+            {
+                Id = HomeApplianceShowcaseContent.Id,
+                Title = HomeApplianceShowcaseContent.Title,
+                ViewAllUrl = BuildCatalogUrl(HomeApplianceShowcaseContent.RootCategorySlug),
+                HeaderLinks = [],
+                Columns = []
+            };
+        }
+
         var brands = await GetBrandsByCategoryAsync(
             [HomeApplianceShowcaseContent.RootCategorySlug],
             HomeApplianceShowcaseContent.RootCategorySlug,
@@ -221,6 +253,17 @@ public sealed class DbHomePageDataService(
     private static CategoryDirectoryViewModel CreateAccessoryDirectory(
         IReadOnlyList<CategoryRecord> categories)
     {
+        if (!HasActiveCategory(["phu-kien", "accessories"], categories))
+        {
+            return new CategoryDirectoryViewModel
+            {
+                Id = "db-accessory-directory",
+                Title = HomeAccessoryDirectoryContent.Title,
+                ViewAllUrl = BuildCatalogUrl("phu-kien"),
+                Items = []
+            };
+        }
+
         var categoriesBySlug = categories.ToDictionary(
             category => category.Slug,
             StringComparer.OrdinalIgnoreCase);
@@ -259,24 +302,34 @@ public sealed class DbHomePageDataService(
         IReadOnlyList<CategoryRecord> categories,
         CancellationToken cancellationToken)
     {
-        var phoneProductsTask = GetVariantCardsByCategoryAsync(
-            PhoneCategorySlugs,
-            categories,
-            cancellationToken);
-        var tabletProductsTask = GetVariantCardsByCategoryAsync(
-            TabletCategorySlugs,
-            categories,
-            cancellationToken);
-        var phoneBrandsTask = GetBrandsByCategoryAsync(
-            PhoneCategorySlugs,
-            "phone",
-            categories,
-            cancellationToken);
-        var tabletBrandsTask = GetBrandsByCategoryAsync(
-            TabletCategorySlugs,
-            "tablet",
-            categories,
-            cancellationToken);
+        var hasPhoneCategory = HasActiveCategory(PhoneCategorySlugs, categories);
+        var hasTabletCategory = HasActiveCategory(TabletCategorySlugs, categories);
+        var phoneProductsTask = hasPhoneCategory
+            ? GetVariantCardsByCategoryAsync(
+                PhoneCategorySlugs,
+                categories,
+                cancellationToken)
+            : Task.FromResult<IReadOnlyList<ProductCardViewModel>>([]);
+        var tabletProductsTask = hasTabletCategory
+            ? GetVariantCardsByCategoryAsync(
+                TabletCategorySlugs,
+                categories,
+                cancellationToken)
+            : Task.FromResult<IReadOnlyList<ProductCardViewModel>>([]);
+        var phoneBrandsTask = hasPhoneCategory
+            ? GetBrandsByCategoryAsync(
+                PhoneCategorySlugs,
+                "phone",
+                categories,
+                cancellationToken)
+            : Task.FromResult<IReadOnlyList<CategoryBrandViewModel>>([]);
+        var tabletBrandsTask = hasTabletCategory
+            ? GetBrandsByCategoryAsync(
+                TabletCategorySlugs,
+                "tablet",
+                categories,
+                cancellationToken)
+            : Task.FromResult<IReadOnlyList<CategoryBrandViewModel>>([]);
 
         await Task.WhenAll(
             phoneProductsTask,
@@ -288,6 +341,45 @@ public sealed class DbHomePageDataService(
         var tabletProducts = await tabletProductsTask;
         var phoneBrands = await phoneBrandsTask;
         var tabletBrands = await tabletBrandsTask;
+        var tabs = new List<CategoryTabViewModel>();
+
+        if (hasPhoneCategory)
+        {
+            tabs.Add(new CategoryTabViewModel
+            {
+                Id = "phones",
+                Label = "Điện thoại",
+                Url = "/catalog?cat=phone",
+                IsActive = true,
+                Panel = new CategoryProductPanelViewModel
+                {
+                    ViewAllUrl = "/catalog?cat=phone",
+                    Banners = HomePhoneTabletSectionContent.CreatePhoneBanners(),
+                    QuickLinks = HomePhoneTabletSectionContent.CreatePhoneQuickLinks(),
+                    Brands = phoneBrands,
+                    Products = phoneProducts
+                }
+            });
+        }
+
+        if (hasTabletCategory)
+        {
+            tabs.Add(new CategoryTabViewModel
+            {
+                Id = "tablets",
+                Label = "Máy tính bảng",
+                Url = "/catalog?cat=tablet",
+                IsActive = tabs.Count == 0,
+                Panel = new CategoryProductPanelViewModel
+                {
+                    ViewAllUrl = "/catalog?cat=tablet",
+                    Banners = HomePhoneTabletSectionContent.CreateTabletBanners(),
+                    QuickLinks = HomePhoneTabletSectionContent.CreateTabletQuickLinks(),
+                    Brands = tabletBrands,
+                    Products = tabletProducts
+                }
+            });
+        }
 
         return new CategoryProductsViewModel
         {
@@ -295,38 +387,7 @@ public sealed class DbHomePageDataService(
             Rows = 2,
             EnableTabSwitching = true,
             ShowPagination = false,
-            Tabs =
-            [
-                new()
-                {
-                    Id = "phones",
-                    Label = "Điện thoại",
-                    Url = "/catalog?cat=phone",
-                    IsActive = true,
-                    Panel = new CategoryProductPanelViewModel
-                    {
-                        ViewAllUrl = "/catalog?cat=phone",
-                        Banners = HomePhoneTabletSectionContent.CreatePhoneBanners(),
-                        QuickLinks = HomePhoneTabletSectionContent.CreatePhoneQuickLinks(),
-                        Brands = phoneBrands,
-                        Products = phoneProducts
-                    }
-                },
-                new()
-                {
-                    Id = "tablets",
-                    Label = "Máy tính bảng",
-                    Url = "/catalog?cat=tablet",
-                    Panel = new CategoryProductPanelViewModel
-                    {
-                        ViewAllUrl = "/catalog?cat=tablet",
-                        Banners = HomePhoneTabletSectionContent.CreateTabletBanners(),
-                        QuickLinks = HomePhoneTabletSectionContent.CreateTabletQuickLinks(),
-                        Brands = tabletBrands,
-                        Products = tabletProducts
-                    }
-                }
-            ]
+            Tabs = tabs
         };
     }
 
@@ -338,11 +399,15 @@ public sealed class DbHomePageDataService(
         CancellationToken cancellationToken,
         bool enableTabSwitching = true)
     {
-        var tabTasks = definitions.Select(async definition =>
+        var activeDefinitions = definitions
+            .Where(definition => HasActiveCategory(
+                ResolveCategorySlugs(definition.CategorySlug),
+                categories))
+            .ToArray();
+
+        var tabTasks = activeDefinitions.Select(async definition =>
         {
-            var categorySlugs = IsTvCategory(definition.CategorySlug)
-                ? TvCategorySlugs
-                : [definition.CategorySlug];
+            var categorySlugs = ResolveCategorySlugs(definition.CategorySlug);
             var productsTask = GetVariantCardsByCategoryAsync(
                 categorySlugs,
                 categories,
@@ -589,34 +654,6 @@ public sealed class DbHomePageDataService(
         }
     }
 
-    private static IReadOnlyList<CategoryQuickLinkViewModel> BuildLevelTwoCategoryLinks(
-        string rootCategorySlug,
-        IReadOnlyList<CategoryRecord> categories)
-    {
-        var rootCategory = categories.FirstOrDefault(category =>
-            category.ParentId is null
-            && string.Equals(
-                category.Slug,
-                rootCategorySlug,
-                StringComparison.OrdinalIgnoreCase));
-        if (rootCategory is null)
-        {
-            return [];
-        }
-
-        return categories
-            .Where(category => category.ParentId == rootCategory.Id)
-            .OrderBy(category => category.Position)
-            .ThenBy(category => category.Id)
-            .Select(category => new CategoryQuickLinkViewModel
-            {
-                Label = category.Name,
-                Url = BuildCatalogUrl(category.Slug),
-                ImageUrl = NormalizeCategoryImage(category.ImagePath)
-            })
-            .ToList();
-    }
-
     private static bool ContainsSqlTimeout(Exception exception)
     {
         return exception is SqlException { Number: -2 }
@@ -627,9 +664,45 @@ public sealed class DbHomePageDataService(
         string rootCategorySlug,
         IReadOnlyList<CategoryRecord> categories)
     {
-        return IsTvCategory(rootCategorySlug)
-            ? HomeTvCategorySectionContent.CreateQuickLinks()
-            : BuildLevelTwoCategoryLinks(rootCategorySlug, categories);
+        var quickLinks = BuildLevelTwoCategoryLinks(
+            ResolveCategorySlugs(rootCategorySlug),
+            categories);
+
+        return quickLinks.Count > 0
+            ? quickLinks
+            : IsTvCategory(rootCategorySlug)
+                ? HomeTvCategorySectionContent.CreateQuickLinks()
+                : quickLinks;
+    }
+
+    private static IReadOnlyList<CategoryQuickLinkViewModel> BuildLevelTwoCategoryLinks(
+        IReadOnlyCollection<string> rootCategorySlugs,
+        IReadOnlyList<CategoryRecord> categories)
+    {
+        var normalizedSlugs = rootCategorySlugs.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var rootCategoryIds = categories
+            .Where(category => category.ParentId is null
+                && normalizedSlugs.Contains(category.Slug))
+            .Select(category => category.Id)
+            .ToHashSet();
+
+        if (rootCategoryIds.Count == 0)
+        {
+            return [];
+        }
+
+        return categories
+            .Where(category => category.ParentId.HasValue
+                && rootCategoryIds.Contains(category.ParentId.Value))
+            .OrderBy(category => category.Position)
+            .ThenBy(category => category.Id)
+            .Select(category => new CategoryQuickLinkViewModel
+            {
+                Label = category.Name,
+                Url = BuildCatalogUrl(category.Slug),
+                ImageUrl = NormalizeCategoryImage(category.ImagePath)
+            })
+            .ToList();
     }
 
     private static HashSet<long> GetCategoryTreeIds(
@@ -687,6 +760,26 @@ public sealed class DbHomePageDataService(
         return string.IsNullOrWhiteSpace(slug)
             ? name.ToLowerInvariant()
             : slug;
+    }
+
+    private static bool HasRenderableTabs(CategoryProductsViewModel section)
+    {
+        return section.Tabs.Any(tab => tab.Panel is not null);
+    }
+
+    private static IReadOnlyCollection<string> ResolveCategorySlugs(string categorySlug)
+    {
+        return IsTvCategory(categorySlug)
+            ? TvCategorySlugs
+            : [categorySlug];
+    }
+
+    private static bool HasActiveCategory(
+        IReadOnlyCollection<string> categorySlugs,
+        IReadOnlyList<CategoryRecord> categories)
+    {
+        var normalizedSlugs = categorySlugs.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return categories.Any(category => normalizedSlugs.Contains(category.Slug));
     }
 
     private static bool IsTvCategory(string categorySlug)

@@ -39,7 +39,9 @@ if (!string.IsNullOrEmpty(projectId))
     {
         FirebaseApp.Create(new AppOptions
         {
-            Credential = GoogleCredential.FromJson(firebaseJsonVar),
+            Credential = CredentialFactory
+                .FromJson<ServiceAccountCredential>(firebaseJsonVar)
+                .ToGoogleCredential(),
             ProjectId = projectId
         });
         Console.WriteLine("\n[INFO] Da khoi tao FirebaseAdmin tu Environment Variable.\n");
@@ -48,7 +50,9 @@ if (!string.IsNullOrEmpty(projectId))
     {
         FirebaseApp.Create(new AppOptions
         {
-            Credential = GoogleCredential.FromFile(keyPath),
+            Credential = CredentialFactory
+                .FromFile<ServiceAccountCredential>(keyPath)
+                .ToGoogleCredential(),
             ProjectId = projectId
         });
         Console.WriteLine("\n[INFO] Da khoi tao FirebaseAdmin tu file firebase-admin-key.json.\n");

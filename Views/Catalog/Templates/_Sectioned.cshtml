@@ -2,6 +2,7 @@
 
 @{
     var hidesGlobalFilter = string.Equals(Model.Slug, "do-gia-dung", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(Model.Slug, "dien-may", StringComparison.OrdinalIgnoreCase)
         || string.Equals(Model.Slug, "am-thanh", StringComparison.OrdinalIgnoreCase)
         || Model.IsAccessoryDirectory;
 }

@@ -5,6 +5,8 @@ namespace e_commerce_web_customer.Infrastructure.Navigation.Mock;
 
 internal static class MockSiteCategoryMegaMenuData
 {
+    private const string ComputingImageRoot = "/images/products/computing";
+
     public static IReadOnlyList<SiteCategoryMenuGroupViewModel> Phone { get; } =
     [
         Group("Thương hiệu", "/catalog?cat=phone&brand=",
@@ -19,26 +21,67 @@ internal static class MockSiteCategoryMegaMenuData
 
     public static IReadOnlyList<SiteCategoryMenuGroupViewModel> Laptop { get; } =
     [
-        Group("Thương hiệu", "/catalog?cat=laptop&brand=",
-            "MacBook", "ASUS", "Lenovo", "Dell", "HP", "Acer", "MSI", "Gigabyte", "Samsung"),
-        Group("Nhu cầu sử dụng", "/catalog?cat=laptop&usage=",
-            "Văn phòng", "Gaming", "Mỏng nhẹ", "Đồ họa - kỹ thuật", "Sinh viên", "Cảm ứng", "Laptop AI"),
-        Group("Dòng chip", "/catalog?cat=laptop&chip=",
-            "Core i3", "Core i5", "Core i7", "Core Ultra", "Apple M4", "Apple M5", "AMD Ryzen"),
-        Group("Phân khúc giá", "/catalog?cat=laptop&price=",
-            "Dưới 10 triệu", "Từ 10 - 15 triệu", "Từ 15 - 20 triệu", "Từ 20 - 30 triệu", "Trên 30 triệu")
+        WithGroupClass(
+            Group("Thương hiệu", "/catalog?cat=laptop&brand=",
+                "MacBook", "ASUS", "Lenovo", "Dell", "HP", "Acer", "MSI", "Gigabyte", "Samsung"),
+            "site-category-mega-group--laptop site-category-mega-group--laptop-brands"),
+        WithGroupClass(
+            Group("Nhu cầu sử dụng", "/catalog?cat=laptop&usage=",
+                "Văn phòng", "Gaming", "Mỏng nhẹ", "Đồ họa - kỹ thuật", "Sinh viên", "Cảm ứng", "Laptop AI"),
+            "site-category-mega-group--laptop site-category-mega-group--laptop-usage"),
+        WithGroupClass(
+            FilterGroup("Dòng chip", "laptop", "chip",
+                ("Laptop Core i3", "laptop-core-i3"),
+                ("Laptop Core i5", "laptop-core-i5"),
+                ("Laptop Core i7", "laptop-core-i7"),
+                ("Laptop Core i9", "laptop-core-i9"),
+                ("Intel Core Ultra", "intel-core-ultra"),
+                ("Apple M1 Series", "apple-m1-series"),
+                ("Apple M2 Series", "apple-m2-series"),
+                ("Apple M3 Series", "apple-m3-series"),
+                ("Apple M4 Series", "apple-m4-series"),
+                ("Apple M5 Series", "apple-m5-series"),
+                ("AMD Ryzen", "amd-ryzen")),
+            "site-category-mega-group--laptop site-category-mega-group--laptop-chip"),
+        WithGroupClass(
+            FilterGroup("Kích thước màn hình", "laptop", "screen-size",
+                ("Laptop 13 inch", "13"),
+                ("Laptop 14 inch", "14"),
+                ("Laptop 15.6 inch", "15.6"),
+                ("Laptop 16 inch", "16")),
+            "site-category-mega-group--laptop site-category-mega-group--laptop-screen"),
+        WithGroupClass(
+            PriceGroup("Phân khúc giá", "laptop",
+                ("Dưới 10 triệu", "under-10m"),
+                ("Từ 10 - 15 triệu", "10m-15m"),
+                ("Từ 15 - 20 triệu", "15m-20m"),
+                ("Từ 20 - 30 triệu", "20m-30m"),
+                ("Trên 30 triệu", "over-30m")),
+            "site-category-mega-group--laptop site-category-mega-group--laptop-price")
     ];
 
     public static IReadOnlyList<SiteCategoryMenuGroupViewModel> Audio { get; } =
     [
-        Group("Chọn loại tai nghe", "/catalog?cat=audio&type=",
-            "Bluetooth", "Chụp tai", "Nhét tai", "Có dây", "Thể thao", "Gaming"),
-        Group("Hãng tai nghe", "/catalog?cat=audio&brand=",
-            "AirPods", "Sony", "JBL", "Samsung", "Marshall", "Bose", "Edifier", "Xiaomi", "Anker"),
-        Group("Loa nổi bật", "/catalog?cat=speaker&brand=",
-            "JBL", "Marshall", "Harman Kardon", "Samsung", "Sony", "LG", "Tronsmart"),
-        Group("Mic thu âm", "/catalog?cat=microphone&type=",
-            "Mic cài áo", "Mic podcast", "Mic livestream", "Micro không dây", "Mic karaoke")
+        WithGroupClass(
+            Group("Chọn loại tai nghe", "/catalog?cat=audio&type=",
+                "Bluetooth", "Chụp tai", "Nhét tai", "Có dây", "Thể thao", "Gaming"),
+            "site-category-mega-group--audio site-category-mega-group--audio-headphones"),
+        WithGroupClass(
+            Group("Loa", "/catalog?cat=speaker&type=",
+                "Loa Bluetooth", "Loa Soundbar", "Loa Karaoke", "Loa vi tính", "Loa Sub", "Loa trợ giảng"),
+            "site-category-mega-group--audio site-category-mega-group--audio-speakers"),
+        WithGroupClass(
+            Group("Mic thu âm", "/catalog?cat=microphone&type=",
+                "Mic cài áo", "Mic podcast", "Mic livestream", "Micro không dây", "Mic karaoke"),
+            "site-category-mega-group--audio site-category-mega-group--audio-microphones"),
+        WithGroupClass(
+            Group("Hãng tai nghe", "/catalog?cat=audio&brand=",
+                "AirPods", "Sony", "JBL", "Samsung", "Marshall", "Bose", "Edifier", "Xiaomi", "Anker"),
+            "site-category-mega-group--audio site-category-mega-group--audio-headphone-brands"),
+        WithGroupClass(
+            Group("Hãng loa", "/catalog?cat=speaker&brand=",
+                "JBL", "Marshall", "Harman Kardon", "Samsung", "Sony", "LG", "Tronsmart"),
+            "site-category-mega-group--audio site-category-mega-group--audio-speaker-brands")
     ];
 
     public static IReadOnlyList<SiteCategoryMenuGroupViewModel> Watch { get; } =
@@ -77,16 +120,104 @@ internal static class MockSiteCategoryMegaMenuData
             "Balo - túi xách", "Gaming Gear", "Giá đỡ", "Gimbal", "Phụ kiện laptop")
     ];
 
+    public static IReadOnlyList<SiteCategoryMenuGroupViewModel> ComputerAccessories { get; } =
+    [
+        ImageGroup(
+            "Danh mục phụ kiện máy tính",
+            "site-category-mega-group--computer site-category-mega-group--computer-categories",
+            ("CPU", "/catalog?cat=computer-accessories&type=cpu", "component-10.webp"),
+            ("Mainboard", "/catalog?cat=computer-accessories&type=mainboard", "component-03.webp"),
+            ("RAM", "/catalog?cat=computer-accessories&type=ram", "component-09.webp"),
+            ("Ổ cứng", "/catalog?cat=computer-accessories&type=storage", "component-01.webp"),
+            ("Card màn hình", "/catalog?cat=computer-accessories&type=gpu", "component-05.webp"),
+            ("Nguồn máy tính", "/catalog?cat=computer-accessories&type=psu", "component-10.webp"),
+            ("Case máy tính", "/catalog?cat=computer-accessories&type=case", "desktop-06.webp")),
+        LinkGroup(
+            "Thương hiệu",
+            "site-category-mega-group--computer site-category-mega-group--computer-brands",
+            ("ASUS", "/catalog?cat=computer-accessories&brand=asus"),
+            ("Intel", "/catalog?cat=computer-accessories&brand=intel"),
+            ("MSI", "/catalog?cat=computer-accessories&brand=msi"),
+            ("Samsung", "/catalog?cat=computer-accessories&brand=samsung"),
+            ("Gigabyte", "/catalog?cat=computer-accessories&brand=gigabyte"),
+            ("ASRock", "/catalog?cat=computer-accessories&brand=asrock")),
+        PriceGroup(
+            "Mức giá",
+            "computer-accessories",
+            ("Dưới 1 triệu", "under-1m"),
+            ("Từ 1 - 3 triệu", "1m-3m"),
+            ("Từ 3 - 5 triệu", "3m-5m"),
+            ("Từ 5 - 10 triệu", "5m-10m"),
+            ("Từ 10 - 20 triệu", "10m-20m"),
+            ("Trên 20 triệu", "over-20m"))
+    ];
+
     public static IReadOnlyList<SiteCategoryMenuGroupViewModel> Pc { get; } =
     [
-        Group("Máy tính để bàn", "/catalog?cat=desktop&type=",
-            "Build PC", "PC Gaming", "PC đồ họa", "PC văn phòng", "Máy tính đồng bộ"),
-        Group("Màn hình máy tính", "/catalog?cat=monitor&usage=",
-            "Gaming", "Văn phòng", "Đồ họa", "Màn hình cong", "Màn hình di động"),
-        Group("Linh kiện máy tính", "/catalog?cat=computer-accessories&type=",
-            "CPU", "Mainboard", "RAM", "Ổ cứng", "Card màn hình", "Nguồn máy tính"),
-        Group("Máy in và thiết bị", "/catalog?cat=printer&type=",
-            "Máy in laser", "Máy in màu", "Máy in đa năng", "Mực in", "Máy scan")
+        ImageGroup(
+            "Loại PC",
+            "site-category-mega-group--computer site-category-mega-group--computer-categories",
+            ("PC Gaming", "/catalog?cat=desktop&type=gaming", "desktop-01.webp"),
+            ("PC Văn phòng", "/catalog?cat=desktop&type=office", "desktop-04.webp"),
+            ("PC All In One", "/catalog?cat=desktop&type=all-in-one", "desktop-10.webp"),
+            ("PC AI", "/catalog?cat=desktop&type=ai", "desktop-06.webp")),
+        ImageGroup(
+            "Chọn màn hình theo nhu cầu",
+            "site-category-mega-group--computer site-category-mega-group--computer-categories",
+            ("Gaming", "/catalog?cat=monitor&usage=gaming", "monitor-01.webp"),
+            ("Văn phòng", "/catalog?cat=monitor&usage=office", "monitor-02.webp"),
+            ("Đồ họa", "/catalog?cat=monitor&usage=graphics", "monitor-07.webp"),
+            ("Màn hình cong", "/catalog?cat=monitor&design=curved", "monitor-03.webp"),
+            ("Màn hình lập trình", "/catalog?cat=monitor&usage=coding", "monitor-09.webp"),
+            ("Màn hình di động", "/catalog?cat=monitor&design=portable", "monitor-04.webp")),
+        LinkGroup(
+            "Thương hiệu PC",
+            "site-category-mega-group--computer site-category-mega-group--computer-brands",
+            ("AMD", "/catalog?cat=desktop&brand=amd"),
+            ("ASUS", "/catalog?cat=desktop&brand=asus"),
+            ("Intel", "/catalog?cat=desktop&brand=intel"),
+            ("MSI", "/catalog?cat=desktop&brand=msi"),
+            ("Gigabyte", "/catalog?cat=desktop&brand=gigabyte"),
+            ("Rosa", "/catalog?cat=desktop&brand=rosa")),
+        LinkGroup(
+            "Thương hiệu màn hình",
+            "site-category-mega-group--computer site-category-mega-group--computer-brands",
+            ("AOC", "/catalog?cat=monitor&brand=aoc"),
+            ("ASUS", "/catalog?cat=monitor&brand=asus"),
+            ("Dell", "/catalog?cat=monitor&brand=dell"),
+            ("LG", "/catalog?cat=monitor&brand=lg"),
+            ("MSI", "/catalog?cat=monitor&brand=msi"),
+            ("Samsung", "/catalog?cat=monitor&brand=samsung")),
+        LinkGroup(
+            "Thương hiệu máy in",
+            "site-category-mega-group--computer site-category-mega-group--computer-brands",
+            ("Brother", "/catalog?cat=printer&brand=brother"),
+            ("Canon", "/catalog?cat=printer&brand=canon"),
+            ("HP", "/catalog?cat=printer&brand=hp"),
+            ("HPRT", "/catalog?cat=printer&brand=hprt")),
+        PriceGroup(
+            "Mức giá PC",
+            "desktop",
+            ("Dưới 10 triệu", "under-10"),
+            ("Từ 10 - 20 triệu", "10-20"),
+            ("Từ 20 - 30 triệu", "20-30"),
+            ("Trên 30 triệu", "over-30")),
+        PriceGroup(
+            "Mức giá màn hình",
+            "monitor",
+            ("Dưới 1 triệu", "under-1m"),
+            ("Từ 1 - 3 triệu", "1m-3m"),
+            ("Từ 3 - 5 triệu", "3m-5m"),
+            ("Từ 5 - 10 triệu", "5m-10m"),
+            ("Trên 10 triệu", "over-10m")),
+        PriceGroup(
+            "Mức giá máy in",
+            "printer",
+            ("Dưới 1 triệu", "under-1m"),
+            ("Từ 1 - 3 triệu", "1m-3m"),
+            ("Từ 3 - 5 triệu", "3m-5m"),
+            ("Từ 5 - 10 triệu", "5m-10m"),
+            ("Trên 10 triệu", "over-10m"))
     ];
 
     public static IReadOnlyList<SiteCategoryMenuGroupViewModel> Tv { get; } =
@@ -162,8 +293,93 @@ internal static class MockSiteCategoryMegaMenuData
                 {
                     Label = label,
                     Url = $"{urlPrefix}{Uri.EscapeDataString(label.ToLowerInvariant())}"
+            })
+            .ToArray()
+        };
+    }
+
+    private static SiteCategoryMenuGroupViewModel ImageGroup(
+        string title,
+        string cssClass,
+        params (string Label, string Url, string ImageName)[] links)
+    {
+        return new SiteCategoryMenuGroupViewModel
+        {
+            Title = title,
+            CssClass = cssClass,
+            Links = links
+                .Select(link => new SiteCategoryMenuLinkViewModel
+                {
+                    Label = link.Label,
+                    Url = link.Url,
+                    ImageUrl = $"{ComputingImageRoot}/{link.ImageName}",
+                    ImageAlt = link.Label
                 })
                 .ToArray()
         };
+    }
+
+    private static SiteCategoryMenuGroupViewModel LinkGroup(
+        string title,
+        string cssClass,
+        params (string Label, string Url)[] links)
+    {
+        return new SiteCategoryMenuGroupViewModel
+        {
+            Title = title,
+            CssClass = cssClass,
+            Links = links
+                .Select(link => new SiteCategoryMenuLinkViewModel
+                {
+                    Label = link.Label,
+                    Url = link.Url
+                })
+                .ToArray()
+        };
+    }
+
+    private static SiteCategoryMenuGroupViewModel FilterGroup(
+        string title,
+        string category,
+        string filterKey,
+        params (string Label, string Value)[] links)
+    {
+        return LinkGroup(
+            title,
+            string.Empty,
+            links
+                .Select(link => (
+                    link.Label,
+                    $"/catalog?cat={Uri.EscapeDataString(category)}&f_{Uri.EscapeDataString(filterKey)}={Uri.EscapeDataString(link.Value)}"))
+                .ToArray());
+    }
+
+    private static SiteCategoryMenuGroupViewModel WithGroupClass(
+        SiteCategoryMenuGroupViewModel group,
+        string cssClass)
+    {
+        return new SiteCategoryMenuGroupViewModel
+        {
+            Title = group.Title,
+            Links = group.Links,
+            CssClass = string.IsNullOrWhiteSpace(group.CssClass)
+                ? cssClass
+                : $"{group.CssClass} {cssClass}"
+        };
+    }
+
+    private static SiteCategoryMenuGroupViewModel PriceGroup(
+        string title,
+        string category,
+        params (string Label, string Value)[] links)
+    {
+        return LinkGroup(
+            title,
+            "site-category-mega-group--computer site-category-mega-group--computer-price",
+            links
+                .Select(link => (
+                    link.Label,
+                    $"/catalog?cat={Uri.EscapeDataString(category)}&f_price={Uri.EscapeDataString(link.Value)}"))
+                .ToArray());
     }
 }
