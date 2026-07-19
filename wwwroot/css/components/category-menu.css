@@ -491,6 +491,70 @@
   padding-inline: 9px;
 }
 
+.site-category-mega-panel--electronics {
+  bottom: 0;
+  padding: 14px 16px 16px;
+}
+
+.site-category-mega-grid--electronics {
+  grid-template-columns: minmax(225px, 0.95fr) minmax(230px, 1fr) minmax(250px, 1.08fr);
+  min-height: 100%;
+  align-items: start;
+  gap: 14px 18px;
+}
+
+.site-category-mega-column--electronics {
+  gap: 13px;
+}
+
+.site-category-mega-grid--electronics .site-category-mega-group h4 {
+  margin-bottom: 7px;
+}
+
+.site-category-mega-grid--electronics .site-category-mega-links {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 7px;
+}
+
+.site-category-mega-grid--electronics .site-category-mega-link {
+  width: fit-content;
+  min-width: 0;
+  min-height: 34px;
+  flex: 0 1 auto;
+  padding: 6px 10px;
+  font-weight: 600;
+  white-space: normal;
+}
+
+.site-category-mega-grid--electronics .site-category-mega-link--media:not(.site-category-mega-link--logo) {
+  max-width: 210px;
+  min-height: 46px;
+  justify-content: flex-start;
+  padding: 7px 9px;
+}
+
+.site-category-mega-grid--electronics .site-category-mega-link span {
+  max-width: 138px;
+  white-space: normal;
+}
+
+.site-category-mega-grid--electronics .site-category-mega-link--media:not(.site-category-mega-link--logo) img {
+  width: 38px;
+  max-width: 38px;
+  height: 30px;
+}
+
+.site-category-mega-group--electronics-brands .site-category-mega-link {
+  font-weight: 650;
+}
+
+.site-category-mega-group--electronics-price .site-category-mega-link {
+  min-height: 32px;
+  padding-inline: 9px;
+}
+
 .site-category-mega-panel--laptop {
   bottom: 0;
   padding: 14px 16px 16px;
@@ -698,6 +762,11 @@ body.site-category-menu-open {
   }
 
   .site-category-mega-grid--audio {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px 16px;
+  }
+
+  .site-category-mega-grid--electronics {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 14px 16px;
   }

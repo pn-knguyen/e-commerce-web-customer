@@ -79,6 +79,14 @@ public sealed class DbSiteCategoryMenuDataService(EcommerceDbContext dbContext) 
         new("Trên 10 triệu", "over-10m")
     ];
 
+    private static readonly FilterLinkDefinition[] HomeElectronicsPriceRanges =
+    [
+        new("Dưới 5 triệu", "under-5m"),
+        new("Từ 5 - 10 triệu", "5m-10m"),
+        new("Từ 10 - 20 triệu", "10m-20m"),
+        new("Trên 20 triệu", "over-20m")
+    ];
+
     private static readonly FilterLinkDefinition[] ComputerPriceRanges =
     [
         new("Dưới 10 triệu", "under-10"),
@@ -407,8 +415,7 @@ public sealed class DbSiteCategoryMenuDataService(EcommerceDbContext dbContext) 
         }
         else if (HasCategory(rowCategories, "tivi", "tv", "dien-may", "home-electronics", "dien-lanh"))
         {
-            AddCategoryGroupsForRows(groups, rowCategories, categories, includeImages: true, take: 12);
-            AddBrandGroupsForRows(groups, rowCategories, categories, brandRecords, "Thương hiệu");
+            AddHomeElectronicsGroups(groups, rowCategories, categories, brandRecords);
         }
         else
         {
@@ -649,6 +656,60 @@ public sealed class DbSiteCategoryMenuDataService(EcommerceDbContext dbContext) 
 
             groups.Add(WithGroupClass(group.Group, cssClass)!);
             nestedGroups.Remove(group);
+        }
+    }
+
+    private static void AddHomeElectronicsGroups(
+        ICollection<SiteCategoryMenuGroupViewModel> groups,
+        IReadOnlyList<CategoryRecord> rowCategories,
+        IReadOnlyList<CategoryRecord> categories,
+        IReadOnlyList<BrandCategoryRecord> brandRecords)
+    {
+        foreach (var rowCategory in rowCategories)
+        {
+            if (IsTvCategory(rowCategory))
+            {
+                AddIfNotNull(groups, WithGroupClass(
+                    BuildChildCategoryGroup(
+                        rowCategory.Name,
+                        [rowCategory],
+                        categories,
+                        includeImages: true,
+                        take: 16),
+                    "site-category-mega-group--electronics site-category-mega-group--electronics-tv"));
+
+                continue;
+            }
+
+            foreach (var group in BuildNestedCategoryGroups([rowCategory], categories))
+            {
+                groups.Add(WithGroupClass(
+                    group.Group,
+                    $"site-category-mega-group--electronics {ResolveHomeElectronicsGroupClass(group.LevelTwoCategory)}")!);
+            }
+        }
+
+        foreach (var rowCategory in rowCategories)
+        {
+            AddIfNotNull(groups, WithGroupClass(
+                BuildBrandGroup(
+                    ResolveHomeElectronicsBrandGroupTitle(rowCategory),
+                    rowCategory.Slug,
+                    GetCategoryTreeIds([rowCategory], categories),
+                    brandRecords,
+                    take: 12),
+                "site-category-mega-group--electronics site-category-mega-group--electronics-brands"));
+        }
+
+        foreach (var rowCategory in rowCategories)
+        {
+            AddIfNotNull(groups, WithGroupClass(
+                BuildFilterGroup(
+                    ResolveHomeElectronicsPriceGroupTitle(rowCategory),
+                    rowCategory.Slug,
+                    "price",
+                    HomeElectronicsPriceRanges),
+                "site-category-mega-group--electronics site-category-mega-group--electronics-price"));
         }
     }
 
@@ -951,6 +1012,34 @@ public sealed class DbSiteCategoryMenuDataService(EcommerceDbContext dbContext) 
         return "site-category-mega-group--audio-other";
     }
 
+    private static string ResolveHomeElectronicsGroupClass(CategoryRecord category)
+    {
+        var text = $"{category.Slug} {category.Name}";
+
+        if (ContainsAny(text, "tivi", "tv"))
+        {
+            return "site-category-mega-group--electronics-tv";
+        }
+
+        if (ContainsAny(text, "dien-lanh", "may-lanh", "tu-lanh", "tu-dong", "may-giat"))
+        {
+            return "site-category-mega-group--electronics-cooling";
+        }
+
+        if (ContainsAny(text, "giai-tri", "entertainment", "may-chieu", "loa-thanh"))
+        {
+            return "site-category-mega-group--electronics-entertainment";
+        }
+
+        return "site-category-mega-group--electronics-categories";
+    }
+
+    private static bool IsTvCategory(CategoryRecord category)
+    {
+        var text = $"{category.Slug} {category.Name}";
+        return ContainsAny(text, "tivi", "tv");
+    }
+
     private static string ResolveChildGroupTitle(CategoryRecord category)
     {
         var text = $"{category.Slug} {category.Name}";
@@ -1030,6 +1119,15 @@ public sealed class DbSiteCategoryMenuDataService(EcommerceDbContext dbContext) 
         return $"Thương hiệu {category.Name.ToLowerInvariant()}";
     }
 
+    private static string ResolveHomeElectronicsBrandGroupTitle(CategoryRecord category)
+    {
+        var text = $"{category.Slug} {category.Name}";
+
+        return ContainsAny(text, "tivi", "tv")
+            ? "Thương hiệu Tivi"
+            : "Thương hiệu điện máy";
+    }
+
     private static string ResolvePriceGroupTitle(CategoryRecord category)
     {
         var text = $"{category.Slug} {category.Name}";
@@ -1050,6 +1148,15 @@ public sealed class DbSiteCategoryMenuDataService(EcommerceDbContext dbContext) 
         }
 
         return "Mức giá";
+    }
+
+    private static string ResolveHomeElectronicsPriceGroupTitle(CategoryRecord category)
+    {
+        var text = $"{category.Slug} {category.Name}";
+
+        return ContainsAny(text, "tivi", "tv")
+            ? "Mức giá Tivi"
+            : "Mức giá điện máy";
     }
 
     private static IReadOnlyList<FilterLinkDefinition> ResolveComputerPriceRanges(CategoryRecord category)

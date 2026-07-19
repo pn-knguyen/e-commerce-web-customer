@@ -7,11 +7,14 @@
         var megaPanelId = $"{Model.IdPrefix}-{category.Id}-mega";
         var labelId = $"{Model.IdPrefix}-{category.Id}-menu-label";
         var isApplianceGrid = category.Groups.Any(group => HasGroupClass(group, "appliance"));
+        var isElectronicsGrid = category.Groups.Any(group => HasGroupClass(group, "electronics"));
         var isComputerGrid = category.Groups.Any(group => HasGroupClass(group, "computer"));
         var isLaptopGrid = category.Groups.Any(group => HasGroupClass(group, "laptop"));
         var isAudioGrid = category.Groups.Any(group => HasGroupClass(group, "audio"));
         var gridClass = isApplianceGrid
             ? "site-category-mega-grid site-category-mega-grid--appliance"
+            : isElectronicsGrid
+                ? "site-category-mega-grid site-category-mega-grid--electronics"
             : isLaptopGrid
                 ? "site-category-mega-grid site-category-mega-grid--laptop"
             : isComputerGrid
@@ -21,6 +24,8 @@
             : "site-category-mega-grid";
         var panelClass = isLaptopGrid
             ? "site-category-mega-panel site-category-mega-panel--laptop"
+            : isElectronicsGrid
+                ? "site-category-mega-panel site-category-mega-panel--electronics"
             : isAudioGrid
                 ? "site-category-mega-panel site-category-mega-panel--audio"
             : "site-category-mega-panel";
@@ -203,6 +208,51 @@
                     @foreach (var column in laptopColumns)
                     {
                         <div class="site-category-mega-column site-category-mega-column--laptop">
+                            @foreach (var group in column)
+                            {
+                                <section class="@BuildGroupClass(group)">
+                                    <h4>@group.Title</h4>
+                                    <div class="site-category-mega-links">
+                                        @foreach (var link in group.Links)
+                                        {
+                                            <a class="@BuildLinkClass(link)" href="@link.Url">
+                                                @if (!string.IsNullOrWhiteSpace(link.ImageUrl))
+                                                {
+                                                    <img src="@link.ImageUrl"
+                                                         alt="@(link.ImageAlt ?? string.Empty)"
+                                                         width="76"
+                                                         height="28"
+                                                         loading="lazy" />
+
+                                                    @if (!link.ImageOnly)
+                                                    {
+                                                        <span>@link.Label</span>
+                                                    }
+                                                }
+                                                else
+                                                {
+                                                    <span>@link.Label</span>
+                                                }
+
+                                                @if (!string.IsNullOrWhiteSpace(link.Badge))
+                                                {
+                                                    <small>@link.Badge</small>
+                                                }
+                                            </a>
+                                        }
+                                    </div>
+                                </section>
+                            }
+                        </div>
+                    }
+                }
+                else if (isElectronicsGrid)
+                {
+                    var electronicsColumns = DistributeMegaGroups(category.Groups, 3);
+
+                    @foreach (var column in electronicsColumns)
+                    {
+                        <div class="site-category-mega-column site-category-mega-column--electronics">
                             @foreach (var group in column)
                             {
                                 <section class="@BuildGroupClass(group)">
