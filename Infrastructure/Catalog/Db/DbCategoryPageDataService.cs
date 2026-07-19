@@ -29,6 +29,7 @@ public sealed class DbCategoryPageDataService(
     private const string AttributeFilterPrefix = "attribute-";
     private const string SpecificationFilterPrefix = "specification-";
     private const string ScreenSizeFilterKey = "screen-size";
+    private const string ChipFilterKey = "chip";
 
     private static readonly string[] ApplianceBrandFallbackSlugs =
     [
@@ -61,8 +62,9 @@ public sealed class DbCategoryPageDataService(
             ["watch"] = "dong-ho",
             ["smartwatch"] = "dong-ho",
             ["monitor"] = "man-hinh",
+            ["printer"] = "may-in",
             ["desktop"] = "pc",
-            ["computer-accessories"] = "may-in",
+            ["computer-accessories"] = "phu-kien-may-tinh",
             ["accessories"] = "phu-kien",
             ["appliances"] = "do-gia-dung",
             ["home-electronics"] = "dien-may",
@@ -231,13 +233,35 @@ public sealed class DbCategoryPageDataService(
         new("75", "75 inch")
     ];
 
-    public Task<CategoryPageViewModel?> CreateCategoryPageAsync(
+    private static readonly IReadOnlyList<PhoneFilterOptionDefinition> LaptopScreenSizeFilterOptions =
+    [
+        new("13", "Laptop 13 inch"),
+        new("14", "Laptop 14 inch"),
+        new("15.6", "Laptop 15.6 inch"),
+        new("16", "Laptop 16 inch")
+    ];
+
+    private static readonly IReadOnlyList<PhoneFilterOptionDefinition> GeneralPriceFilterOptions =
+    [
+        new("under-1m", "Dưới 1 triệu"),
+        new("1m-3m", "Từ 1 - 3 triệu"),
+        new("3m-5m", "Từ 3 - 5 triệu"),
+        new("5m-10m", "Từ 5 - 10 triệu"),
+        new("10m-20m", "Từ 10 - 20 triệu"),
+        new("20m-30m", "Từ 20 - 30 triệu"),
+        new("over-30m", "Trên 30 triệu")
+    ];
+
+    public async Task<CategoryPageViewModel?> CreateCategoryPageAsync(
         CategoryPageRequest request,
         CancellationToken cancellationToken = default)
     {
-        var cacheKey = BuildCacheKey(request);
+        var categoryCacheToken = await dbQueryGate.RunAsync(
+            () => CategoryCacheTokenBuilder.CreateAsync(dbContext, cancellationToken),
+            cancellationToken);
+        var cacheKey = $"{BuildCacheKey(request)}:{categoryCacheToken}";
 
-        return cache.GetOrCreateExclusiveAsync(
+        return await cache.GetOrCreateExclusiveAsync(
             cacheKey,
             () => dbQueryGate.RunAsync(
                 () => CreateCategoryPageUncachedAsync(request, CancellationToken.None)),
@@ -516,7 +540,8 @@ public sealed class DbCategoryPageDataService(
 
     private static bool IsApplianceRoot(Category category)
     {
-        return string.Equals(category.Slug, "do-gia-dung", StringComparison.OrdinalIgnoreCase);
+        return string.Equals(category.Slug, "do-gia-dung", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(category.Slug, "dien-may", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool IsAudioRoot(Category category)
@@ -581,6 +606,9 @@ public sealed class DbCategoryPageDataService(
             "thiet-bi-gia-dinh" => "/images/banner_gia_dung/thiet-bi-gia-dinh.webp",
             "gia-dung-nha-bep" => "/images/banner_gia_dung/gia-dung-nha-bep.webp",
             "suc-khoe-lam-dep" => "/images/banner_gia_dung/suc-khoe-lam-dep.webp",
+            "dien-mays" => "/images/banner_dien_may/banner_dien_may.webp",
+            "dien-may" => "/images/banner_dien_may/banner_dien_may.webp",
+            "dien-lanh" => "/images/banner_dien_may/banner_dien_lanh.webp",
             "tai-nghe" => "/images/banner_am_thanh/tai-nghe.webp",
             "loa" => "/images/banner_am_thanh/loa.webp",
             "phu-kien-am-thanh" => "/images/banner_am_thanh/phu-kien-am-thanh.webp",
@@ -749,7 +777,12 @@ public sealed class DbCategoryPageDataService(
 
         if (string.Equals(groupKey, ScreenSizeFilterKey, StringComparison.OrdinalIgnoreCase))
         {
-            return MatchesTvScreenSize(variant, optionValue);
+            return MatchesScreenSize(variant, optionValue);
+        }
+
+        if (string.Equals(groupKey, ChipFilterKey, StringComparison.OrdinalIgnoreCase))
+        {
+            return MatchesLaptopChip(variant, optionValue);
         }
 
         return MatchesPhoneFilter(variant, groupKey, optionValue);
@@ -815,10 +848,33 @@ public sealed class DbCategoryPageDataService(
     {
         return option switch
         {
+            "under-200k" => price < 200_000m,
+            "under-500k" => price < 500_000m,
+            "500k-1m" => price >= 500_000m && price < 1_000_000m,
+            "under-1m" => price < 1_000_000m,
+            "under-2m" => price < 2_000_000m,
+            "2m-4m" => price >= 2_000_000m && price < 4_000_000m,
+            "4m-7m" => price >= 4_000_000m && price < 7_000_000m,
+            "7m-13m" => price >= 7_000_000m && price < 13_000_000m,
+            "13m-20m" => price >= 13_000_000m && price < 20_000_000m,
+            "1m-3m" => price >= 1_000_000m && price < 3_000_000m,
+            "3m-5m" => price >= 3_000_000m && price < 5_000_000m,
+            "under-5m" => price < 5_000_000m,
+            "5m-10m" => price >= 5_000_000m && price < 10_000_000m,
             "under-10" => price < 10_000_000m,
+            "under-10m" => price < 10_000_000m,
             "10-20" => price >= 10_000_000m && price < 20_000_000m,
+            "10m-15m" => price >= 10_000_000m && price < 15_000_000m,
+            "15m-20m" => price >= 15_000_000m && price < 20_000_000m,
+            "10m-20m" => price >= 10_000_000m && price < 20_000_000m,
             "20-30" => price >= 20_000_000m && price < 30_000_000m,
+            "20m-25m" => price >= 20_000_000m && price < 25_000_000m,
+            "25m-30m" => price >= 25_000_000m && price < 30_000_000m,
+            "20m-30m" => price >= 20_000_000m && price < 30_000_000m,
+            "over-10m" => price >= 10_000_000m,
+            "over-20m" => price >= 20_000_000m,
             "over-30" => price >= 30_000_000m,
+            "over-30m" => price >= 30_000_000m,
             _ => false
         };
     }
@@ -1083,7 +1139,7 @@ public sealed class DbCategoryPageDataService(
             : SearchTextNormalizer.Normalize(string.Join(' ', values));
     }
 
-    private static bool MatchesTvScreenSize(ProductVariant variant, string option)
+    private static bool MatchesScreenSize(ProductVariant variant, string option)
     {
         if (!decimal.TryParse(
                 option,
@@ -1095,24 +1151,94 @@ public sealed class DbCategoryPageDataService(
         }
 
         var product = variant.Product;
-        var specificationText = product is null
+        var screenSpecificationText = product is null
             ? string.Empty
-            : string.Join(' ', product.ProductSpecifications.Select(item => item.Value));
+            : string.Join(
+                ' ',
+                product.ProductSpecifications
+                    .Where(item => IsScreenSizeSpecification(
+                        item.Specification?.Key,
+                        item.Specification?.Name))
+                    .Select(item => item.Value));
         var attributeText = string.Join(
             ' ',
             variant.VariantAttributes.Select(item =>
                 item.AttributeOption?.Label ?? item.AttributeOption?.Value));
-        var text = SearchTextNormalizer.Normalize(string.Join(
+        var generalText = string.Join(
             ' ',
             product?.Name,
             product?.Description,
             variant.Code,
+            attributeText);
+
+        return ContainsScreenSize(generalText, targetSize, requireUnit: true)
+            || ContainsScreenSize(screenSpecificationText, targetSize, requireUnit: false);
+    }
+
+    private static bool MatchesLaptopChip(ProductVariant variant, string option)
+    {
+        var normalizedOption = SearchTextNormalizer.Normalize(option.Replace('-', ' '));
+        var tokens = normalizedOption
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Where(token => token is not "laptop"
+                and not "series"
+                and not "apple"
+                and not "intel"
+                and not "amd")
+            .ToArray();
+
+        if (tokens.Length == 0)
+        {
+            return false;
+        }
+
+        var product = variant.Product;
+        var specificationText = product is null
+            ? string.Empty
+            : string.Join(
+                ' ',
+                product.ProductSpecifications.Select(item =>
+                    $"{item.Specification?.Key} {item.Specification?.Name} {item.Value}"));
+        var attributeText = string.Join(
+            ' ',
+            variant.VariantAttributes.Select(item =>
+                $"{item.AttributeOption?.Attribute?.Name} {item.AttributeOption?.Label ?? item.AttributeOption?.Value}"));
+        var text = SearchTextNormalizer.Normalize(string.Join(
+            ' ',
+            product?.Name,
+            product?.Description,
+            product?.Brand?.Name,
+            variant.Code,
             specificationText,
             attributeText));
 
-        return Regex.Matches(text, @"\d+(?:[\.,]\d+)?")
+        var appleChip = tokens.FirstOrDefault(token => token is "m1" or "m2" or "m3" or "m4" or "m5");
+        if (!string.IsNullOrWhiteSpace(appleChip))
+        {
+            return text.Contains(appleChip, StringComparison.Ordinal)
+                && ContainsAny(text, ["apple", "macbook"]);
+        }
+
+        return tokens.All(token => text.Contains(token, StringComparison.Ordinal));
+    }
+
+    private static bool ContainsScreenSize(
+        string text,
+        decimal targetSize,
+        bool requireUnit)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        var pattern = requireUnit
+            ? @"(?<!\d)(\d+(?:[\.,]\d+)?)\s*(?:(?:inches|inch|in)\b|"")"
+            : @"(?<!\d)(\d+(?:[\.,]\d+)?)(?!\d)";
+
+        return Regex.Matches(text, pattern, RegexOptions.IgnoreCase | RegexOptions.CultureInvariant)
             .Select(match => decimal.TryParse(
-                match.Value.Replace(',', '.'),
+                match.Groups[1].Value.Replace(',', '.'),
                 NumberStyles.Number,
                 CultureInfo.InvariantCulture,
                 out var value)
@@ -1120,6 +1246,12 @@ public sealed class DbCategoryPageDataService(
                     : (decimal?)null)
             .OfType<decimal>()
             .Any(value => Math.Abs(value - targetSize) <= 0.5m);
+    }
+
+    private static bool IsScreenSizeSpecification(string? key, string? name)
+    {
+        var text = SearchTextNormalizer.Normalize($"{key} {name}");
+        return ContainsAny(text, ["screen", "display", "man hinh", "kich thuoc"]);
     }
 
     private static bool ContainsSpecificationText(
@@ -1304,7 +1436,27 @@ public sealed class DbCategoryPageDataService(
             request.Filters);
         if (IsTvCategory(category))
         {
-            groups = [BuildTvScreenSizeFilterGroup(filterSourceVariants, request.Filters), ..groups];
+            groups =
+            [
+                BuildScreenSizeFilterGroup(
+                    "Kích thước màn hình",
+                    TvScreenSizeFilterOptions,
+                    filterSourceVariants,
+                    request.Filters),
+                ..groups
+            ];
+        }
+        else if (IsLaptopCategory(category))
+        {
+            groups =
+            [
+                BuildScreenSizeFilterGroup(
+                    "Kích thước màn hình",
+                    LaptopScreenSizeFilterOptions,
+                    filterSourceVariants,
+                    request.Filters),
+                ..groups
+            ];
         }
 
         var activeSelectionCount = (request.Filters?.Sum(item => item.Value.Count) ?? 0)
@@ -1401,16 +1553,15 @@ public sealed class DbCategoryPageDataService(
         IReadOnlyList<ProductVariant> filterSourceVariants,
         IReadOnlyDictionary<string, IReadOnlyList<string>> selectedFilters)
     {
-        var definition = PhoneFilterGroups.First(group => group.Key == "price");
-        var selectedValues = GetSelectedFilterValues(selectedFilters, definition.Key);
+        var selectedValues = GetSelectedFilterValues(selectedFilters, "price");
 
         return new CategoryFilterGroupViewModel
         {
-            Key = definition.Key,
-            Label = definition.Label,
-            Icon = definition.Icon,
+            Key = "price",
+            Label = "Xem theo giá",
+            Icon = "price",
             SelectedCount = selectedValues.Count,
-            Options = definition.Options.Select(option => new CategoryFilterOptionViewModel
+            Options = GeneralPriceFilterOptions.Select(option => new CategoryFilterOptionViewModel
             {
                 Value = option.Value,
                 Label = option.Label,
@@ -1508,7 +1659,9 @@ public sealed class DbCategoryPageDataService(
             && group.Options.Count <= MaxDynamicFilterOptions;
     }
 
-    private static CategoryFilterGroupViewModel BuildTvScreenSizeFilterGroup(
+    private static CategoryFilterGroupViewModel BuildScreenSizeFilterGroup(
+        string label,
+        IReadOnlyList<PhoneFilterOptionDefinition> options,
         IReadOnlyList<ProductVariant> filterSourceVariants,
         IReadOnlyDictionary<string, IReadOnlyList<string>>? filters)
     {
@@ -1519,9 +1672,9 @@ public sealed class DbCategoryPageDataService(
         return new CategoryFilterGroupViewModel
         {
             Key = ScreenSizeFilterKey,
-            Label = "Kích thước màn hình",
+            Label = label,
             SelectedCount = selectedValues.Count,
-            Options = TvScreenSizeFilterOptions.Select(option =>
+            Options = options.Select(option =>
             {
                 var isSelected = selectedValues.Contains(option.Value);
                 return new CategoryFilterOptionViewModel
@@ -1530,7 +1683,7 @@ public sealed class DbCategoryPageDataService(
                     Label = option.Label,
                     IsSelected = isSelected,
                     IsAvailable = isSelected || filterSourceVariants.Any(variant =>
-                        MatchesTvScreenSize(variant, option.Value))
+                        MatchesScreenSize(variant, option.Value))
                 };
             }).ToList()
         };
@@ -1874,6 +2027,12 @@ public sealed class DbCategoryPageDataService(
     private static bool IsTvCategory(Category category)
     {
         return IsTvCategorySlug(category.Slug);
+    }
+
+    private static bool IsLaptopCategory(Category category)
+    {
+        var text = SearchTextNormalizer.Normalize($"{category.Slug} {category.Name}");
+        return ContainsAny(text, ["laptop", "may tinh xach tay"]);
     }
 
     private static bool IsTvCategorySlug(string slug)

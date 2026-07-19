@@ -1155,6 +1155,18 @@
   margin-bottom: 24px;
 }
 
+.catalog-brand-list--two-lines {
+  --catalog-brand-row-height: 54px;
+
+  max-height: calc((var(--catalog-brand-row-height) * 2) + 8px);
+  align-content: flex-start;
+  overflow: hidden;
+}
+
+.catalog-brand-list.catalog-brand-list--two-lines a {
+  min-height: var(--catalog-brand-row-height);
+}
+
 .catalog-sectioned-types h2,
 .catalog-sectioned-brand-section h2 {
   margin: 0 0 14px;
@@ -1714,6 +1726,13 @@
     flex-wrap: nowrap;
     overflow-x: auto;
     scrollbar-width: none;
+  }
+
+  .catalog-brand-list--two-lines {
+    --catalog-brand-row-height: 42px;
+
+    flex-wrap: wrap;
+    overflow: hidden;
   }
 
   .catalog-brand-list::-webkit-scrollbar {

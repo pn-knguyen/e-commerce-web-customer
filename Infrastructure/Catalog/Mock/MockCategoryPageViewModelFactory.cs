@@ -9,6 +9,8 @@ public sealed class MockCategoryPageViewModelFactory : ICategoryPageViewModelFac
 {
     private const string PhoneImageRoot = "/images/products/phone";
     private const string AudioImageRoot = "/images/products/audio-wearables";
+    private const string ComputingImageRoot = "/images/products/computing";
+    private const string HomeElectronicsBannerRoot = "/images/banner_dien_may";
 
     public Task<CategoryPageViewModel?> CreateAsync(
         CategoryPageRequest request,
@@ -20,6 +22,7 @@ public sealed class MockCategoryPageViewModelFactory : ICategoryPageViewModelFac
         {
             "phone" or "mobile" => CreatePhonePage(request),
             "audio" or "am-thanh" or "thiet-bi-am-thanh" or "speaker" or "microphone" => CreateAudioPage(request),
+            "home-electronics" or "dien-may" => CreateHomeElectronicsPage(request),
             _ => CreateGenericPage(request)
         };
 
@@ -247,6 +250,253 @@ public sealed class MockCategoryPageViewModelFactory : ICategoryPageViewModelFac
             },
             QuestionAnswer = CreateAudioQuestionAnswer()
         };
+    }
+
+    private static CategoryPageViewModel CreateHomeElectronicsPage(CategoryPageRequest request)
+    {
+        var sections = CreateHomeElectronicsSections(request);
+        var products = sections.SelectMany(section => section.Products).ToList();
+        var tvPanel = TvCategorySectionFactory.Create()
+            .Tabs.FirstOrDefault(item => item.Id == "tv")?.Panel;
+
+        return new CategoryPageViewModel
+        {
+            Slug = "dien-may",
+            Title = "Điện máy",
+            MetaDescription = "Mua sản phẩm điện máy, điện lạnh chính hãng, giá tốt và giao lắp nhanh tại TechStore.",
+            LayoutMode = CategoryPageLayoutMode.Sectioned,
+            Breadcrumbs =
+            [
+                new() { Label = "Trang chủ", Url = "/" },
+                new() { Label = "Điện máy", Url = "/catalog?cat=home-electronics", IsCurrent = true }
+            ],
+            PromotionBanners =
+            [
+                new()
+                {
+                    Id = "dien-may-banner",
+                    Kicker = "Điện máy",
+                    Title = "Sắm thiết bị cho cả nhà",
+                    PriceText = "Ưu đãi mỗi ngày",
+                    ImageUrl = $"{HomeElectronicsBannerRoot}/banner_dien_may.webp",
+                    ImageAlt = "Banner điện máy",
+                    Url = "#section-dien-mays",
+                    Theme = "peach"
+                },
+                new()
+                {
+                    Id = "dien-lanh-banner",
+                    Kicker = "Điện lạnh",
+                    Title = "Giao lắp nhanh",
+                    PriceText = "Giá tốt theo mùa",
+                    ImageUrl = $"{HomeElectronicsBannerRoot}/banner_dien_lanh.webp",
+                    ImageAlt = "Banner điện lạnh",
+                    Url = "#section-dien-lanh",
+                    Theme = "violet"
+                }
+            ],
+            Brands = tvPanel?.Brands.Select(brand => new CategoryBrandViewModel
+            {
+                Id = Slugify(brand.Label),
+                Label = brand.Label,
+                Url = $"/catalog?cat=dien-may&brand={Uri.EscapeDataString(brand.Label.ToLowerInvariant())}"
+            }).ToList() ?? [],
+            QuickLinks =
+            [
+                new()
+                {
+                    Label = "Điện máy",
+                    Url = "/catalog?cat=dien-mays",
+                    ImageUrl = $"{HomeElectronicsBannerRoot}/banner_dien_may.webp",
+                    ImageAlt = "Điện máy"
+                },
+                new()
+                {
+                    Label = "Điện lạnh",
+                    Url = "/catalog?cat=dien-lanh",
+                    ImageUrl = $"{HomeElectronicsBannerRoot}/banner_dien_lanh.webp",
+                    ImageAlt = "Điện lạnh"
+                }
+            ],
+            HotSale = new CategoryHotSaleViewModel
+            {
+                Title = "Sản phẩm nổi bật",
+                Products = products.Take(8).Select(ToHotSaleCard).ToList()
+            },
+            Filter = new CategoryFilterViewModel
+            {
+                Title = "Chọn theo tiêu chí",
+                PrimaryItems = [],
+                SecondaryItems = [],
+                SortOptions = []
+            },
+            Products = products,
+            InitialProductCount = 10,
+            SectionTabs =
+            [
+                new() { Id = "dien-mays", Label = "Điện máy", Url = "#section-dien-mays", IsActive = true },
+                new() { Id = "dien-lanh", Label = "Điện lạnh", Url = "#section-dien-lanh" }
+            ],
+            ProductSections = sections,
+            SeoContent = new CategorySeoContentViewModel
+            {
+                Title = "Điện máy chính hãng tại TechStore",
+                Paragraphs =
+                [
+                    "Danh mục Điện máy dùng cùng cấu trúc sectioned với Đồ gia dụng, gồm banner, danh mục con, sắp xếp và danh sách sản phẩm theo từng nhóm.",
+                    "Khi chạy với database thật, tên sản phẩm, hình ảnh, thương hiệu và danh mục con được lấy từ dữ liệu hiện có; mock data chỉ giữ vai trò mô phỏng giao diện."
+                ]
+            },
+            QuestionAnswer = CreateGenericQuestionAnswer("Điện máy")
+        };
+    }
+
+    private static IReadOnlyList<CategoryProductSectionViewModel> CreateHomeElectronicsSections(
+        CategoryPageRequest request)
+    {
+        var tvPanel = TvCategorySectionFactory.Create()
+            .Tabs.FirstOrDefault(item => item.Id == "tv")?.Panel;
+        var tvProducts = ApplyMockProductSort(tvPanel?.Products ?? [], request.Sort);
+        var coldProducts = ApplyMockProductSort(CreateColdApplianceMockProducts(), request.Sort);
+
+        return
+        [
+            new()
+            {
+                Id = "section-dien-mays",
+                Title = "Điện máy",
+                Description = "Tivi và thiết bị điện máy nổi bật, trình bày theo cùng cấu trúc danh mục sectioned.",
+                ViewAllUrl = "/catalog?cat=dien-mays",
+                VisibleProductLimit = 10,
+                Banner = new CategorySectionBannerViewModel
+                {
+                    Title = "Điện máy",
+                    Subtitle = string.Empty,
+                    ImageUrl = $"{HomeElectronicsBannerRoot}/banner_dien_may.webp",
+                    ImageAlt = "Banner điện máy",
+                    IsFullWidthImage = true
+                },
+                Subcategories = tvPanel?.QuickLinks.Select((link, index) => new CategorySectionPillViewModel
+                {
+                    Label = link.Label,
+                    Url = link.Url,
+                    ImageUrl = link.ImageUrl,
+                    ImageAlt = link.Label,
+                    IsActive = index == 0
+                }).ToList() ?? [],
+                SortOptions = CreateHomeElectronicsSortOptions(request, "dien-mays"),
+                Products = tvProducts.Take(10).ToList(),
+                TotalProductCount = tvProducts.Count
+            },
+            new()
+            {
+                Id = "section-dien-lanh",
+                Title = "Điện lạnh",
+                Description = "Máy lạnh, tủ lạnh và thiết bị điện lạnh được gom thành khối riêng như Đồ gia dụng.",
+                ViewAllUrl = "/catalog?cat=dien-lanh",
+                VisibleProductLimit = 10,
+                Banner = new CategorySectionBannerViewModel
+                {
+                    Title = "Điện lạnh",
+                    Subtitle = string.Empty,
+                    ImageUrl = $"{HomeElectronicsBannerRoot}/banner_dien_lanh.webp",
+                    ImageAlt = "Banner điện lạnh",
+                    IsFullWidthImage = true
+                },
+                Subcategories =
+                [
+                    HomeElectronicsPill("dien-lanh", "Máy lạnh", "type=may-lanh", $"{ComputingImageRoot}/monitor-03.webp", true),
+                    HomeElectronicsPill("dien-lanh", "Tủ lạnh", "type=tu-lanh", $"{ComputingImageRoot}/monitor-04.webp"),
+                    HomeElectronicsPill("dien-lanh", "Tủ đông", "type=tu-dong", $"{ComputingImageRoot}/monitor-05.webp")
+                ],
+                SortOptions = CreateHomeElectronicsSortOptions(request, "dien-lanh"),
+                Products = coldProducts.Take(10).ToList(),
+                TotalProductCount = coldProducts.Count
+            }
+        ];
+    }
+
+    private static IReadOnlyList<CategorySortOptionViewModel> CreateHomeElectronicsSortOptions(
+        CategoryPageRequest request,
+        string category)
+    {
+        var activeSort = string.IsNullOrWhiteSpace(request.Sort)
+            ? "popular"
+            : request.Sort.Trim().ToLowerInvariant();
+
+        return
+        [
+            SortItem("Phổ biến", "popular", "star", activeSort, category),
+            SortItem("Khuyến mãi HOT", "promotion", "discount", activeSort, category),
+            SortItem("Giá Thấp - Cao", "price-asc", "sort-up", activeSort, category),
+            SortItem("Giá Cao - Thấp", "price-desc", "sort-down", activeSort, category)
+        ];
+    }
+
+    private static IReadOnlyList<ProductCardViewModel> ApplyMockProductSort(
+        IReadOnlyList<ProductCardViewModel> products,
+        string? sort)
+    {
+        return sort?.Trim().ToLowerInvariant() switch
+        {
+            "price-asc" => products.OrderBy(product => ParsePrice(product.CurrentPrice)).ToList(),
+            "price-desc" => products.OrderByDescending(product => ParsePrice(product.CurrentPrice)).ToList(),
+            _ => products
+        };
+    }
+
+    private static CategorySectionPillViewModel HomeElectronicsPill(
+        string category,
+        string label,
+        string query,
+        string imageUrl,
+        bool isActive = false)
+    {
+        return new CategorySectionPillViewModel
+        {
+            Label = label,
+            Url = $"/catalog?cat={category}&{query}",
+            ImageUrl = imageUrl,
+            ImageAlt = label,
+            IsActive = isActive
+        };
+    }
+
+    private static IReadOnlyList<ProductCardViewModel> CreateColdApplianceMockProducts()
+    {
+        return
+        [
+            ColdProduct("may-lanh-lg-inverter-1hp", "Máy lạnh LG Inverter 1 HP", "monitor-03.webp", "8.990.000đ", "10.990.000đ", "Giảm 18%"),
+            ColdProduct("may-lanh-daikin-1-5hp", "Máy lạnh Daikin Inverter 1.5 HP", "monitor-04.webp", "12.490.000đ", "14.990.000đ", "Giảm 17%"),
+            ColdProduct("tu-lanh-samsung-236l", "Tủ lạnh Samsung Inverter 236 lít", "monitor-05.webp", "7.990.000đ", "9.490.000đ", "Giảm 16%"),
+            ColdProduct("tu-lanh-lg-side-by-side", "Tủ lạnh LG Side by Side 635 lít", "monitor-06.webp", "22.990.000đ", "28.990.000đ", "Giảm 21%"),
+            ColdProduct("tu-dong-sanaky-280l", "Tủ đông Sanaky 280 lít", "monitor-07.webp", "6.490.000đ", "7.990.000đ", "Giảm 19%"),
+            ColdProduct("may-lanh-panasonic-2hp", "Máy lạnh Panasonic Inverter 2 HP", "monitor-08.webp", "18.990.000đ", "21.990.000đ", "Giảm 14%"),
+            ColdProduct("tu-lanh-aqua-345l", "Tủ lạnh AQUA Inverter 345 lít", "monitor-09.webp", "10.990.000đ", "13.490.000đ", "Giảm 19%"),
+            ColdProduct("tu-dong-kangaroo-290l", "Tủ đông Kangaroo 290 lít", "monitor-10.webp", "7.290.000đ", "8.990.000đ", "Giảm 19%")
+        ];
+    }
+
+    private static ProductCardViewModel ColdProduct(
+        string id,
+        string name,
+        string imageName,
+        string price,
+        string oldPrice,
+        string discount)
+    {
+        return HomeProductCardFactory.Create(
+            id,
+            name,
+            $"{ComputingImageRoot}/{imageName}",
+            price,
+            oldPrice,
+            discount,
+            "Smember giảm thêm đến 100.000đ",
+            "Hỗ trợ giao lắp theo khu vực",
+            4.8m,
+            null,
+            name);
     }
 
     private static IReadOnlyList<CategoryBrandViewModel> CreateBrands()
@@ -633,11 +883,8 @@ public sealed class MockCategoryPageViewModelFactory : ICategoryPageViewModelFac
         var slug = NormalizeCategorySlug(request.Slug);
         var title = ResolveCategoryTitle(slug);
         var panel = ResolveHomeCategoryPanel(slug);
-        var products = panel?.Products ?? ResolveFallbackProducts(slug);
-        if (string.Equals(slug, "tv", StringComparison.OrdinalIgnoreCase))
-        {
-            products = ApplyTvMockFilters(products, request.Filters);
-        }
+        var allProducts = panel?.Products ?? ResolveFallbackProducts(slug);
+        var products = ApplyMockFilters(slug, allProducts, request.Filters);
 
         var activeSort = string.IsNullOrWhiteSpace(request.Sort)
             ? "popular"
@@ -690,7 +937,7 @@ public sealed class MockCategoryPageViewModelFactory : ICategoryPageViewModelFac
                 Title = "Sản phẩm nổi bật",
                 Products = products.Take(8).Select(ToHotSaleCard).ToList()
             },
-            Filter = CreateGenericFilter(slug, activeSort, request, products.Count),
+            Filter = CreateGenericFilter(slug, activeSort, request, products.Count, allProducts),
             Products = products,
             InitialProductCount = 20,
             SeoContent = new CategorySeoContentViewModel
@@ -764,12 +1011,43 @@ public sealed class MockCategoryPageViewModelFactory : ICategoryPageViewModelFac
         string slug,
         string activeSort,
         CategoryPageRequest request,
-        int resultCount)
+        int resultCount,
+        IReadOnlyList<ProductCardViewModel> filterSourceProducts)
     {
         var activeSelectionCount = (request.Filters?.Sum(item => item.Value.Count) ?? 0)
             + (request.InStockOnly ? 1 : 0)
             + (request.NewArrivalsOnly ? 1 : 0);
         var selectedScreenSizes = GetSelectedMockFilterValues(request.Filters, "screen-size");
+        var groups = new List<CategoryFilterGroupViewModel>
+        {
+            CreateMockPriceFilterGroup(filterSourceProducts, request.Filters)
+        };
+
+        if (string.Equals(slug, "tv", StringComparison.OrdinalIgnoreCase))
+        {
+            groups.Add(CreateMockScreenSizeFilterGroup(
+                "Kích thước màn hình",
+                filterSourceProducts,
+                selectedScreenSizes,
+                ("32", "32 inch"),
+                ("43", "43 inch"),
+                ("55", "55 inch"),
+                ("60", "60 inch"),
+                ("65", "65 inch"),
+                ("75", "75 inch")));
+        }
+        else if (string.Equals(slug, "laptop", StringComparison.OrdinalIgnoreCase))
+        {
+            groups.Add(CreateMockScreenSizeFilterGroup(
+                "Kích thước màn hình",
+                filterSourceProducts,
+                selectedScreenSizes,
+                ("13", "Laptop 13 inch"),
+                ("14", "Laptop 14 inch"),
+                ("15.6", "Laptop 15.6 inch"),
+                ("16", "Laptop 16 inch")));
+            groups.Add(CreateMockChipFilterGroup(filterSourceProducts, request.Filters));
+        }
 
         return new CategoryFilterViewModel
         {
@@ -793,31 +1071,12 @@ public sealed class MockCategoryPageViewModelFactory : ICategoryPageViewModelFac
                 new()
                 {
                     Label = "Xem theo giá",
-                    Url = $"/catalog?cat={Uri.EscapeDataString(slug)}&filter=price",
+                    Url = $"/catalog?cat={Uri.EscapeDataString(slug)}",
                     Icon = "price"
                 }
             ],
             SecondaryItems = [],
-            Groups = string.Equals(slug, "tv", StringComparison.OrdinalIgnoreCase)
-                ?
-                [
-                    new CategoryFilterGroupViewModel
-                    {
-                        Key = "screen-size",
-                        Label = "Kích thước màn hình",
-                        SelectedCount = selectedScreenSizes.Count,
-                        Options =
-                        [
-                            MockScreenSizeOption("32", selectedScreenSizes),
-                            MockScreenSizeOption("43", selectedScreenSizes),
-                            MockScreenSizeOption("55", selectedScreenSizes),
-                            MockScreenSizeOption("60", selectedScreenSizes),
-                            MockScreenSizeOption("65", selectedScreenSizes),
-                            MockScreenSizeOption("75", selectedScreenSizes)
-                        ]
-                    }
-                ]
-                : [],
+            Groups = groups,
             CategorySlug = slug,
             Brand = request.Brand,
             Sort = request.Sort,
@@ -832,7 +1091,36 @@ public sealed class MockCategoryPageViewModelFactory : ICategoryPageViewModelFac
         };
     }
 
-    private static IReadOnlyList<ProductCardViewModel> ApplyTvMockFilters(
+    private static IReadOnlyList<ProductCardViewModel> ApplyMockFilters(
+        string slug,
+        IReadOnlyList<ProductCardViewModel> products,
+        IReadOnlyDictionary<string, IReadOnlyList<string>>? filters)
+    {
+        var filtered = products;
+        var selectedPrices = GetSelectedMockFilterValues(filters, "price");
+
+        if (selectedPrices.Count > 0)
+        {
+            filtered = filtered
+                .Where(product => selectedPrices.Any(value =>
+                    MatchesMockPrice(ParsePrice(product.CurrentPrice), value)))
+                .ToList();
+        }
+
+        if (string.Equals(slug, "tv", StringComparison.OrdinalIgnoreCase))
+        {
+            filtered = ApplyScreenSizeMockFilters(filtered, filters);
+        }
+        else if (string.Equals(slug, "laptop", StringComparison.OrdinalIgnoreCase))
+        {
+            filtered = ApplyScreenSizeMockFilters(filtered, filters);
+            filtered = ApplyLaptopChipMockFilters(filtered, filters);
+        }
+
+        return filtered;
+    }
+
+    private static IReadOnlyList<ProductCardViewModel> ApplyScreenSizeMockFilters(
         IReadOnlyList<ProductCardViewModel> products,
         IReadOnlyDictionary<string, IReadOnlyList<string>>? filters)
     {
@@ -848,6 +1136,22 @@ public sealed class MockCategoryPageViewModelFactory : ICategoryPageViewModelFac
             .ToList();
     }
 
+    private static IReadOnlyList<ProductCardViewModel> ApplyLaptopChipMockFilters(
+        IReadOnlyList<ProductCardViewModel> products,
+        IReadOnlyDictionary<string, IReadOnlyList<string>>? filters)
+    {
+        var selectedChips = GetSelectedMockFilterValues(filters, "chip");
+        if (selectedChips.Count == 0)
+        {
+            return products;
+        }
+
+        return products
+            .Where(product => selectedChips.Any(chip =>
+                ProductMatchesMockChip(product, chip)))
+            .ToList();
+    }
+
     private static HashSet<string> GetSelectedMockFilterValues(
         IReadOnlyDictionary<string, IReadOnlyList<string>>? filters,
         string key)
@@ -857,25 +1161,179 @@ public sealed class MockCategoryPageViewModelFactory : ICategoryPageViewModelFac
             : new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     }
 
+    private static CategoryFilterGroupViewModel CreateMockScreenSizeFilterGroup(
+        string label,
+        IReadOnlyList<ProductCardViewModel> filterSourceProducts,
+        IReadOnlySet<string> selectedValues,
+        params (string Value, string Label)[] options)
+    {
+        return new CategoryFilterGroupViewModel
+        {
+            Key = "screen-size",
+            Label = label,
+            SelectedCount = selectedValues.Count,
+            Options = options
+                .Select(option => MockScreenSizeOption(
+                    option.Value,
+                    option.Label,
+                    selectedValues,
+                    filterSourceProducts))
+                .ToList()
+        };
+    }
+
     private static CategoryFilterOptionViewModel MockScreenSizeOption(
         string value,
-        IReadOnlySet<string> selectedValues)
+        string label,
+        IReadOnlySet<string> selectedValues,
+        IReadOnlyList<ProductCardViewModel> filterSourceProducts)
     {
+        var isSelected = selectedValues.Contains(value);
         return new CategoryFilterOptionViewModel
         {
             Value = value,
-            Label = $"{value} inch",
-            IsSelected = selectedValues.Contains(value),
-            IsAvailable = true
+            Label = label,
+            IsSelected = isSelected,
+            IsAvailable = isSelected || filterSourceProducts.Any(product =>
+                ProductMatchesMockScreenSize(product, value))
+        };
+    }
+
+    private static CategoryFilterGroupViewModel CreateMockChipFilterGroup(
+        IReadOnlyList<ProductCardViewModel> filterSourceProducts,
+        IReadOnlyDictionary<string, IReadOnlyList<string>>? filters)
+    {
+        var selectedValues = GetSelectedMockFilterValues(filters, "chip");
+        var options = new (string Value, string Label)[]
+        {
+            ("laptop-core-i3", "Laptop Core i3"),
+            ("laptop-core-i5", "Laptop Core i5"),
+            ("laptop-core-i7", "Laptop Core i7"),
+            ("laptop-core-i9", "Laptop Core i9"),
+            ("intel-core-ultra", "Intel Core Ultra"),
+            ("apple-m1-series", "Apple M1 Series"),
+            ("apple-m2-series", "Apple M2 Series"),
+            ("apple-m3-series", "Apple M3 Series"),
+            ("apple-m4-series", "Apple M4 Series"),
+            ("apple-m5-series", "Apple M5 Series"),
+            ("amd-ryzen", "AMD Ryzen")
+        };
+
+        return new CategoryFilterGroupViewModel
+        {
+            Key = "chip",
+            Label = "Dòng chip",
+            SelectedCount = selectedValues.Count,
+            Options = options.Select(option =>
+            {
+                var isSelected = selectedValues.Contains(option.Value);
+                return new CategoryFilterOptionViewModel
+                {
+                    Value = option.Value,
+                    Label = option.Label,
+                    IsSelected = isSelected,
+                    IsAvailable = isSelected || filterSourceProducts.Any(product =>
+                        ProductMatchesMockChip(product, option.Value))
+                };
+            }).ToList()
+        };
+    }
+
+    private static CategoryFilterGroupViewModel CreateMockPriceFilterGroup(
+        IReadOnlyList<ProductCardViewModel> products,
+        IReadOnlyDictionary<string, IReadOnlyList<string>>? filters)
+    {
+        var selectedValues = GetSelectedMockFilterValues(filters, "price");
+        var options = new (string Value, string Label)[]
+        {
+            ("under-1m", "Dưới 1 triệu"),
+            ("1m-3m", "Từ 1 - 3 triệu"),
+            ("3m-5m", "Từ 3 - 5 triệu"),
+            ("5m-10m", "Từ 5 - 10 triệu"),
+            ("10m-20m", "Từ 10 - 20 triệu"),
+            ("20m-30m", "Từ 20 - 30 triệu"),
+            ("over-30m", "Trên 30 triệu")
+        };
+
+        return new CategoryFilterGroupViewModel
+        {
+            Key = "price",
+            Label = "Xem theo giá",
+            Icon = "price",
+            SelectedCount = selectedValues.Count,
+            Options = options.Select(option => new CategoryFilterOptionViewModel
+            {
+                Value = option.Value,
+                Label = option.Label,
+                IsSelected = selectedValues.Contains(option.Value),
+                IsAvailable = selectedValues.Contains(option.Value)
+                    || products.Any(product => MatchesMockPrice(ParsePrice(product.CurrentPrice), option.Value))
+            }).ToList()
+        };
+    }
+
+    private static bool MatchesMockPrice(decimal price, string option)
+    {
+        return option.Trim().ToLowerInvariant() switch
+        {
+            "under-1m" => price < 1_000_000m,
+            "1m-3m" => price >= 1_000_000m && price < 3_000_000m,
+            "3m-5m" => price >= 3_000_000m && price < 5_000_000m,
+            "5m-10m" => price >= 5_000_000m && price < 10_000_000m,
+            "under-10" or "under-10m" => price < 10_000_000m,
+            "10-20" or "10m-20m" => price >= 10_000_000m && price < 20_000_000m,
+            "20-30" or "20m-30m" => price >= 20_000_000m && price < 30_000_000m,
+            "over-10m" => price >= 10_000_000m,
+            "over-20m" => price >= 20_000_000m,
+            "over-30" or "over-30m" => price >= 30_000_000m,
+            _ => true
         };
     }
 
     private static bool ProductMatchesMockScreenSize(ProductCardViewModel product, string size)
     {
-        var sizeText = $"{size} inch";
-        return product.Name.Contains(sizeText, StringComparison.OrdinalIgnoreCase)
-            || product.Specifications.Any(specification =>
-                specification.Contains(sizeText, StringComparison.OrdinalIgnoreCase));
+        var text = BuildMockProductText(product);
+        var normalizedSize = size.Replace(',', '.');
+        var commaSize = normalizedSize.Replace('.', ',');
+
+        return text.Contains($"{normalizedSize} inch", StringComparison.OrdinalIgnoreCase)
+            || text.Contains($"{commaSize} inch", StringComparison.OrdinalIgnoreCase)
+            || text.Contains($"{normalizedSize}\"", StringComparison.OrdinalIgnoreCase)
+            || text.Contains($"{commaSize}\"", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool ProductMatchesMockChip(ProductCardViewModel product, string chip)
+    {
+        var text = BuildMockProductText(product);
+        var tokens = chip
+            .Replace('-', ' ')
+            .Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Where(token => token is not "laptop"
+                and not "series"
+                and not "apple"
+                and not "intel"
+                and not "amd")
+            .ToArray();
+
+        if (tokens.Length == 0)
+        {
+            return false;
+        }
+
+        var appleChip = tokens.FirstOrDefault(token => token is "m1" or "m2" or "m3" or "m4" or "m5");
+        if (!string.IsNullOrWhiteSpace(appleChip))
+        {
+            return text.Contains(appleChip, StringComparison.OrdinalIgnoreCase)
+                && (text.Contains("apple", StringComparison.OrdinalIgnoreCase)
+                    || text.Contains("macbook", StringComparison.OrdinalIgnoreCase));
+        }
+
+        return tokens.All(token => text.Contains(token, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string BuildMockProductText(ProductCardViewModel product)
+    {
+        return string.Join(' ', product.Name, string.Join(' ', product.Specifications));
     }
 
     private static QuestionAnswerSectionViewModel CreateGenericQuestionAnswer(string categoryTitle)
@@ -912,6 +1370,7 @@ public sealed class MockCategoryPageViewModelFactory : ICategoryPageViewModelFac
         {
             "mobile" => "phone",
             "am-thanh" or "thiet-bi-am-thanh" or "speaker" or "microphone" => "audio",
+            "home-electronics" => "dien-may",
             "pc" => "desktop",
             "watch" => "smartwatch",
             _ => slug.Trim().ToLowerInvariant()
@@ -934,7 +1393,7 @@ public sealed class MockCategoryPageViewModelFactory : ICategoryPageViewModelFac
             "beauty" => "Thiết bị làm đẹp",
             "health" => "Thiết bị chăm sóc sức khỏe",
             "tv" => "Tivi",
-            "home-electronics" => "Điện máy",
+            "home-electronics" or "dien-may" => "Điện máy",
             "entertainment" => "Thiết bị giải trí",
             "printer" => "Máy in và thiết bị văn phòng",
             "used" => "Hàng cũ",

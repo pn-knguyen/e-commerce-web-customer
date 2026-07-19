@@ -21,6 +21,8 @@ public sealed class MockSiteCategoryMenuProvider : ISiteCategoryMenuProvider
                 MockSiteCategoryMegaMenuData.Appliances),
             Item("site-cat-accessories", "/catalog?cat=accessories", "Phụ kiện", "cable",
                 MockSiteCategoryMegaMenuData.Accessories),
+            Item("site-cat-computer-accessories", "/catalog?cat=computer-accessories", "Phụ kiện máy tính", "cable",
+                MockSiteCategoryMegaMenuData.ComputerAccessories),
             Item("site-cat-pc", "/catalog?cat=pc", "PC, Màn hình, Máy in", "desktop",
                 MockSiteCategoryMegaMenuData.Pc,
                 categoryLinks:
