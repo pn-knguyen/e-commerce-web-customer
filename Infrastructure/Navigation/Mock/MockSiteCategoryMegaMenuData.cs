@@ -222,14 +222,36 @@ internal static class MockSiteCategoryMegaMenuData
 
     public static IReadOnlyList<SiteCategoryMenuGroupViewModel> Tv { get; } =
     [
-        Group("Tivi", "/catalog?cat=tv&type=",
-            "Smart Tivi", "Google Tivi", "Tivi OLED", "Tivi Mini LED", "Tivi 4K"),
-        Group("Thương hiệu Tivi", "/catalog?cat=tv&brand=",
-            "Samsung", "LG", "Sony", "TCL", "Xiaomi", "Hisense"),
-        Group("Điện lạnh", "/catalog?cat=home-electronics&type=",
-            "Máy lạnh", "Tủ lạnh", "Máy giặt", "Máy sấy", "Tủ đông"),
-        Group("Thiết bị giải trí", "/catalog?cat=entertainment&type=",
-            "Android TV Box", "Máy chiếu", "Loa thanh", "Điều khiển Tivi")
+        WithGroupClass(
+            Group("Tivi", "/catalog?cat=tv&type=",
+                "Smart Tivi", "Google Tivi", "Tivi OLED", "Tivi Mini LED", "Tivi 4K"),
+            "site-category-mega-group--electronics site-category-mega-group--electronics-tv"),
+        WithGroupClass(
+            Group("Điện lạnh", "/catalog?cat=home-electronics&type=",
+                "Máy lạnh", "Tủ lạnh", "Máy giặt", "Máy sấy", "Tủ đông"),
+            "site-category-mega-group--electronics site-category-mega-group--electronics-cooling"),
+        WithGroupClass(
+            Group("Thiết bị giải trí", "/catalog?cat=entertainment&type=",
+                "Android TV Box", "Máy chiếu", "Loa thanh", "Điều khiển Tivi"),
+            "site-category-mega-group--electronics site-category-mega-group--electronics-entertainment"),
+        WithGroupClass(
+            Group("Thương hiệu Tivi", "/catalog?cat=tv&brand=",
+                "Samsung", "LG", "Sony", "TCL", "Xiaomi", "Hisense"),
+            "site-category-mega-group--electronics site-category-mega-group--electronics-brands"),
+        WithGroupClass(
+            FilterGroup("Mức giá Tivi", "tv", "price",
+                ("Dưới 5 triệu", "under-5m"),
+                ("Từ 5 - 10 triệu", "5m-10m"),
+                ("Từ 10 - 20 triệu", "10m-20m"),
+                ("Trên 20 triệu", "over-20m")),
+            "site-category-mega-group--electronics site-category-mega-group--electronics-price"),
+        WithGroupClass(
+            FilterGroup("Mức giá điện máy", "home-electronics", "price",
+                ("Dưới 5 triệu", "under-5m"),
+                ("Từ 5 - 10 triệu", "5m-10m"),
+                ("Từ 10 - 20 triệu", "10m-20m"),
+                ("Trên 20 triệu", "over-20m")),
+            "site-category-mega-group--electronics site-category-mega-group--electronics-price")
     ];
 
     public static IReadOnlyList<SiteCategoryMenuGroupViewModel> TradeIn { get; } =

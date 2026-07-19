@@ -13,7 +13,7 @@ public sealed class DbSiteCategoryMenuProvider(
     StorefrontDbQueryGate dbQueryGate,
     EcommerceDbContext dbContext) : ISiteCategoryMenuProvider
 {
-    private const string CacheKey = "site-category-menu-v3";
+    private const string CacheKey = "site-category-menu-v5";
 
     public async Task<SiteCategoryMenuViewModel> GetMenuAsync(
         CancellationToken cancellationToken = default)
