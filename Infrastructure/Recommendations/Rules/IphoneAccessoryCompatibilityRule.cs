@@ -166,6 +166,16 @@ public sealed class IphoneAccessoryCompatibilityRule : ICompatibilityRule
                 Name);
         }
 
+        if (searchableText.Contains("airtag", StringComparison.Ordinal))
+        {
+            return new RecommendationCandidate(
+                accessory,
+                variant,
+                "Theo doi do dung qua Find My tren iPhone",
+                500,
+                Name);
+        }
+
         return null;
     }
 

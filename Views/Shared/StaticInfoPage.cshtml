@@ -1,0 +1,39 @@
+@model StaticInfoPageViewModel
+
+@{
+    ViewData["Title"] = Model.Title;
+}
+
+<section class="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6 lg:px-8">
+    <nav class="mb-6 text-sm font-medium text-slate-500" aria-label="Duong dan">
+        <a class="text-red-600 hover:text-red-700" href="/">Trang chu</a>
+        <span class="mx-2 text-slate-300">/</span>
+        <span>@Model.Title</span>
+    </nav>
+
+    <div class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-200 sm:p-8">
+        <p class="mb-3 text-sm font-bold uppercase tracking-wide text-red-600">@Model.Eyebrow</p>
+        <h1 class="text-3xl font-extrabold text-slate-950 sm:text-4xl">@Model.Title</h1>
+        <p class="mt-4 max-w-3xl text-base leading-7 text-slate-600">@Model.Description</p>
+
+        <div class="mt-8 grid gap-3 sm:grid-cols-3">
+            @foreach (var item in Model.Highlights)
+            {
+                <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm font-semibold leading-6 text-slate-800">
+                    @item
+                </div>
+            }
+        </div>
+
+        <div class="mt-8 flex flex-wrap gap-3">
+            <a class="inline-flex items-center justify-center rounded-xl bg-red-600 px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-red-700"
+               href="@Model.PrimaryActionUrl">
+                @Model.PrimaryActionLabel
+            </a>
+            <a class="inline-flex items-center justify-center rounded-xl border border-slate-300 px-5 py-3 text-sm font-bold text-slate-900 transition hover:border-red-200 hover:bg-red-50 hover:text-red-700"
+               href="/catalog">
+                Xem san pham
+            </a>
+        </div>
+    </div>
+</section>

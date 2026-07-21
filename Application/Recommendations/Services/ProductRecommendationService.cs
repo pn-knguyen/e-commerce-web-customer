@@ -21,6 +21,7 @@ public sealed class ProductRecommendationService(
             var recommendations = await provider.GetRecommendationsAsync(
                 request,
                 cancellationToken);
+            var addedFromProvider = false;
 
             foreach (var recommendation in recommendations)
             {
@@ -30,10 +31,16 @@ public sealed class ProductRecommendationService(
                 }
 
                 results.Add(recommendation);
+                addedFromProvider = true;
                 if (results.Count >= limit)
                 {
                     return results;
                 }
+            }
+
+            if (addedFromProvider)
+            {
+                return results;
             }
         }
 

@@ -3,7 +3,6 @@ using e_commerce_web_customer.Data;
 using e_commerce_web_customer.Infrastructure.Caching;
 using e_commerce_web_customer.Infrastructure.Home.Content;
 using e_commerce_web_customer.Models.Entities;
-using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using e_commerce_web_customer.ViewModels.Home;
 using e_commerce_web_customer.ViewModels.Shared;
@@ -65,16 +64,52 @@ public sealed class DbHomePageDataService(
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        var categoryCacheToken = await GetCategoryCacheTokenAsync(cancellationToken);
+        try
+        {
+            var categoryCacheToken = await GetCategoryCacheTokenAsync(cancellationToken);
 
-        return await cache.GetOrCreateExclusiveAsync(
-            $"home-page-v5:{categoryCacheToken}",
-            () => CreateHomePageUncachedAsync(categoryMenu, CancellationToken.None),
-            new MemoryCacheEntryOptions
+            return await cache.GetOrCreateExclusiveAsync(
+                $"home-page-v5:{categoryCacheToken}",
+                () => CreateHomePageUncachedAsync(categoryMenu, CancellationToken.None),
+                new MemoryCacheEntryOptions
+                {
+                    AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10),
+                    SlidingExpiration = TimeSpan.FromMinutes(5)
+                });
+        }
+        catch (Exception exception) when (StorefrontDbExceptionDetector.IsTransient(exception))
+        {
+            logger.LogWarning(
+                exception,
+                "Returning a lightweight homepage after a transient database failure during cache warm-up.");
+            return CreateTransientFallbackHomePage(categoryMenu);
+        }
+    }
+
+    private static HomeIndexViewModel CreateTransientFallbackHomePage(
+        SiteCategoryMenuViewModel categoryMenu)
+    {
+        return new HomeIndexViewModel
+        {
+            Hero = HomeHeroViewModelFactory.Create(categoryMenu.Items),
+            FeaturedCategorySections = [],
+            AccessoryDirectory = new CategoryDirectoryViewModel
             {
-                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(10),
-                SlidingExpiration = TimeSpan.FromMinutes(5)
-            });
+                Id = "db-accessory-directory",
+                Title = HomeAccessoryDirectoryContent.Title,
+                ViewAllUrl = BuildCatalogUrl("phu-kien"),
+                Items = []
+            },
+            AdditionalCategorySections = [],
+            ApplianceShowcase = new HomeApplianceShowcaseViewModel
+            {
+                Id = HomeApplianceShowcaseContent.Id,
+                Title = HomeApplianceShowcaseContent.Title,
+                ViewAllUrl = BuildCatalogUrl(HomeApplianceShowcaseContent.RootCategorySlug),
+                HeaderLinks = [],
+                Columns = []
+            }
+        };
     }
 
     private async Task<HomeIndexViewModel> CreateHomePageUncachedAsync(
@@ -656,8 +691,7 @@ public sealed class DbHomePageDataService(
 
     private static bool ContainsSqlTimeout(Exception exception)
     {
-        return exception is SqlException { Number: -2 }
-            || exception.InnerException is not null && ContainsSqlTimeout(exception.InnerException);
+        return StorefrontDbExceptionDetector.IsTransient(exception);
     }
 
     private static IReadOnlyList<CategoryQuickLinkViewModel> BuildCategoryQuickLinks(
