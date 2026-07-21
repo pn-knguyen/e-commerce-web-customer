@@ -2,7 +2,6 @@ using System.Globalization;
 using e_commerce_web_customer.Application.Recommendations.Abstractions;
 using e_commerce_web_customer.Application.Recommendations.Models;
 using e_commerce_web_customer.Data;
-using e_commerce_web_customer.Infrastructure.Recommendations.Rules;
 using e_commerce_web_customer.Models.Entities;
 using Microsoft.EntityFrameworkCore;
 
@@ -18,11 +17,6 @@ public sealed class CompatibilityFallbackRecommendationProvider(
 
     public bool CanHandle(ProductRecommendationRequest request)
     {
-        if (RequiresAprioriEvidence(request))
-        {
-            return false;
-        }
-
         return request.Surface == RecommendationSurface.ProductDetailAccessoryUpsell
             && compatibilityRules.Any(rule => rule.CanHandle(request));
     }
@@ -148,15 +142,6 @@ public sealed class CompatibilityFallbackRecommendationProvider(
         }
 
         return Math.Min(limit, 24);
-    }
-
-    private static bool RequiresAprioriEvidence(ProductRecommendationRequest request)
-    {
-        var productText = RecommendationTextNormalizer.Normalize(
-            $"{request.ProductName} {request.ProductSlug}");
-
-        return productText.Contains("iphone", StringComparison.Ordinal)
-            || productText.Contains("ipad", StringComparison.Ordinal);
     }
 
     private static string BuildVariantDetailUrl(Product product, ProductVariant variant)

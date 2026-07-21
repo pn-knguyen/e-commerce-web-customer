@@ -18,6 +18,7 @@ public sealed class AprioriOrderRecommendationProvider(
     private const string FallbackImageUrl = "/images/logo-techstore-icon.svg";
     private const string SourceName = "apriori-order";
     private const int MaxTrainingOrders = 500;
+    private const int MaxSourceTrainingOrders = 1000;
 
     public int Priority => 200;
 
@@ -31,6 +32,8 @@ public sealed class AprioriOrderRecommendationProvider(
         ProductRecommendationRequest request,
         CancellationToken cancellationToken = default)
     {
+        var limit = NormalizeLimit(request.Limit);
+        var ruleLimit = limit * 4;
         var transactions = await LoadOrderTransactionsAsync(cancellationToken);
         if (transactions.Count == 0)
         {
@@ -41,8 +44,26 @@ public sealed class AprioriOrderRecommendationProvider(
         var rules = algorithm
             .GenerateRules(transactions)
             .Where(rule => rule.SourceSlug.Equals(request.ProductSlug, StringComparison.OrdinalIgnoreCase))
-            .Take(NormalizeLimit(request.Limit) * 4)
+            .Take(ruleLimit)
             .ToList();
+
+        AddSourceScopedRules(
+            rules,
+            transactions,
+            request.ProductSlug,
+            ruleLimit);
+
+        if (rules.Count < ruleLimit)
+        {
+            var sourceTransactions = await LoadSourceOrderTransactionsAsync(
+                request.ProductSlug,
+                cancellationToken);
+            AddSourceScopedRules(
+                rules,
+                sourceTransactions,
+                request.ProductSlug,
+                ruleLimit);
+        }
 
         if (rules.Count == 0)
         {
@@ -105,7 +126,7 @@ public sealed class AprioriOrderRecommendationProvider(
             }
 
             recommendations.Add(item);
-            if (recommendations.Count >= NormalizeLimit(request.Limit))
+            if (recommendations.Count >= limit)
             {
                 break;
             }
@@ -127,15 +148,58 @@ public sealed class AprioriOrderRecommendationProvider(
             .Take(MaxTrainingOrders)
             .ToListAsync(cancellationToken);
 
-        if (recentOrderIds.Count == 0)
+        return await LoadTransactionsByOrderIdsAsync(
+            recentOrderIds,
+            cancellationToken);
+    }
+
+    private async Task<IReadOnlyList<HashSet<string>>> LoadSourceOrderTransactionsAsync(
+        string productSlug,
+        CancellationToken cancellationToken)
+    {
+        var sourceOrderRows = await dbContext.OrderItems
+            .AsNoTracking()
+            .Where(item =>
+                item.Order != null
+                && item.Order.OrderStatus != OrderStatus.Cancelled
+                && item.Order.OrderStatus != OrderStatus.Returned
+                && item.ProductVariant != null
+                && item.ProductVariant.Product != null
+                && item.ProductVariant.Product.Slug == productSlug)
+            .Select(item => new
+            {
+                item.OrderId,
+                item.Order!.CreatedAt
+            })
+            .ToListAsync(cancellationToken);
+
+        var sourceOrderIds = sourceOrderRows
+            .GroupBy(row => row.OrderId)
+            .OrderByDescending(group => group.Max(row => row.CreatedAt))
+            .Take(MaxSourceTrainingOrders)
+            .Select(group => group.Key)
+            .ToList();
+
+        return await LoadTransactionsByOrderIdsAsync(
+            sourceOrderIds,
+            cancellationToken);
+    }
+
+    private async Task<IReadOnlyList<HashSet<string>>> LoadTransactionsByOrderIdsAsync(
+        IReadOnlyCollection<long> orderIds,
+        CancellationToken cancellationToken)
+    {
+        if (orderIds.Count == 0)
         {
             return [];
         }
 
+        var orderIdSet = orderIds.ToHashSet();
+
         var rows = await dbContext.OrderItems
             .AsNoTracking()
             .Where(item =>
-                recentOrderIds.Contains(item.OrderId)
+                orderIdSet.Contains(item.OrderId)
                 && item.ProductVariant != null
                 && item.ProductVariant.Product != null
                 && item.ProductVariant.Product.IsActive)
@@ -153,6 +217,75 @@ public sealed class AprioriOrderRecommendationProvider(
                 .Select(row => row.ProductSlug)
                 .ToHashSet(StringComparer.OrdinalIgnoreCase))
             .Where(transaction => transaction.Count >= 2)
+            .ToList();
+    }
+
+    private static void AddSourceScopedRules(
+        List<ProductAssociationRule> rules,
+        IReadOnlyList<HashSet<string>> transactions,
+        string sourceSlug,
+        int limit)
+    {
+        if (rules.Count >= limit || transactions.Count == 0)
+        {
+            return;
+        }
+
+        var existingTargets = rules
+            .Select(rule => rule.TargetSlug)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var rule in BuildSourceScopedRules(transactions, sourceSlug))
+        {
+            if (!existingTargets.Add(rule.TargetSlug))
+            {
+                continue;
+            }
+
+            rules.Add(rule);
+            if (rules.Count >= limit)
+            {
+                break;
+            }
+        }
+    }
+
+    private static IReadOnlyList<ProductAssociationRule> BuildSourceScopedRules(
+        IReadOnlyList<HashSet<string>> transactions,
+        string sourceSlug)
+    {
+        var sourceTransactions = transactions
+            .Where(transaction => transaction.Contains(sourceSlug))
+            .ToList();
+        if (sourceTransactions.Count == 0)
+        {
+            return [];
+        }
+
+        var targetCounts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        foreach (var transaction in sourceTransactions)
+        {
+            foreach (var targetSlug in transaction)
+            {
+                if (targetSlug.Equals(sourceSlug, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                targetCounts[targetSlug] = targetCounts.GetValueOrDefault(targetSlug) + 1;
+            }
+        }
+
+        return targetCounts
+            .OrderByDescending(item => item.Value)
+            .ThenBy(item => item.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(item => new ProductAssociationRule
+            {
+                SourceSlug = sourceSlug,
+                TargetSlug = item.Key,
+                Confidence = (double)item.Value / sourceTransactions.Count,
+                Support = (double)item.Value / transactions.Count
+            })
             .ToList();
     }
 

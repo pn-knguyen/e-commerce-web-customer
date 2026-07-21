@@ -24,46 +24,52 @@ public sealed class DbAccountAddressService(EcommerceDbContext dbContext) : IAcc
             return new(false, "Thông tin địa chỉ chưa đầy đủ.");
         }
 
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
-        var now = DateTime.UtcNow;
-        var existingAddresses = await dbContext.UserAddresses
-            .Where(address => address.UserId == user.Id && !address.IsDeleted)
-            .ToListAsync(cancellationToken);
-        var shouldBeDefault = input.IsDefault || existingAddresses.Count == 0;
-
-        if (shouldBeDefault)
+        var strategy = dbContext.Database.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync(async () =>
         {
-            foreach (var address in existingAddresses.Where(address => address.IsDefault))
+            await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+            var now = DateTime.UtcNow;
+            var existingAddresses = await dbContext.UserAddresses
+                .Where(address => address.UserId == user.Id && !address.IsDeleted)
+                .ToListAsync(cancellationToken);
+            var shouldBeDefault = input.IsDefault || existingAddresses.Count == 0;
+
+            if (shouldBeDefault)
             {
-                address.IsDefault = false;
-                address.UpdatedAt = now;
+                foreach (var address in existingAddresses.Where(address => address.IsDefault))
+                {
+                    address.IsDefault = false;
+                    address.UpdatedAt = now;
+                }
             }
-        }
 
-        dbContext.UserAddresses.Add(new UserAddress
-        {
-            UserId = user.Id,
-            ContactName = input.ContactName.Trim(),
-            Phone = input.Phone.Trim(),
-            ProvinceCode = input.ProvinceCode.Trim(),
-            ProvinceName = input.ProvinceName.Trim(),
-            DistrictCode = TrimOrNull(input.DistrictCode),
-            DistrictName = TrimOrNull(input.DistrictName),
-            WardCode = input.WardCode.Trim(),
-            WardName = input.WardName.Trim(),
-            DetailAddress = input.DetailAddress.Trim(),
-            FormattedAddress = BuildFormattedAddress(input),
-            Type = AddressType.Shipping,
-            IsDefault = shouldBeDefault,
-            CreatedAt = now
+            dbContext.UserAddresses.Add(new UserAddress
+            {
+                UserId = user.Id,
+                ContactName = input.ContactName.Trim(),
+                Phone = input.Phone.Trim(),
+                ProvinceCode = input.ProvinceCode.Trim(),
+                ProvinceName = input.ProvinceName.Trim(),
+                DistrictCode = TrimOrNull(input.DistrictCode),
+                DistrictName = TrimOrNull(input.DistrictName),
+                WardCode = input.WardCode.Trim(),
+                WardName = input.WardName.Trim(),
+                DetailAddress = input.DetailAddress.Trim(),
+                FormattedAddress = BuildFormattedAddress(input),
+                Type = AddressType.Shipping,
+                IsDefault = shouldBeDefault,
+                CreatedAt = now
+            });
+
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+
+            return new AccountAddressOperationResult(
+                true,
+                shouldBeDefault
+                    ? "Đã thêm địa chỉ và đặt làm mặc định."
+                    : "Đã thêm địa chỉ mới.");
         });
-
-        await dbContext.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
-
-        return new(true, shouldBeDefault
-            ? "Đã thêm địa chỉ và đặt làm mặc định."
-            : "Đã thêm địa chỉ mới.");
     }
 
     public async Task<AccountAddressOperationResult> SetDefaultAddressAsync(
@@ -77,27 +83,33 @@ public sealed class DbAccountAddressService(EcommerceDbContext dbContext) : IAcc
             return new(false, "Không tìm thấy tài khoản để cập nhật địa chỉ.");
         }
 
-        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
-        var addresses = await dbContext.UserAddresses
-            .Where(address => address.UserId == user.Id && !address.IsDeleted)
-            .ToListAsync(cancellationToken);
-        var selectedAddress = addresses.FirstOrDefault(address => address.Id == addressId);
-        if (selectedAddress is null)
+        var strategy = dbContext.Database.CreateExecutionStrategy();
+        return await strategy.ExecuteAsync(async () =>
         {
-            return new(false, "Địa chỉ không tồn tại hoặc không thuộc tài khoản này.");
-        }
+            await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+            var addresses = await dbContext.UserAddresses
+                .Where(address => address.UserId == user.Id && !address.IsDeleted)
+                .ToListAsync(cancellationToken);
+            var selectedAddress = addresses.FirstOrDefault(address => address.Id == addressId);
+            if (selectedAddress is null)
+            {
+                return new AccountAddressOperationResult(
+                    false,
+                    "Địa chỉ không tồn tại hoặc không thuộc tài khoản này.");
+            }
 
-        var now = DateTime.UtcNow;
-        foreach (var address in addresses)
-        {
-            address.IsDefault = address.Id == selectedAddress.Id;
-            address.UpdatedAt = now;
-        }
+            var now = DateTime.UtcNow;
+            foreach (var address in addresses)
+            {
+                address.IsDefault = address.Id == selectedAddress.Id;
+                address.UpdatedAt = now;
+            }
 
-        await dbContext.SaveChangesAsync(cancellationToken);
-        await transaction.CommitAsync(cancellationToken);
+            await dbContext.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
 
-        return new(true, "Đã đặt địa chỉ mặc định.");
+            return new AccountAddressOperationResult(true, "Đã đặt địa chỉ mặc định.");
+        });
     }
 
     public async Task<AccountAddressSnapshot?> GetDefaultAddressAsync(

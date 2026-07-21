@@ -82,9 +82,13 @@ public static class StorefrontServiceCollectionExtensions
         services.AddSingleton<IOrderReviewService, MockOrderReviewService>();
         services.AddSingleton<ICartDemoDataProvider, MockCartDemoDataProvider>();
         services.AddSingleton<ICartPersistenceService, NoOpCartPersistenceService>();
+        services.AddSingleton<ICartAccessoryRecommendationService, NoOpCartAccessoryRecommendationService>();
         services.AddSingleton<ICheckoutPaymentMethodProvider, MockCheckoutPaymentMethodProvider>();
         services.AddSingleton<ICheckoutVoucherService, NoOpCheckoutVoucherService>();
         services.AddSingleton<IOrderService, MockOrderService>();
+        services.AddSingleton<ISePayPaymentService, NoOpSePayPaymentService>();
+        services.AddSingleton<ISePayWebhookService, NoOpSePayWebhookService>();
+        services.AddSingleton<IAiService, MockAiService>();
         services.AddScoped<IAccountService, MockAccountService>();
         services.AddScoped<ICartItemValidator, MockCartItemValidator>();
         services.AddScoped<ICustomerMessageCustomerService, MockCustomerMessageCustomerService>();
@@ -107,10 +111,14 @@ public static class StorefrontServiceCollectionExtensions
         services.AddPooledDbContextFactory<EcommerceDbContext>(options =>
             options.UseSqlServer(
                 connectionString,
-                sqlServerOptions => sqlServerOptions.EnableRetryOnFailure(
-                    maxRetryCount: 2,
-                    maxRetryDelay: TimeSpan.FromSeconds(1),
-                    errorNumbersToAdd: null)),
+                sqlServerOptions =>
+                {
+                    sqlServerOptions.CommandTimeout(60);
+                    sqlServerOptions.EnableRetryOnFailure(
+                        maxRetryCount: 4,
+                        maxRetryDelay: TimeSpan.FromSeconds(3),
+                        errorNumbersToAdd: null);
+                }),
             poolSize: 128);
         services.AddScoped(serviceProvider =>
             serviceProvider

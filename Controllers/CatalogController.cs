@@ -139,9 +139,13 @@ public sealed class CatalogController(ICategoryPageViewModelFactory categoryPage
     {
         return Request.Query
             .Where(item => item.Key.StartsWith("f_", StringComparison.OrdinalIgnoreCase))
-            .ToDictionary(
+            .GroupBy(
                 item => item.Key[2..].Trim().ToLowerInvariant(),
-                item => (IReadOnlyList<string>)item.Value
+                StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                group => group.Key,
+                group => (IReadOnlyList<string>)group
+                    .SelectMany(item => item.Value)
                     .Where(value => !string.IsNullOrWhiteSpace(value))
                     .Select(value => value!.Trim().ToLowerInvariant())
                     .Distinct(StringComparer.OrdinalIgnoreCase)

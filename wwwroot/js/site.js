@@ -93,6 +93,33 @@
   window.addEventListener('pageshow', scheduleCartRefresh);
 
   // ============================================================
+  // IMAGE FALLBACK
+  // ============================================================
+  const fallbackImageUrl = '/images/logo-techstore-icon.svg';
+
+  document.addEventListener('error', (event) => {
+    const image = event.target instanceof HTMLImageElement
+      ? event.target
+      : null;
+
+    if (!image || image.dataset.fallbackApplied === 'true') {
+      return;
+    }
+
+    const currentSource = image.getAttribute('src') || '';
+    if (currentSource.includes('logo-techstore-icon.svg')) {
+      return;
+    }
+
+    image.dataset.fallbackApplied = 'true';
+    image.src = image.dataset.fallbackSrc || fallbackImageUrl;
+
+    if (!image.getAttribute('alt')) {
+      image.alt = 'TechStore';
+    }
+  }, true);
+
+  // ============================================================
   // TOAST NOTIFICATIONS
   // Usage: window.showToast('Đã thêm vào giỏ hàng', 'success')
   // ============================================================

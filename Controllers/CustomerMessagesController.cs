@@ -72,8 +72,7 @@ public sealed class CustomerMessagesController(
             return "http://localhost:5081/hubs/customer-messages";
         }
 
-        throw new InvalidOperationException(
-            "CustomerMessages:HubUrl must be configured before customer chat can start.");
+        return string.Empty;
     }
 }
 
