@@ -8,6 +8,7 @@ using e_commerce_web_customer.Application.Product;
 using e_commerce_web_customer.Application.Recommendations.Abstractions;
 using e_commerce_web_customer.Application.Recommendations.Services;
 using e_commerce_web_customer.Application.Search;
+using e_commerce_web_customer.Application.Search.ContentBased;
 using e_commerce_web_customer.Data;
 using e_commerce_web_customer.Infrastructure.Account.Db;
 using e_commerce_web_customer.Infrastructure.Account.Mock;
@@ -34,6 +35,7 @@ using e_commerce_web_customer.Infrastructure.Recommendations.Providers;
 using e_commerce_web_customer.Infrastructure.Recommendations.Rules;
 using e_commerce_web_customer.Infrastructure.Recommendations.Services;
 using e_commerce_web_customer.Infrastructure.Search.Db;
+using e_commerce_web_customer.Infrastructure.Search.ContentBased;
 using e_commerce_web_customer.Infrastructure.Search.Mock;
 using e_commerce_web_customer.Infrastructure.Wishlist;
 using e_commerce_web_customer.Models.Entities;
@@ -68,6 +70,7 @@ public static class StorefrontServiceCollectionExtensions
     public static IServiceCollection AddMockStorefrontServices(
         this IServiceCollection services)
     {
+        services.AddSingleton<IContentBasedSearchRanker, ContentBasedSearchRanker>();
         services.AddSingleton<IProductCatalog, MockProductCatalog>();
         services.AddSingleton<ISiteCategoryMenuProvider, MockSiteCategoryMenuProvider>();
         services.AddSingleton<IProductDetailViewModelFactory, MockProductDetailViewModelFactory>();
@@ -129,6 +132,7 @@ public static class StorefrontServiceCollectionExtensions
             configuration.GetSection(GeminiOptions.SectionName));
         services.AddHttpClient<IAiService, AiService>(client =>
             client.Timeout = TimeSpan.FromSeconds(30));
+        services.AddSingleton<IContentBasedSearchRanker, ContentBasedSearchRanker>();
         services.AddScoped<IProductRecommendationService, ProductRecommendationService>();
         services.AddScoped<ICartAccessoryRecommendationService, CartAccessoryRecommendationService>();
         services.AddScoped<IRecommendationProvider, AprioriOrderRecommendationProvider>();

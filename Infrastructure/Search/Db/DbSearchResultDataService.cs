@@ -1,6 +1,7 @@
 using e_commerce_web_customer.Application.Contracts;
 using e_commerce_web_customer.Application.Products;
 using e_commerce_web_customer.Application.Search;
+using e_commerce_web_customer.Application.Search.ContentBased;
 using e_commerce_web_customer.Infrastructure.Caching;
 using e_commerce_web_customer.ViewModels.Search;
 using Microsoft.Extensions.Caching.Memory;
@@ -9,6 +10,7 @@ namespace e_commerce_web_customer.Infrastructure.Search.Db;
 
 public sealed class DbSearchResultDataService(
     IProductCatalog productCatalog,
+    IContentBasedSearchRanker contentBasedSearchRanker,
     IMemoryCache cache)
     : ISearchResultDataService
 {
@@ -22,7 +24,7 @@ public sealed class DbSearchResultDataService(
         var sort = NormalizeSort(request.Sort);
         var category = request.Category?.Trim();
         var page = Math.Max(1, request.Page);
-        var cacheKey = $"search-result-page-v3:{query}:{sort}:{category?.ToLowerInvariant() ?? "all"}:{page}";
+        var cacheKey = $"search-result-page-cba-v2:{query}:{sort}:{category?.ToLowerInvariant() ?? "all"}:{page}";
 
         return cache.GetOrCreateExclusiveAsync(
             cacheKey,
@@ -41,6 +43,7 @@ public sealed class DbSearchResultDataService(
         CancellationToken cancellationToken)
     {
         var query = SearchTextNormalizer.CleanQuery(request.Query);
+        var queryProfile = contentBasedSearchRanker.CreateQuery(query);
         var sort = NormalizeSort(request.Sort);
         var category = request.Category?.Trim();
         var allProducts = await productCatalog.SearchAsync(
@@ -95,7 +98,11 @@ public sealed class DbSearchResultDataService(
                             Slug = product.CategorySlug!,
                             Name = product.CategoryName!
                         })
-                    .OrderByDescending(group => group.Count())
+                    .OrderByDescending(group => CalculateCategoryRelevance(
+                        queryProfile,
+                        group.Key.Name,
+                        group.Key.Slug))
+                    .ThenByDescending(group => group.Count())
                     .ThenBy(group => group.Key.Name)
                     .Select(group => new SearchResultCategoryViewModel
                     {
@@ -113,8 +120,56 @@ public sealed class DbSearchResultDataService(
                 CreateSortOption("Giá cao", "price-desc", query, sort, category),
                 CreateSortOption("Giá thấp", "price-asc", query, sort, category)
             ],
-            Products = pageProducts.Select(ProductViewModelMapper.ToProductCard).ToList()
+            Products = pageProducts.Select(ProductViewModelMapper.ToSearchResultProductCard).ToList()
         };
+    }
+
+    private static int CalculateCategoryRelevance(
+        ContentBasedSearchQuery query,
+        string categoryName,
+        string categorySlug)
+    {
+        if (!query.HasQuery)
+        {
+            return 0;
+        }
+
+        var normalizedCategory = SearchTextNormalizer.Normalize($"{categoryName} {categorySlug}");
+        var compactCategory = Compact(normalizedCategory);
+        var score = 0;
+
+        foreach (var term in query.PreferredCategoryTerms)
+        {
+            if (CategoryMatchesTerm(normalizedCategory, compactCategory, term))
+            {
+                score += 1_000;
+            }
+        }
+
+        foreach (var term in query.SignificantTerms)
+        {
+            if (CategoryMatchesTerm(normalizedCategory, compactCategory, term))
+            {
+                score += 80;
+            }
+        }
+
+        return score;
+    }
+
+    private static bool CategoryMatchesTerm(
+        string normalizedCategory,
+        string compactCategory,
+        string term)
+    {
+        var normalizedTerm = SearchTextNormalizer.Normalize(term);
+        if (normalizedTerm.Length == 0)
+        {
+            return false;
+        }
+
+        return normalizedCategory.Contains(normalizedTerm, StringComparison.Ordinal)
+            || compactCategory.Contains(Compact(normalizedTerm), StringComparison.Ordinal);
     }
 
     private static string BuildSearchUrl(
@@ -171,5 +226,10 @@ public sealed class DbSearchResultDataService(
             "price-asc" => "price-asc",
             _ => "relevance"
         };
+    }
+
+    private static string Compact(string value)
+    {
+        return value.Replace(" ", string.Empty, StringComparison.Ordinal);
     }
 }

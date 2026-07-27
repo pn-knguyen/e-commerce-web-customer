@@ -55,7 +55,7 @@ public sealed class MockSearchResultProvider(
             HasMoreProducts = page * PageSize < totalCount,
             Categories = CreateCategories(query),
             SortOptions = CreateSortOptions(query, sort),
-            Products = pageProducts.Select(ProductViewModelMapper.ToProductCard).ToList()
+            Products = pageProducts.Select(ProductViewModelMapper.ToSearchResultProductCard).ToList()
         };
     }
 

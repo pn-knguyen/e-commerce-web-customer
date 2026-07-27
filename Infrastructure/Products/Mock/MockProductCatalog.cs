@@ -1,10 +1,12 @@
 using e_commerce_web_customer.Application.Contracts;
 using e_commerce_web_customer.Application.Products;
 using e_commerce_web_customer.Application.Search;
+using e_commerce_web_customer.Application.Search.ContentBased;
 
 namespace e_commerce_web_customer.Infrastructure.Products.Mock;
 
-public sealed class MockProductCatalog : IProductCatalog
+public sealed class MockProductCatalog(
+    IContentBasedSearchRanker contentBasedSearchRanker) : IProductCatalog
 {
     private const string PhoneImageRoot = "/images/products/phone";
     private const string DefaultPromotion =
@@ -64,22 +66,15 @@ public sealed class MockProductCatalog : IProductCatalog
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        var normalizedQuery = SearchTextNormalizer.Normalize(request.Query ?? string.Empty);
-        IEnumerable<ProductReadModel> result = string.IsNullOrWhiteSpace(normalizedQuery)
-            ? Products
-            : Products
-                .Where(product => SearchTextNormalizer.Normalize(product.SearchText)
-                    .Contains(normalizedQuery, StringComparison.Ordinal));
-
+        IEnumerable<ProductReadModel> result = Products;
         if (request.Scope == ProductCatalogSearchScope.Products)
         {
             result = DeduplicateProducts(result);
         }
 
-        if (request.Limit is > 0)
-        {
-            result = result.Take(request.Limit.Value);
-        }
+        result = contentBasedSearchRanker
+            .Rank(result, request.Query, request.Limit)
+            .Select(item => item.Product);
 
         return Task.FromResult<IReadOnlyList<ProductReadModel>>(result.ToList());
     }

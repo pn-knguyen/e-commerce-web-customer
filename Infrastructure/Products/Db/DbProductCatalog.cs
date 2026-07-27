@@ -1,6 +1,7 @@
 using e_commerce_web_customer.Application.Contracts;
 using e_commerce_web_customer.Application.Products;
 using e_commerce_web_customer.Application.Search;
+using e_commerce_web_customer.Application.Search.ContentBased;
 using e_commerce_web_customer.Data;
 using e_commerce_web_customer.Infrastructure.Caching;
 using e_commerce_web_customer.Models.Entities;
@@ -12,10 +13,11 @@ namespace e_commerce_web_customer.Infrastructure.Products.Db;
 public sealed class DbProductCatalog(
     EcommerceDbContext dbContext,
     IMemoryCache cache,
-    StorefrontDbQueryGate dbQueryGate) : IProductCatalog
+    StorefrontDbQueryGate dbQueryGate,
+    IContentBasedSearchRanker contentBasedSearchRanker) : IProductCatalog
 {
-    private const int MaxSuggestionCandidates = 100;
-    private const int MaxSearchTerms = 8;
+    private const int MaxSuggestionResults = 100;
+    private const int MaxSearchCandidates = 500;
 
     public Task<IReadOnlyList<ProductReadModel>> SearchAsync(
         ProductCatalogSearchRequest request,
@@ -23,14 +25,15 @@ public sealed class DbProductCatalog(
     {
         var query = NormalizeQuery(request.Query);
         var effectiveLimit = request.Limit is > 0
-            ? Math.Clamp(request.Limit.Value, 1, MaxSuggestionCandidates)
-            : MaxSuggestionCandidates;
+            ? Math.Clamp(request.Limit.Value, 1, MaxSuggestionResults)
+            : (int?)null;
         var normalizedRequest = request with
         {
             Query = query,
             Limit = effectiveLimit
         };
-        var cacheKey = $"product-search-v4:{normalizedRequest.Scope}:{effectiveLimit}:{query}";
+        var cacheLimit = effectiveLimit?.ToString() ?? "all";
+        var cacheKey = $"product-search-cba-v2:{normalizedRequest.Scope}:{cacheLimit}:{query}";
 
         return cache.GetOrCreateExclusiveAsync(
             cacheKey,
@@ -48,23 +51,26 @@ public sealed class DbProductCatalog(
         CancellationToken cancellationToken)
     {
         var query = NormalizeQuery(request.Query);
-        var terms = BuildSearchTerms(query);
+        var profile = contentBasedSearchRanker.CreateQuery(query);
+        var terms = profile.CandidateTerms;
         var candidateLimit = GetCandidateLimit(request.Limit);
         var searchIndex = await GetSearchIndexAsync();
         IEnumerable<ProductSearchIndexEntry> matchingEntries = searchIndex;
 
-        foreach (var term in terms)
+        if (terms.Count > 0)
         {
             matchingEntries = matchingEntries.Where(entry =>
-                entry.SearchText.Contains(term, StringComparison.Ordinal));
+                terms.Any(term => EntryMatchesTerm(entry, term))
+                || EntryMatchesCompactQuery(entry, profile.NormalizedQuery));
         }
 
         var candidateIds = matchingEntries
-            .OrderByDescending(entry => entry.IsFeatured)
+            .OrderByDescending(entry => CalculateIndexPriority(profile, entry))
+            .ThenByDescending(entry => entry.IsFeatured)
             .ThenByDescending(entry => entry.TotalSoldCount)
             .ThenByDescending(entry => entry.ViewsCount)
             .ThenBy(entry => entry.Id)
-            .Take(candidateLimit ?? MaxSuggestionCandidates)
+            .Take(candidateLimit ?? MaxSearchCandidates)
             .Select(entry => entry.Id)
             .ToList();
 
@@ -77,36 +83,32 @@ public sealed class DbProductCatalog(
             .Where(product => candidateIds.Contains(product.Id))
             .Include(product => product.Brand)
             .Include(product => product.Category)
+            .Include(product => product.ProductSpecifications)
+                .ThenInclude(specification => specification.Specification)
             .Include(product => product.ProductVariants.Where(variant => variant.IsActive))
                 .ThenInclude(variant => variant.ProductVariantImages
                     .OrderBy(image => image.Position)
                     .ThenBy(image => image.Id)
-                    .Take(1));
-
-        if (request.Scope == ProductCatalogSearchScope.Variants)
-        {
-            candidateDetails = candidateDetails
-                .Include(product => product.ProductVariants.Where(variant => variant.IsActive))
+                    .Take(1))
+            .Include(product => product.ProductVariants.Where(variant => variant.IsActive))
                 .ThenInclude(variant => variant.VariantAttributes)
                 .ThenInclude(attribute => attribute.AttributeOption)
                     .ThenInclude(option => option!.Attribute);
-        }
 
         var candidates = await candidateDetails
             .AsSplitQuery()
             .ToListAsync(cancellationToken);
 
-        var normalizedQuery = SearchTextNormalizer.Normalize(query);
         var searchResults = request.Scope == ProductCatalogSearchScope.Variants
-            ? BuildVariantResults(candidates, normalizedQuery)
-            : BuildProductResults(candidates, normalizedQuery);
+            ? BuildVariantResults(candidates, query)
+            : BuildProductResults(candidates, query);
 
         if (request.Limit is > 0)
         {
             searchResults = searchResults.Take(Math.Clamp(
                 request.Limit.Value,
                 1,
-                MaxSuggestionCandidates));
+                MaxSuggestionResults));
         }
 
         return searchResults.ToList();
@@ -115,7 +117,7 @@ public sealed class DbProductCatalog(
     private Task<IReadOnlyList<ProductSearchIndexEntry>> GetSearchIndexAsync()
     {
         return cache.GetOrCreateExclusiveAsync(
-            "product-search-index-v1",
+            "product-search-index-cba-v2",
             () => LoadSearchIndexAsync(CancellationToken.None),
             new MemoryCacheEntryOptions
             {
@@ -137,6 +139,7 @@ public sealed class DbProductCatalog(
                 && variant.Product.Category != null
                 && variant.Product.Category.IsActive)
             .Select(variant => new ProductSearchIndexRow(
+                variant.Id,
                 variant.Product!.Id,
                 variant.Product.Name,
                 variant.Product.Slug,
@@ -151,16 +154,57 @@ public sealed class DbProductCatalog(
                 variant.ColorName))
             .ToListAsync(cancellationToken);
 
+        var productIds = rows
+            .Select(row => row.ProductId)
+            .Distinct()
+            .ToArray();
+        var specificationTexts = await dbContext.ProductSpecifications
+            .AsNoTracking()
+            .Where(item => productIds.Contains(item.ProductId))
+            .Select(item => new ProductSearchIndexTextRow(
+                item.ProductId,
+                ((item.Specification != null ? item.Specification.Name : string.Empty) + " "
+                    + (item.Specification != null ? item.Specification.Key : string.Empty) + " "
+                    + item.Value).Trim()))
+            .ToListAsync(cancellationToken);
+        var attributeTexts = await dbContext.VariantAttributes
+            .AsNoTracking()
+            .Where(item => item.ProductVariant != null
+                && item.ProductVariant.IsActive
+                && productIds.Contains(item.ProductVariant.ProductId)
+                && item.AttributeOption != null
+                && item.AttributeOption.Attribute != null)
+            .Select(item => new ProductSearchIndexTextRow(
+                item.ProductVariant!.ProductId,
+                (item.AttributeOption!.Attribute!.Name + " "
+                    + item.AttributeOption.Attribute.Code + " "
+                    + item.AttributeOption.Label + " "
+                    + item.AttributeOption.Value).Trim()))
+            .ToListAsync(cancellationToken);
+        var specificationsByProduct = specificationTexts
+            .GroupBy(item => item.ProductId)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Select(item => item.Text).ToList());
+        var attributesByProduct = attributeTexts
+            .GroupBy(item => item.ProductId)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Select(item => item.Text).ToList());
+
         return rows
             .GroupBy(row => row.ProductId)
             .Select(group =>
             {
                 var product = group.First();
+                specificationsByProduct.TryGetValue(product.ProductId, out var specificationText);
+                attributesByProduct.TryGetValue(product.ProductId, out var attributeText);
                 return new ProductSearchIndexEntry(
                 product.ProductId,
                 product.IsFeatured,
                 product.TotalSoldCount,
                 product.ViewsCount,
+                SearchTextNormalizer.Normalize($"{product.CategoryName} {product.CategorySlug}"),
                 SearchTextNormalizer.Normalize(string.Join(
                     ' ',
                     new[]
@@ -173,6 +217,8 @@ public sealed class DbProductCatalog(
                         product.CategorySlug
                     }
                     .Concat(group.SelectMany(row => new[] { row.Code, row.ColorName }))
+                    .Concat(specificationText ?? [])
+                    .Concat(attributeText ?? [])
                     .Where(value => !string.IsNullOrWhiteSpace(value)))));
             })
             .ToList();
@@ -222,11 +268,17 @@ public sealed class DbProductCatalog(
         var product = await products
             .Include(item => item.Brand)
             .Include(item => item.Category)
+            .Include(item => item.ProductSpecifications)
+                .ThenInclude(specification => specification.Specification)
             .Include(item => item.ProductVariants.Where(variant => variant.IsActive))
                 .ThenInclude(variant => variant.ProductVariantImages
                     .OrderBy(image => image.Position)
                     .ThenBy(image => image.Id)
                     .Take(1))
+            .Include(item => item.ProductVariants.Where(variant => variant.IsActive))
+                .ThenInclude(variant => variant.VariantAttributes)
+                .ThenInclude(attribute => attribute.AttributeOption)
+                    .ThenInclude(option => option!.Attribute)
             .AsSplitQuery()
             .FirstOrDefaultAsync(cancellationToken);
 
@@ -245,47 +297,27 @@ public sealed class DbProductCatalog(
                 && product.ProductVariants.Any(variant => variant.IsActive));
     }
 
-    private static IEnumerable<ProductReadModel> BuildProductResults(
+    private IEnumerable<ProductReadModel> BuildProductResults(
         IEnumerable<Product> candidates,
-        string normalizedQuery)
+        string query)
     {
-        return candidates
-            .Select(product => new
-            {
-                Result = DbProductSearchMapper.Map(product),
-                Relevance = DbProductSearchRanker.CalculateRelevance(
-                    product,
-                    normalizedQuery)
-            })
-            .OrderByDescending(item => string.IsNullOrWhiteSpace(normalizedQuery)
-                ? item.Result.PopularityScore
-                : item.Relevance)
-            .ThenByDescending(item => item.Result.PopularityScore)
-            .ThenBy(item => item.Result.Name)
-            .Select(item => item.Result);
+        var products = candidates.Select(DbProductSearchMapper.Map);
+        return contentBasedSearchRanker
+            .Rank(products, query)
+            .Select(item => item.Product);
     }
 
-    private static IEnumerable<ProductReadModel> BuildVariantResults(
+    private IEnumerable<ProductReadModel> BuildVariantResults(
         IEnumerable<Product> candidates,
-        string normalizedQuery)
+        string query)
     {
-        return candidates
+        var variants = candidates
             .SelectMany(product => product.ProductVariants
                 .Where(variant => variant.IsActive)
-                .Select(variant => new
-                {
-                    Result = DbProductSearchMapper.MapVariant(product, variant),
-                    Relevance = DbProductSearchRanker.CalculateRelevance(
-                        product,
-                        variant,
-                        normalizedQuery)
-                }))
-            .OrderByDescending(item => string.IsNullOrWhiteSpace(normalizedQuery)
-                ? item.Result.PopularityScore
-                : item.Relevance)
-            .ThenByDescending(item => item.Result.PopularityScore)
-            .ThenBy(item => item.Result.Name)
-            .Select(item => item.Result);
+                .Select(variant => DbProductSearchMapper.MapVariant(product, variant)));
+        return contentBasedSearchRanker
+            .Rank(variants, query)
+            .Select(item => item.Product);
     }
 
     private static string NormalizeQuery(string? query)
@@ -293,28 +325,96 @@ public sealed class DbProductCatalog(
         return SearchTextNormalizer.CleanQuery(query);
     }
 
-    private static IReadOnlyList<string> BuildSearchTerms(string query)
-    {
-        return DbProductSearchRanker.BuildTerms(query, MaxSearchTerms);
-    }
-
     private static int? GetCandidateLimit(int? requestedLimit)
     {
         if (requestedLimit is not > 0)
         {
-            return null;
+            return MaxSearchCandidates;
         }
 
         var resultLimit = Math.Clamp(
             requestedLimit.Value,
             1,
-            MaxSuggestionCandidates);
+            MaxSuggestionResults);
         return Math.Min(
-            MaxSuggestionCandidates,
-            Math.Max(resultLimit * 4, 24));
+            MaxSearchCandidates,
+            Math.Max(resultLimit * 8, 40));
+    }
+
+    private static int CalculateIndexPriority(
+        ContentBasedSearchQuery profile,
+        ProductSearchIndexEntry entry)
+    {
+        if (!profile.HasQuery)
+        {
+            return 0;
+        }
+
+        var compactQuery = Compact(profile.NormalizedQuery);
+        var score = 0;
+        if (profile.PreferredCategoryTerms.Count > 0
+            && profile.PreferredCategoryTerms.Any(term => EntryCategoryMatchesTerm(entry, term)))
+        {
+            score += 650;
+        }
+
+        if (compactQuery.Length >= 3
+            && Compact(entry.SearchText).Contains(compactQuery, StringComparison.Ordinal))
+        {
+            score += 300;
+        }
+
+        foreach (var term in profile.CandidateTerms)
+        {
+            if (ContainsToken(entry.SearchText, term))
+            {
+                score += 40;
+            }
+            else if (entry.SearchText.Contains(term, StringComparison.Ordinal))
+            {
+                score += 20;
+            }
+        }
+
+        return score;
+    }
+
+    private static bool EntryMatchesTerm(ProductSearchIndexEntry entry, string term)
+    {
+        return ContainsToken(entry.SearchText, term)
+            || entry.SearchText.Contains(term, StringComparison.Ordinal);
+    }
+
+    private static bool EntryMatchesCompactQuery(
+        ProductSearchIndexEntry entry,
+        string normalizedQuery)
+    {
+        var compactQuery = Compact(normalizedQuery);
+        return compactQuery.Length >= 3
+            && Compact(entry.SearchText).Contains(compactQuery, StringComparison.Ordinal);
+    }
+
+    private static bool EntryCategoryMatchesTerm(ProductSearchIndexEntry entry, string term)
+    {
+        var normalizedTerm = SearchTextNormalizer.Normalize(term);
+        return normalizedTerm.Length > 0
+            && (entry.CategoryText.Contains(normalizedTerm, StringComparison.Ordinal)
+                || Compact(entry.CategoryText).Contains(Compact(normalizedTerm), StringComparison.Ordinal));
+    }
+
+    private static bool ContainsToken(string text, string token)
+    {
+        return text.Split(' ', StringSplitOptions.RemoveEmptyEntries)
+            .Any(item => item == token);
+    }
+
+    private static string Compact(string value)
+    {
+        return value.Replace(" ", string.Empty, StringComparison.Ordinal);
     }
 
     private sealed record ProductSearchIndexRow(
+        long VariantId,
         long ProductId,
         string Name,
         string Slug,
@@ -328,10 +428,15 @@ public sealed class DbProductCatalog(
         string Code,
         string? ColorName);
 
+    private sealed record ProductSearchIndexTextRow(
+        long ProductId,
+        string Text);
+
     private sealed record ProductSearchIndexEntry(
         long Id,
         bool IsFeatured,
         int TotalSoldCount,
         int ViewsCount,
+        string CategoryText,
         string SearchText);
 }

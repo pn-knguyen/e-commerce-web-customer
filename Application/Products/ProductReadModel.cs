@@ -18,4 +18,6 @@ public sealed record ProductReadModel(
     string? AvailabilityLabel = null,
     decimal? Rating = null,
     IReadOnlyList<string>? Specifications = null,
-    int PopularityScore = 0);
+    int PopularityScore = 0,
+    string? BrandSlug = null,
+    string? BrandName = null);

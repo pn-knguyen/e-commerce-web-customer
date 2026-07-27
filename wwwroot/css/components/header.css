@@ -286,6 +286,34 @@ body.site-search-open .header-search-form {
   color: #d70018;
 }
 
+.site-search-title-icon svg {
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 2.5;
+}
+
+[data-search-state="results"] .site-search-title {
+  gap: 8px;
+}
+
+[data-search-state="results"] .site-search-title-icon--hot,
+[data-search-state="results"] .site-search-title-icon--search {
+  width: 1em;
+  height: 1em;
+  flex: 0 0 1em;
+  font-size: 1em;
+}
+
+[data-search-state="results"] .site-search-title-icon--search {
+  width: 20px;
+  height: 20px;
+  flex-basis: 20px;
+}
+
 .site-search-reset {
   display: inline-flex;
   align-items: center;
