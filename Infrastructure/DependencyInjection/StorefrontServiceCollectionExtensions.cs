@@ -146,6 +146,7 @@ public static class StorefrontServiceCollectionExtensions
         services.AddScoped<IProductDetailDataService, DbProductDetailDataService>();
         services.AddScoped<ISearchSuggestionDataService, DbSearchSuggestionDataService>();
         services.AddScoped<ISearchResultDataService, DbSearchResultDataService>();
+        services.AddHostedService<SearchWarmupHostedService>();
         services.AddScoped<IHeaderAccountDataService, DbHeaderAccountDataService>();
         services.AddScoped<ISiteCategoryMenuProvider, DbSiteCategoryMenuProvider>();
         services.AddScoped<IProductDetailViewModelFactory, DbProductDetailViewModelFactory>();
