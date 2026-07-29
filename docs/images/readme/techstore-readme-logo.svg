@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="260" viewBox="0 0 960 260" role="img" aria-labelledby="title desc">
+  <title id="title">TechStore Customer Web</title>
+  <desc id="desc">Brand banner for the TechStore customer ecommerce project.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#dc0612"/>
+      <stop offset="0.55" stop-color="#f12032"/>
+      <stop offset="1" stop-color="#111827"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="18" stdDeviation="18" flood-color="#7f1d1d" flood-opacity="0.28"/>
+    </filter>
+  </defs>
+  <rect width="960" height="260" rx="32" fill="#f8fafc"/>
+  <rect x="24" y="24" width="912" height="212" rx="28" fill="url(#bg)" filter="url(#shadow)"/>
+  <g transform="translate(78 68)" fill="#ffffff">
+    <polygon points="18,0 120,0 105,20 3,20"/>
+    <polygon points="28,30 58,30 58,92 40,112 40,50 6,50"/>
+    <polygon points="66,30 112,30 98,50 84,50 84,78 66,96"/>
+  </g>
+  <text x="220" y="118" fill="#ffffff" font-family="Segoe UI, Arial, sans-serif" font-size="58" font-weight="800">
+    Tech<tspan font-weight="400">Store</tspan>
+  </text>
+  <text x="222" y="156" fill="#ffffff" fill-opacity="0.9" font-family="Segoe UI, Arial, sans-serif" font-size="20" font-weight="600" letter-spacing="2">
+    CUSTOMER ECOMMERCE WEB
+  </text>
+  <text x="222" y="194" fill="#ffffff" fill-opacity="0.78" font-family="Segoe UI, Arial, sans-serif" font-size="18">
+    ASP.NET Core MVC  |  Tailwind CSS  |  SQL Server  |  Firebase  |  Payment integrations
+  </text>
+</svg>
