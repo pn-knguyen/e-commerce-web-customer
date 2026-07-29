@@ -10,6 +10,18 @@ public static class ProductViewModelMapper
 
     public static ProductCardViewModel ToProductCard(ProductReadModel product)
     {
+        return ToProductCard(product, includeSpecifications: true);
+    }
+
+    public static ProductCardViewModel ToSearchResultProductCard(ProductReadModel product)
+    {
+        return ToProductCard(product, includeSpecifications: false);
+    }
+
+    private static ProductCardViewModel ToProductCard(
+        ProductReadModel product,
+        bool includeSpecifications)
+    {
         return new ProductCardViewModel
         {
             Id = product.Id,
@@ -30,7 +42,7 @@ public static class ProductViewModelMapper
                 : null,
             PromotionNote = product.PromotionNote,
             AvailabilityLabel = product.AvailabilityLabel,
-            Specifications = product.Specifications ?? [],
+            Specifications = includeSpecifications ? product.Specifications ?? [] : [],
             DeliveryLabel = "Giao 2 giờ",
             Location = "Hồ Chí Minh",
             Rating = product.Rating

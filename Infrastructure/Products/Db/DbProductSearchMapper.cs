@@ -55,8 +55,10 @@ internal static class DbProductSearchMapper
                 ? null
                 : "Tạm hết hàng",
             product.RatingAverage > 0 ? product.RatingAverage : null,
-            [],
-            DbProductSearchRanker.CalculatePopularity(product));
+            BuildSpecificationHighlights(product),
+            DbProductPopularityScorer.Calculate(product),
+            product.Brand?.Slug,
+            product.Brand?.Name);
     }
 
     public static ProductReadModel MapVariant(Product product, ProductVariant variant)
@@ -94,8 +96,10 @@ internal static class DbProductSearchMapper
             product.Category?.Name,
             variant.Quantity > 0 ? null : "Tạm hết hàng",
             product.RatingAverage > 0 ? product.RatingAverage : null,
-            [],
-            DbProductSearchRanker.CalculatePopularity(product, variant));
+            BuildSpecificationHighlights(product, variant),
+            DbProductPopularityScorer.Calculate(product, variant),
+            product.Brand?.Slug,
+            product.Brand?.Name);
     }
 
     public static string BuildSearchText(Product product)
@@ -270,5 +274,29 @@ internal static class DbProductSearchMapper
         }
 
         return "/" + imagePath.TrimStart('/');
+    }
+
+    private static IReadOnlyList<string> BuildSpecificationHighlights(
+        Product product,
+        ProductVariant? variant = null)
+    {
+        var specifications = product.ProductSpecifications
+            .OrderBy(item => item.SortOrder)
+            .ThenBy(item => item.SpecificationId)
+            .Select(item => string.IsNullOrWhiteSpace(item.Specification?.Name)
+                ? item.Value
+                : $"{item.Specification.Name}: {item.Value}");
+        var attributes = variant?.VariantAttributes
+            .Select(item => item.AttributeOption?.Label ?? item.AttributeOption?.Value)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .OfType<string>()
+            ?? [];
+
+        return specifications
+            .Concat(attributes)
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(4)
+            .ToList();
     }
 }
